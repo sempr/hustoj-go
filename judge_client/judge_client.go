@@ -1,0 +1,587 @@
+package main
+
+import (
+	"bufio"
+	"database/sql"
+	"fmt"
+	"log/slog" // 导入 slog
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+	"time"
+  "sort"
+	_ "github.com/go-sql-driver/mysql"
+)
+
+// --- 常量定义 (来自 C++ defines) ---
+
+// 判题结果
+const (
+	OJ_WT0 = 0  // 提交排队
+	OJ_WT1 = 1  // 重判排队
+	OJ_CI  = 2  // 编译中
+	OJ_RI  = 3  // 运行中
+	OJ_AC  = 4  // 答案正确
+	OJ_PE  = 5  // 格式错误
+	OJ_WA  = 6  // 答案错误
+	OJ_TL  = 7  // 时间超限
+	OJ_ML  = 8  // 内存超限
+	OJ_OL  = 9  // 输出超限
+	OJ_RE  = 10 // 运行错误
+	OJ_CE  = 11 // 编译错误
+	OJ_CO  = 12 // 编译完成
+	OJ_TR  = 13 // 测试运行结束
+	OJ_MC  = 14 // 等待裁判手工确认
+)
+
+// 语言代码
+const (
+	LANG_C         = 0
+	LANG_CPP       = 1
+	LANG_PASCAL    = 2
+	LANG_JAVA      = 3
+	LANG_RUBY      = 4
+	LANG_BASH      = 5
+	LANG_PYTHON    = 6
+	LANG_PHP       = 7
+	LANG_PERL      = 8
+	LANG_CSHARP    = 9
+	LANG_OBJC      = 10
+	LANG_FREEBASIC = 11
+	LANG_SCHEME    = 12
+	LANG_CLANG     = 13
+	LANG_CLANGPP   = 14
+	LANG_LUA       = 15
+	LANG_JS        = 16
+	LANG_GO        = 17
+	LANG_SQL       = 18
+	LANG_FORTRAN   = 19
+	LANG_MATLAB    = 20
+	LANG_COBOL     = 21
+	LANG_R         = 22
+	LANG_SB3       = 23
+	LANG_CJ        = 24
+)
+
+// 语言扩展名
+var langExt = map[int]string{
+	LANG_C:         "c",
+	LANG_CPP:       "cc",
+	LANG_PASCAL:    "pas",
+	LANG_JAVA:      "java",
+	LANG_RUBY:      "rb",
+	LANG_BASH:      "sh",
+	LANG_PYTHON:    "py",
+	LANG_PHP:       "php",
+	LANG_PERL:      "pl",
+	LANG_CSHARP:    "cs",
+	LANG_OBJC:      "m",
+	LANG_FREEBASIC: "bas",
+	LANG_SCHEME:    "scm",
+	LANG_CLANG:     "c",
+	LANG_CLANGPP:   "cc",
+	LANG_LUA:       "lua",
+	LANG_JS:        "js",
+	LANG_GO:        "go",
+	LANG_SQL:       "sql",
+	LANG_FORTRAN:   "f95",
+	LANG_MATLAB:    "m",
+	LANG_COBOL:     "cob",
+	LANG_R:         "R",
+	LANG_SB3:       "sb3",
+	LANG_CJ:        "cj",
+}
+
+// --- 配置信息 ---
+
+// 配置变量 (简化 C++ 中的全局变量)
+var (
+	dbHost     string
+	dbPort     int
+	dbUser     string
+	dbPass     string
+	dbName     string
+	ojHome     string
+	tbName     string = "solution" // 默认表名
+	httpJudgerName string = "go_judger" // 充当 judger 字段
+)
+
+// initJudgeConf (使用 slog)
+// 从 /home/judge/etc/judge.conf 读取配置
+func initJudgeConf(homePath string) {
+	ojHome = homePath
+
+	// 1. 设置默认值
+	dbHost = "127.0.0.1"
+	dbPort = 3306
+	dbUser = "root"
+	dbPass = "password" // 默认值，应在配置文件中覆盖
+	dbName = "hustoj"
+
+	slog.Info("正在加载配置...")
+
+	// 2. 构造配置文件路径
+	confPath := filepath.Join(ojHome, "etc", "judge.conf")
+	slog.Info("尝试读取配置文件", "path", confPath)
+
+	// 3. 打开并解析文件
+	file, err := os.Open(confPath)
+	if err != nil {
+		slog.Warn("配置文件未找到，将使用默认值", "path", confPath)
+		// 记录正在使用的默认值
+		slog.Info("  使用默认值", "OJ_HOME", ojHome)
+		slog.Info("  使用默认值", "DB_HOST", dbHost)
+		slog.Info("  使用默认值", "DB_PORT", dbPort)
+		slog.Info("  使用默认值", "DB_NAME", dbName)
+		return
+	}
+	defer file.Close()
+
+	// 4. 解析键值对 (key=value)
+	config := make(map[string]string)
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if len(line) == 0 || line[0] == '#' {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		key := strings.TrimSpace(parts[0])
+		value := strings.TrimSpace(parts[1])
+		config[key] = value
+	}
+
+	if err := scanner.Err(); err != nil {
+		slog.Warn("读取配置文件时出错，将尽可能使用已解析的值", "error", err)
+	}
+
+	// 5. 使用配置文件中的值覆盖默认值
+	if val, ok := config["OJ_HOST_NAME"]; ok {
+		dbHost = val
+	}
+	if val, ok := config["OJ_PORT_NUMBER"]; ok {
+		if port, err := strconv.Atoi(val); err == nil {
+			dbPort = port
+		} else {
+			slog.Warn("无效的 OJ_PORT_NUMBER", "value", val, "default", dbPort)
+		}
+	}
+	if val, ok := config["OJ_USER_NAME"]; ok {
+		dbUser = val
+	}
+	if val, ok := config["OJ_PASSWORD"]; ok {
+		dbPass = val
+	}
+	if val, ok := config["OJ_DB_NAME"]; ok {
+		dbName = val
+	}
+
+	// 6. 记录最终配置 (注意：不要记录密码)
+	slog.Info("配置加载成功")
+	slog.Info("  OJ_HOME", "value", ojHome)
+	slog.Info("  DB_HOST", "value", dbHost)
+	slog.Info("  DB_PORT", "value", dbPort)
+	slog.Info("  DB_NAME", "value", dbName)
+	slog.Info("  DB_USER", "value", dbUser)
+}
+
+// --- 数据库交互 ---
+
+var db *sql.DB
+
+// initMySQLConn (使用 slog)
+func initMySQLConn() error {
+	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8",
+		dbUser, dbPass, dbHost, dbPort, dbName)
+
+	var err error
+	db, err = sql.Open("mysql", dsn)
+	if err != nil {
+		return fmt.Errorf("无法打开数据库连接: %v", err)
+	}
+
+	db.SetConnMaxLifetime(time.Minute * 3)
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(10)
+
+	if err = db.Ping(); err != nil {
+		return fmt.Errorf("无法连接到数据库: %v", err)
+	}
+
+	if _, err = db.Exec("SET NAMES utf8"); err != nil {
+		return fmt.Errorf("无法设置 UTF8: %v", err)
+	}
+
+	slog.Info("数据库连接成功")
+	return nil
+}
+
+// getSolutionInfo 对应 C++ 的 _get_solution_info_mysql
+func getSolutionInfo(solutionID int) (pID int, userID string, lang int, cID int, err error) {
+	query := fmt.Sprintf("SELECT problem_id, user_id, language, contest_id FROM %s WHERE solution_id = ?", tbName)
+	var nullCID sql.NullInt64
+	err = db.QueryRow(query, solutionID).Scan(&pID, &userID, &lang, &nullCID)
+	if err != nil {
+		return 0, "", 0, 0, fmt.Errorf("获取提交信息失败: %v", err)
+	}
+	if nullCID.Valid {
+		cID = int(nullCID.Int64)
+	} else {
+		cID = 0
+	}
+	return pID, userID, lang, cID, nil
+}
+
+// getProblemInfo 对应 C++ 的 _get_problem_info_mysql
+func getProblemInfo(pID int) (timeLimit float64, memLimit int, spj int, err error) {
+	query := "SELECT time_limit, memory_limit, spj FROM problem WHERE problem_id = ?"
+	err = db.QueryRow(query, pID).Scan(&timeLimit, &memLimit, &spj)
+	if err != nil {
+		return 0, 0, 0, fmt.Errorf("获取题目信息失败: %v", err)
+	}
+	return timeLimit, memLimit, spj, nil
+}
+
+// getSolution 对应 C++ 的 _get_solution_mysql
+func getSolution(solutionID int) (source string, err error) {
+	query := "SELECT source FROM source_code WHERE solution_id = ?"
+	err = db.QueryRow(query, solutionID).Scan(&source)
+	if err != nil {
+		return "", fmt.Errorf("获取源代码失败: %v", err)
+	}
+	return source, nil
+}
+
+// updateSolution (使用 slog)
+func updateSolution(solutionID int, result int, time int, memory int, passRate float64) error {
+	query := fmt.Sprintf(
+		"UPDATE %s SET result=?, time=?, memory=?, pass_rate=?, judger=?, judgetime=now() WHERE solution_id=?",
+		tbName,
+	)
+	_, err := db.Exec(query, result, time, memory, passRate, httpJudgerName, solutionID)
+	if err != nil {
+		return fmt.Errorf("更新提交状态失败: %v", err)
+	}
+	slog.Info("更新 Solution", "solution_id", solutionID, "result", result, "time_ms", time, "memory_kb", memory, "pass_rate", passRate)
+	return nil
+}
+
+// updateUser (使用 slog)
+func updateUser(userID string) error {
+	querySolved := "UPDATE `users` SET `solved`=(SELECT count(DISTINCT `problem_id`) FROM `solution` s WHERE s.`user_id`=? AND s.`result`=4 AND problem_id>0 AND problem_id NOT IN (SELECT problem_id FROM contest_problem WHERE contest_id IN (SELECT contest_id FROM contest WHERE contest_type & 16 > 0 AND end_time>now()))) WHERE `user_id`=?"
+	if _, err := db.Exec(querySolved, userID, userID); err != nil {
+		slog.Warn("更新用户 Solved 失败", "user_id", userID, "error", err)
+	}
+
+	querySubmit := "UPDATE `users` SET `submit`=(SELECT count(DISTINCT `problem_id`) FROM `solution` s WHERE s.`user_id`=? AND problem_id>0 AND problem_id NOT IN (SELECT problem_id FROM contest_problem WHERE contest_id IN (SELECT contest_id FROM contest WHERE contest_type & 16 > 0 AND end_time>now()))) WHERE `user_id`=?"
+	if _, err := db.Exec(querySubmit, userID, userID); err != nil {
+		slog.Warn("更新用户 Submit 失败", "user_id", userID, "error", err)
+	}
+
+	slog.Info("更新用户统计", "user_id", userID)
+	return nil
+}
+
+// updateProblem (使用 slog)
+func updateProblem(pID int, cID int) error {
+	if cID > 0 {
+		queryContestAccepted := "UPDATE `contest_problem` SET `c_accepted`=(SELECT count(*) FROM `solution` WHERE `problem_id`=? AND `result`=4 AND contest_id=?) WHERE `problem_id`=? AND contest_id=?"
+		if _, err := db.Exec(queryContestAccepted, pID, cID, pID, cID); err != nil {
+			slog.Warn("更新竞赛题目 Accepted 失败", "problem_id", pID, "contest_id", cID, "error", err)
+		}
+		queryContestSubmit := "UPDATE `contest_problem` SET `c_submit`=(SELECT count(*) FROM `solution` WHERE `problem_id`=? AND contest_id=?) WHERE `problem_id`=? AND contest_id=?"
+		if _, err := db.Exec(queryContestSubmit, pID, cID, pID, cID); err != nil {
+			slog.Warn("更新竞赛题目 Submit 失败", "problem_id", pID, "contest_id", cID, "error", err)
+		}
+	}
+
+	queryProblemAccepted := "UPDATE `problem` SET `accepted`=(SELECT count(*) FROM `solution` s WHERE s.`problem_id`=? AND s.`result`=4 AND problem_id NOT IN (SELECT problem_id FROM contest_problem WHERE contest_id IN (SELECT contest_id FROM contest WHERE contest_type & 16 > 0 AND end_time>now()))) WHERE `problem_id`=?"
+	if _, err := db.Exec(queryProblemAccepted, pID, pID); err != nil {
+		slog.Warn("更新主题目 Accepted 失败", "problem_id", pID, "error", err)
+	}
+
+	slog.Info("更新题目统计", "problem_id", pID)
+	return nil
+}
+
+// --- 核心功能 (部分为 Stub) ---
+
+// writeSourceCode (使用 slog)
+func writeSourceCode(source string, lang int, workDir string) error {
+	ext, ok := langExt[lang]
+	if !ok {
+		return fmt.Errorf("未知的语言 ID: %d", lang)
+	}
+	fileName := fmt.Sprintf("Main.%s", ext)
+	filePath := filepath.Join(workDir, fileName)
+	err := os.WriteFile(filePath, []byte(source), 0644)
+	if err != nil {
+		return fmt.Errorf("写入源代码失败: %v", err)
+	}
+	slog.Info("源代码已写入", "path", filePath)
+	return nil
+}
+
+// compile (Stub, 使用 slog)
+func compile(lang int, workDir string) int {
+	slog.Info("STUB: 正在编译...", "language", lang, "work_dir", workDir)
+	return 0 // 总是返回 0 (成功)
+}
+
+// addCEInfo (Stub, 使用 slog)
+func addCEInfo(solutionID int) {
+	slog.Info("STUB: 正在添加编译错误信息", "solution_id", solutionID)
+}
+
+func findDataFiles(pID int) ([][]string, error) {
+	dataDir := filepath.Join(ojHome, "data", strconv.Itoa(pID))
+	slog.Info("正在扫描数据文件", "directory", dataDir)
+
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		// 如果目录不存在，这不是一个致命错误，只是意味着没有测试数据。
+		if os.IsNotExist(err) {
+			slog.Warn("数据目录不存在，未找到测试用例", "directory", dataDir)
+			return [][]string{}, nil // 返回空切片，而不是错误
+		}
+		// 其他错误（例如权限问题）是致命的
+		slog.Error("读取数据目录失败", "directory", dataDir, "error", err)
+		return nil, fmt.Errorf("读取数据目录失败 %s: %v", dataDir, err)
+	}
+
+	var inFiles []string
+	// 1. 查找所有 .in 文件
+	for _, entry := range entries {
+		// 忽略子目录
+		if entry.IsDir() {
+			continue
+		}
+
+		fileName := entry.Name()
+		if filepath.Ext(fileName) == ".in" {
+			inFiles = append(inFiles, fileName)
+		}
+	}
+
+	// 2. 对 .in 文件进行排序，以确保判题顺序
+	sort.Strings(inFiles)
+	slog.Info("已找到 .in 文件", "count", len(inFiles))
+
+	// 3. 构建配对
+	var result [][]string
+	for _, inFileName := range inFiles {
+		inFullPath := filepath.Join(dataDir, inFileName)
+
+		// 4. 构造对应的 .out 文件路径
+		baseName := strings.TrimSuffix(inFileName, ".in")
+		outFileName := baseName + ".out"
+		outFullPath := filepath.Join(dataDir, outFileName)
+
+		outPath := "" // 默认 .out 路径为空字符串
+
+		// 5. 检查 .out 文件是否真实存在
+		if _, err := os.Stat(outFullPath); err == nil {
+			// 文件存在
+			outPath = outFullPath
+		} else if !os.IsNotExist(err) {
+			// 如果错误不是 "不存在" (例如：权限问题)，则记录一个警告
+			slog.Warn("无法访问 .out 文件 (将视为空)", "path", outFullPath, "error", err)
+		}
+		// 如果文件 os.IsNotExist(err)，outPath 保持为 ""
+
+		// 6. 添加配对
+		result = append(result, []string{inFullPath, outPath})
+	}
+
+	slog.Info("数据文件配对完成", "pairs", len(result))
+	return result, nil
+}
+
+// runAndCompare (Stub, 使用 slog)
+func runAndCompare(lang int, workDir string, inFile string, outFile string, spj bool) (result int, timeUsed int, memUsed int) {
+  slog.Info("STUB: 正在运行和比对", "in_file", inFile, "out_file", outFile)
+	result = OJ_AC
+	timeUsed = 123 // ms
+	memUsed = 10240 // KB
+	return result, timeUsed, memUsed
+}
+
+// addREInfo (Stub, 使用 slog)
+func addREInfo(solutionID int) {
+	slog.Info("STUB: 添加运行错误信息", "solution_id", solutionID)
+}
+
+// addDiffInfo (Stub, 使用 slog)
+func addDiffInfo(solutionID int) {
+	slog.Info("STUB: 添加 Diff 详情", "solution_id", solutionID)
+}
+
+// cleanWorkDir (Stub, 使用 slog)
+func cleanWorkDir(workDir string) {
+	slog.Info("STUB: 正在清理工作目录", "path", workDir)
+	if err := os.RemoveAll(workDir); err != nil {
+		slog.Warn("清理工作目录失败", "path", workDir, "error", err)
+	}
+}
+
+// --- Main 工作流 ---
+
+func main() {
+	// 0. 设置 slog
+	// 使用 JSON Handler 以便进行结构化日志记录
+	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
+	slog.SetDefault(logger)
+
+	// 1. 初始化参数
+	if len(os.Args) < 3 {
+		fmt.Println("用法: go_judger <solution_id> <runner_id> [oj_home_path]")
+		os.Exit(1)
+	}
+
+	solutionID, err := strconv.Atoi(os.Args[1])
+	if err != nil {
+		slog.Error("无效的 Solution ID", "input", os.Args[1])
+		os.Exit(1)
+	}
+
+	runnerID := os.Args[2]
+	homePath := "/home/judge"
+	if len(os.Args) > 3 {
+		homePath = os.Args[3]
+	}
+
+	slog.Info("开始判题", "solution_id", solutionID, "runner_id", runnerID)
+
+	// 2. 初始化配置和数据库
+	initJudgeConf(homePath)
+	if err := initMySQLConn(); err != nil {
+		slog.Error("数据库初始化失败", "error", err)
+		os.Exit(1)
+	}
+	defer db.Close()
+
+	// 3. 准备工作目录
+	workDir := filepath.Join(ojHome, "run"+runnerID)
+	if err := os.MkdirAll(workDir, 0755); err != nil {
+		slog.Error("创建工作目录失败", "path", workDir, "error", err)
+		os.Exit(1)
+	}
+	defer cleanWorkDir(workDir)
+
+	// 4. 获取判题信息
+	pID, userID, lang, cID, err := getSolutionInfo(solutionID)
+	if err != nil {
+		slog.Error("获取提交信息失败", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("获取信息", "problem_id", pID, "user_id", userID, "language", lang, "contest_id", cID)
+
+	timeLimit, memLimit, spj, err := getProblemInfo(pID)
+	if err != nil {
+		slog.Error("获取题目信息失败", "error", err)
+		os.Exit(1)
+	}
+	slog.Info("题目限制", "time_limit_s", timeLimit, "mem_limit_mb", memLimit, "spj", spj)
+
+	// 5. 获取并写入源代码
+	source, err := getSolution(solutionID)
+	if err != nil {
+		slog.Error("获取源代码失败", "error", err)
+		os.Exit(1)
+	}
+	if err := writeSourceCode(source, lang, workDir); err != nil {
+		slog.Error("写入源代码失败", "error", err)
+		os.Exit(1)
+	}
+
+	// 6. 编译 (Stub)
+	if err := updateSolution(solutionID, OJ_CI, 0, 0, 0.0); err != nil { // 设置为编译中
+		slog.Warn("更新到 '编译中' 失败", "error", err)
+	}
+
+	compileResult := compile(lang, workDir)
+	if compileResult != 0 {
+		slog.Info("编译失败")
+		addCEInfo(solutionID)
+		if err := updateSolution(solutionID, OJ_CE, 0, 0, 0.0); err != nil {
+			slog.Error("更新 '编译失败' 状态失败", "error", err)
+			os.Exit(1)
+		}
+		updateUser(userID)
+		updateProblem(pID, cID)
+		os.Exit(0)
+	}
+
+	if err := updateSolution(solutionID, OJ_RI, 0, 0, 0.0); err != nil { // 设置为运行中
+		slog.Warn("更新到 '运行中' 失败", "error", err)
+	}
+
+	// 7. 运行和比对 (Stub)
+	dataFiles, err := findDataFiles(pID)
+	if err != nil {
+		slog.Error("查找数据文件失败", "error", err)
+		os.Exit(1)
+	}
+
+	var (
+		finalResult = OJ_AC
+		totalTime   = 0
+		peakMemory  = 0
+		passRate    = 0.0
+		testCases   = float64(len(dataFiles))
+	)
+
+	for _, dataFile := range dataFiles {
+		result, timeUsed, memUsed := runAndCompare(lang, workDir, dataFile[0], dataFile[1], spj > 0)
+
+		if timeUsed > totalTime {
+			totalTime = timeUsed
+		}
+		if memUsed > peakMemory {
+			peakMemory = memUsed
+		}
+
+		if result != OJ_AC {
+			finalResult = result
+			slog.Warn("测试点失败", "data_file", dataFile, "result", finalResult)
+			break
+		} else {
+			passRate += 1.0
+			slog.Info("测试点通过", "data_file", dataFile)
+		}
+	}
+
+	// 8. 处理最终结果
+	if testCases > 0 {
+		passRate = passRate / testCases
+	} else if finalResult == OJ_AC {
+		passRate = 1.0
+	}
+
+	if finalResult == OJ_RE {
+		addREInfo(solutionID)
+	} else if finalResult == OJ_WA || finalResult == OJ_PE {
+		addDiffInfo(solutionID)
+	}
+
+	// 9. 更新数据库
+	slog.Info("判题完成", "final_result", finalResult, "total_time_ms", totalTime, "peak_mem_kb", peakMemory, "pass_rate", passRate)
+	if err := updateSolution(solutionID, finalResult, totalTime, peakMemory, passRate); err != nil {
+		slog.Error("更新最终判题结果失败", "error", err)
+		os.Exit(1)
+	}
+
+	if err := updateUser(userID); err != nil {
+		slog.Warn("更新用户统计失败", "error", err)
+	}
+
+	if err := updateProblem(pID, cID); err != nil {
+		slog.Warn("更新题目统计失败", "error", err)
+	}
+
+	slog.Info("判题流程结束")
+}
