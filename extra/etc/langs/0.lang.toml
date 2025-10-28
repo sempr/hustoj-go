@@ -1,0 +1,11 @@
+name = "C"
+
+[fs]
+base = "/var/lib/docker/overlay2/2fb6ee540b6e0cf0f26ebffca4ab0869d69b3c3cff8d2867af2e5985621f0d38/diff:/var/lib/docker/overlay2/a467928a9d31383830f4483cab85fed9b58e06799ae1d3f203b0d9af3d9baaac/diff"
+workdir = "/code"
+
+[cmd]
+compile = "/usr/bin/gcc -o /code/Main /code/Main.c -fno-asm -Wall -lm --static -O2 -std=c99 -DONLINE_JUDGE"
+run  = "/code/Main"
+ver = "/usr/bin/gcc --version"
+

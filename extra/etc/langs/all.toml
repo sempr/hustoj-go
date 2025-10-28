@@ -1,0 +1,129 @@
+[[lang]]
+name = "C"
+id = 0
+suffix = ".c"
+
+[[lang]]
+name = "CPP"
+id = 1
+suffix = ".cc"
+
+[[lang]]
+name = "PASCAL"
+id = 2
+suffix = ".pas"
+
+[[lang]]
+name = "JAVA"
+id = 3
+suffix = ".java"
+
+[[lang]]
+name = "RUBY"
+id = 4
+suffix = ".rb"
+
+[[lang]]
+name = "BASH"
+id = 5
+suffix = ".sh"
+
+[[lang]]
+name = "PYTHON"
+id = 6
+suffix = ".py"
+
+[[lang]]
+name = "PHP"
+id = 7
+suffix = ".php"
+
+[[lang]]
+name = "PERL"
+id = 8
+suffix = ".pl"
+
+[[lang]]
+name = "CSHARP"
+id = 9
+suffix = ".cs"
+
+[[lang]]
+name = "OBJC"
+id = 10
+suffix = ".m"
+
+[[lang]]
+name = "FREEBASIC"
+id = 11
+suffix = ".bas"
+
+[[lang]]
+name = "SCHEME"
+id = 12
+suffix = ".scm"
+
+[[lang]]
+name = "CLANG"
+id = 13
+suffix = ".c"
+
+[[lang]]
+name = "CLANGPP"
+id = 14
+suffix = ".cc"
+
+[[lang]]
+name = "LUA"
+id = 15
+suffix = ".lua"
+
+[[lang]]
+name = "JS"
+id = 16
+suffix = ".js"
+
+[[lang]]
+name = "GO"
+id = 17
+suffix = ".go"
+
+[[lang]]
+name = "SQL"
+id = 18
+suffix = ".sql"
+
+[[lang]]
+name = "FORTRAN"
+id = 19
+suffix = ".f95"
+
+[[lang]]
+name = "MATLAB"
+id = 20
+suffix = ".m"
+
+[[lang]]
+name = "COBOL"
+id = 21
+suffix = ".cob"
+
+[[lang]]
+name = "R"
+id = 22
+suffix = ".R"
+
+[[lang]]
+name = "SB3"
+id = 23
+suffix = ".sb3"
+
+[[lang]]
+name = "CJ"
+id = 24
+suffix = ".cj"
+
+[[lang]]
+name = "RUST"
+id = 25
+suffix = ".rs"

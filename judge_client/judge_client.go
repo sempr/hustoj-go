@@ -7,11 +7,14 @@ import (
 	"log/slog" // 导入 slog
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
-  "sort"
+
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/pelletier/go-toml/v2"
+	"golang.org/x/sys/unix"
 )
 
 // --- 常量定义 (来自 C++ defines) ---
@@ -35,77 +38,87 @@ const (
 	OJ_MC  = 14 // 等待裁判手工确认
 )
 
-// 语言代码
-const (
-	LANG_C         = 0
-	LANG_CPP       = 1
-	LANG_PASCAL    = 2
-	LANG_JAVA      = 3
-	LANG_RUBY      = 4
-	LANG_BASH      = 5
-	LANG_PYTHON    = 6
-	LANG_PHP       = 7
-	LANG_PERL      = 8
-	LANG_CSHARP    = 9
-	LANG_OBJC      = 10
-	LANG_FREEBASIC = 11
-	LANG_SCHEME    = 12
-	LANG_CLANG     = 13
-	LANG_CLANGPP   = 14
-	LANG_LUA       = 15
-	LANG_JS        = 16
-	LANG_GO        = 17
-	LANG_SQL       = 18
-	LANG_FORTRAN   = 19
-	LANG_MATLAB    = 20
-	LANG_COBOL     = 21
-	LANG_R         = 22
-	LANG_SB3       = 23
-	LANG_CJ        = 24
-)
-
-// 语言扩展名
-var langExt = map[int]string{
-	LANG_C:         "c",
-	LANG_CPP:       "cc",
-	LANG_PASCAL:    "pas",
-	LANG_JAVA:      "java",
-	LANG_RUBY:      "rb",
-	LANG_BASH:      "sh",
-	LANG_PYTHON:    "py",
-	LANG_PHP:       "php",
-	LANG_PERL:      "pl",
-	LANG_CSHARP:    "cs",
-	LANG_OBJC:      "m",
-	LANG_FREEBASIC: "bas",
-	LANG_SCHEME:    "scm",
-	LANG_CLANG:     "c",
-	LANG_CLANGPP:   "cc",
-	LANG_LUA:       "lua",
-	LANG_JS:        "js",
-	LANG_GO:        "go",
-	LANG_SQL:       "sql",
-	LANG_FORTRAN:   "f95",
-	LANG_MATLAB:    "m",
-	LANG_COBOL:     "cob",
-	LANG_R:         "R",
-	LANG_SB3:       "sb3",
-	LANG_CJ:        "cj",
-}
-
-// --- 配置信息 ---
-
 // 配置变量 (简化 C++ 中的全局变量)
 var (
-	dbHost     string
-	dbPort     int
-	dbUser     string
-	dbPass     string
-	dbName     string
-	ojHome     string
-	tbName     string = "solution" // 默认表名
+	dbHost         string
+	dbPort         int
+	dbUser         string
+	dbPass         string
+	dbName         string
+	ojHome         string
+	tbName         string = "solution"  // 默认表名
 	httpJudgerName string = "go_judger" // 充当 judger 字段
 )
+
+type langBasic struct {
+	Name   string `toml:"name"`
+	ID     int    `toml:"id"`
+	Suffix string `toml:"suffix"`
+}
+
+type langConfigs struct {
+	Lang []langBasic `toml:"lang"`
+}
+
+type langDetails struct {
+	Name string  `toml:"name"`
+	Fs   FsInfo  `toml:"fs"`
+	Cmd  CmdInfo `toml:"cmd"`
+}
+
+type FsInfo struct {
+	Base    string `toml:"base"`
+	Workdir string `toml:"workdir"`
+}
+
+type CmdInfo struct {
+	Compile string `toml:"compile"`
+	Run     string `toml:"run"`
+	Ver     string `toml:"ver"`
+}
+
+var langMaps map[int]langBasic
+var langDetail langDetails
+
+func getLangMaps(path string) map[int]langBasic {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "错误: 无法读取文件: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 声明一个 Config 变量，用于存储解析后的数据
+	var tempConfig langConfigs
+
+	// 使用 toml.Unmarshal 将文件内容解析到 config 变量中
+	err = toml.Unmarshal(data, &tempConfig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "错误: 无法解析 TOML: %v\n", err)
+		os.Exit(1)
+	}
+
+	langMap := make(map[int]langBasic)
+
+	// 4. 遍历解析出的切片 (tempConfig.Lang)，将其填充到 Map 中
+	for _, lang := range tempConfig.Lang {
+		langMap[lang.ID] = lang
+	}
+	return langMap
+}
+
+func getLangDetails(lang int) langDetails {
+	data, err := os.ReadFile(filepath.Join(ojHome, "etc", "langs", fmt.Sprintf("%d.lang.toml", lang)))
+	if err != nil {
+		panic(err)
+	}
+	var tempConfig langDetails
+	err = toml.Unmarshal(data, &tempConfig)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "parse error")
+		os.Exit(1)
+	}
+	return tempConfig
+}
 
 // initJudgeConf (使用 slog)
 // 从 /home/judge/etc/judge.conf 读取配置
@@ -312,11 +325,12 @@ func updateProblem(pID int, cID int) error {
 
 // writeSourceCode (使用 slog)
 func writeSourceCode(source string, lang int, workDir string) error {
-	ext, ok := langExt[lang]
+	ext1, ok := langMaps[lang]
 	if !ok {
 		return fmt.Errorf("未知的语言 ID: %d", lang)
 	}
-	fileName := fmt.Sprintf("Main.%s", ext)
+	ext := ext1.Suffix
+	fileName := fmt.Sprintf("Main%s", ext)
 	filePath := filepath.Join(workDir, fileName)
 	err := os.WriteFile(filePath, []byte(source), 0644)
 	if err != nil {
@@ -403,9 +417,9 @@ func findDataFiles(pID int) ([][]string, error) {
 
 // runAndCompare (Stub, 使用 slog)
 func runAndCompare(lang int, workDir string, inFile string, outFile string, spj bool) (result int, timeUsed int, memUsed int) {
-  slog.Info("STUB: 正在运行和比对", "in_file", inFile, "out_file", outFile)
+	slog.Info("STUB: 正在运行和比对", "in_file", inFile, "out_file", outFile)
 	result = OJ_AC
-	timeUsed = 123 // ms
+	timeUsed = 123  // ms
 	memUsed = 10240 // KB
 	return result, timeUsed, memUsed
 }
@@ -464,13 +478,8 @@ func main() {
 	}
 	defer db.Close()
 
-	// 3. 准备工作目录
-	workDir := filepath.Join(ojHome, "run"+runnerID)
-	if err := os.MkdirAll(workDir, 0755); err != nil {
-		slog.Error("创建工作目录失败", "path", workDir, "error", err)
-		os.Exit(1)
-	}
-	defer cleanWorkDir(workDir)
+	// 3. 读取语言支持列表
+	langMaps = getLangMaps(filepath.Join(homePath, "etc", "langs", "all.toml"))
 
 	// 4. 获取判题信息
 	pID, userID, lang, cID, err := getSolutionInfo(solutionID)
@@ -487,13 +496,50 @@ func main() {
 	}
 	slog.Info("题目限制", "time_limit_s", timeLimit, "mem_limit_mb", memLimit, "spj", spj)
 
+	// 获取语言对应的环境配置信息
+	langDetail = getLangDetails(lang)
+
+	// TODO: 准备工作目录 使用 overlay2, base作为lower,自建一个upper,merged,workdir,最后操作merged
+	workBaseDir := filepath.Join(ojHome, "run"+runnerID)
+	for _, zdir := range []string{"rootfs", "upper", "tmp"} {
+		toCreateDir := filepath.Join(workBaseDir, zdir)
+		if err := os.MkdirAll(toCreateDir, 0755); err != nil {
+			slog.Error("创建工作目录失败", "path", toCreateDir, "error", err)
+			os.Exit(1)
+		}
+	}
+	defer cleanWorkDir(workBaseDir)
+
+	// do mount here
+
+	options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s",
+		langDetail.Fs.Base,
+		filepath.Join(workBaseDir, "upper"),
+		filepath.Join(workBaseDir, "tmp"),
+	)
+
+	// 3. 设置挂载参数
+	fstype := "overlay"
+	fsource := "overlay" // 对于 overlayfs，source 通常就是 "overlay" 或 "none"
+	flags := uintptr(0)  // 默认挂载标志
+	rootfs := filepath.Join(workBaseDir, "rootfs")
+	fmt.Printf("mount -t overlay overlay -o %s %s\n", options, rootfs)
+	if err := unix.Mount(fsource, rootfs, fstype, flags, options); err != nil {
+		panic(err)
+	}
+
+	defer unix.Unmount(rootfs, 0)
 	// 5. 获取并写入源代码
 	source, err := getSolution(solutionID)
 	if err != nil {
 		slog.Error("获取源代码失败", "error", err)
 		os.Exit(1)
 	}
-	if err := writeSourceCode(source, lang, workDir); err != nil {
+	err = os.MkdirAll(filepath.Join(rootfs, "code"), 0777)
+	if err != nil {
+		panic(err)
+	}
+	if err := writeSourceCode(source, lang, filepath.Join(rootfs, "code")); err != nil {
 		slog.Error("写入源代码失败", "error", err)
 		os.Exit(1)
 	}
@@ -503,7 +549,7 @@ func main() {
 		slog.Warn("更新到 '编译中' 失败", "error", err)
 	}
 
-	compileResult := compile(lang, workDir)
+	compileResult := compile(lang, rootfs)
 	if compileResult != 0 {
 		slog.Info("编译失败")
 		addCEInfo(solutionID)
@@ -536,7 +582,7 @@ func main() {
 	)
 
 	for _, dataFile := range dataFiles {
-		result, timeUsed, memUsed := runAndCompare(lang, workDir, dataFile[0], dataFile[1], spj > 0)
+		result, timeUsed, memUsed := runAndCompare(lang, rootfs, dataFile[0], dataFile[1], spj > 0)
 
 		if timeUsed > totalTime {
 			totalTime = timeUsed
