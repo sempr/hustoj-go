@@ -1,0 +1,10 @@
+name = "Shell"
+
+[fs]
+base = "/var/lib/docker/overlay2/07538f859f0c5c5863f0d5866b2e6a36e4aa266dd45f123e070487bd51e059eb/diff:/var/lib/docker/overlay2/84945b4bbc59b54923bec7616589048d6e032d229bd7ce88cc7051bb03e08a8d/diff"
+workdir = "/code"
+
+[cmd]
+compile = "/bin/true"
+run  = "/bin/sh /code/Main.sh"
+ver = "/bin/echo \"busybox\""

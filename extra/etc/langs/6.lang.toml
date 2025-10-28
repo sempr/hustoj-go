@@ -1,0 +1,10 @@
+name = "pascal"
+
+[fs]
+base = "/var/lib/docker/overlay2/3a59b43a542516bd2fe9634b5a97f013ac71344e75bba93ab61b7ea1f22eda96/diff:/var/lib/docker/overlay2/2b4aef1b20d0aca900cd3643357e1574757ce631341738c1f729810ff473923a/diff:/var/lib/docker/overlay2/af2c6956b5954e3fe6e96b970fe50a9834fccba731dd7ca05d0e9db4d15e2db9/diff:/var/lib/docker/overlay2/a467928a9d31383830f4483cab85fed9b58e06799ae1d3f203b0d9af3d9baaac/diff"
+workdir = "/code"
+
+[cmd]
+compile = "/bin/true"
+run  = "/usr/local/bin/python /code/Main.py"
+ver = "/usr/local/bin/python -V"
