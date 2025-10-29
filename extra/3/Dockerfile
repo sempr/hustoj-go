@@ -1,4 +1,4 @@
-FROM debian:13-slim
+FROM openjdk:26-slim
+RUN /usr/bin/ln -sf /usr/local/openjdk-26/bin/javac /usr/bin/javac
+RUN /usr/bin/ln -sf /usr/local/openjdk-26/bin/java /usr/bin/java
 
-ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends openjdk-25-jdk-headless && rm -rf /var/lib/apt/lists/*

@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"database/sql"
 	"fmt"
+	"io"
 	"log/slog" // 导入 slog
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -341,8 +343,19 @@ func writeSourceCode(source string, lang int, workDir string) error {
 }
 
 // compile (Stub, 使用 slog)
-func compile(lang int, workDir string) int {
-	slog.Info("STUB: 正在编译...", "language", lang, "work_dir", workDir)
+func compile(lang int, rootDir string) int {
+	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
+	fmt.Println("cmd=", langDetail.Cmd.Compile)
+	cmd := exec.Command("/usr/local/bin/judge-sandbox",
+		fmt.Sprintf("-rootfs=%s", rootDir),
+		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Compile),
+		"-cwd=/code",
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+	slog.Info("STUB: 正在编译...", "language", lang, "work_dir", rootDir)
+	err := cmd.Run()
+	fmt.Println(err)
 	return 0 // 总是返回 0 (成功)
 }
 
@@ -415,13 +428,65 @@ func findDataFiles(pID int) ([][]string, error) {
 	return result, nil
 }
 
+// CopyFile copies the file from src to dst.
+func CopyFile(src, dst string) error {
+	// 1. 打开源文件
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer sourceFile.Close()
+
+	// 2. 创建目标文件
+	// 确保目标目录存在，如果不存在则创建
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destinationFile.Close()
+
+	// 3. 使用 io.Copy 进行文件内容复制
+	if _, err := io.Copy(destinationFile, sourceFile); err != nil {
+		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	// 4. 可选：复制文件权限
+	sourceInfo, err := os.Stat(src)
+	if err == nil { // 如果无法获取源文件信息，则忽略权限复制
+		if err := os.Chmod(dst, sourceInfo.Mode()); err != nil {
+			return fmt.Errorf("failed to set file permissions: %w", err)
+		}
+	}
+
+	return nil
+}
+
 // runAndCompare (Stub, 使用 slog)
-func runAndCompare(lang int, workDir string, inFile string, outFile string, spj bool) (result int, timeUsed int, memUsed int) {
+func runAndCompare(lang int, rootDir string, workDir string, inFile string, outFile string, spj bool) (result int, timeUsed int, memUsed int) {
 	slog.Info("STUB: 正在运行和比对", "in_file", inFile, "out_file", outFile)
+	CopyFile(inFile, filepath.Join(workDir, "data.in"))
+	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
+	cmd := exec.Command("/usr/local/bin/judge-sandbox",
+		fmt.Sprintf("-rootfs=%s", rootDir),
+		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Run),
+		fmt.Sprintf("-stdin=%s", "/code/data.in"),
+		fmt.Sprintf("-stdout=%s", "/code/data.usr"),
+		"-cwd=/code",
+	)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+	slog.Info("STUB: 正在运行...", "language", lang, "work_dir", rootDir, "data", inFile)
+	err := cmd.Run()
+	fmt.Println(err)
+	content, _ := os.ReadFile(filepath.Join(workDir, "data.usr"))
+	fmt.Println("content: ", string(content))
 	result = OJ_AC
-	timeUsed = 123  // ms
-	memUsed = 10240 // KB
-	return result, timeUsed, memUsed
+	timeUsed = 13
+	memUsed = 4096
+	return
 }
 
 // addREInfo (Stub, 使用 slog)
@@ -454,6 +519,11 @@ func main() {
 	if len(os.Args) < 3 {
 		fmt.Println("用法: go_judger <solution_id> <runner_id> [oj_home_path]")
 		os.Exit(1)
+	}
+
+	debug := false
+	if len(os.Args) > 4 && os.Args[4] == "DEBUG" {
+		debug = true
 	}
 
 	solutionID, err := strconv.Atoi(os.Args[1])
@@ -508,7 +578,9 @@ func main() {
 			os.Exit(1)
 		}
 	}
-	defer cleanWorkDir(workBaseDir)
+	if !debug {
+		defer cleanWorkDir(workBaseDir)
+	}
 
 	// do mount here
 
@@ -528,17 +600,21 @@ func main() {
 		panic(err)
 	}
 
-	defer unix.Unmount(rootfs, 0)
+	if !debug {
+		defer unix.Unmount(rootfs, 0)
+	}
 	// 5. 获取并写入源代码
 	source, err := getSolution(solutionID)
 	if err != nil {
 		slog.Error("获取源代码失败", "error", err)
 		os.Exit(1)
 	}
-	err = os.MkdirAll(filepath.Join(rootfs, "code"), 0777)
+	workdir := filepath.Join(rootfs, "code")
+	err = os.MkdirAll(workdir, 0777)
 	if err != nil {
 		panic(err)
 	}
+	os.Chmod(workdir, 0777)
 	if err := writeSourceCode(source, lang, filepath.Join(rootfs, "code")); err != nil {
 		slog.Error("写入源代码失败", "error", err)
 		os.Exit(1)
@@ -582,7 +658,7 @@ func main() {
 	)
 
 	for _, dataFile := range dataFiles {
-		result, timeUsed, memUsed := runAndCompare(lang, rootfs, dataFile[0], dataFile[1], spj > 0)
+		result, timeUsed, memUsed := runAndCompare(lang, rootfs, workdir, dataFile[0], dataFile[1], spj > 0)
 
 		if timeUsed > totalTime {
 			totalTime = timeUsed
