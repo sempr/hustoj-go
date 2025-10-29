@@ -5,6 +5,6 @@ base = "/var/lib/docker/overlay2/07538f859f0c5c5863f0d5866b2e6a36e4aa266dd45f123
 workdir = "/code"
 
 [cmd]
-compile = "/bin/true"
+compile = "/bin/dos2unix Main.sh"
 run  = "/bin/sh /code/Main.sh"
 ver = "/bin/echo \"busybox\""
