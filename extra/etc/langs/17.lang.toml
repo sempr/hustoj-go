@@ -1,11 +1,11 @@
 name = "Go"
 
 [fs]
-base = "/var/lib/docker/overlay2/11b1fcad12ebbe0e1d1632ea37d8f89b98c9802d0683d121b3efd63f86e87042/diff:/var/lib/docker/overlay2/e8f7cc71e62f21c83b090fc16e262497dc461e2c20c7c827034879f50c2f1491/diff:/var/lib/docker/overlay2/7a408b8ef1ded7bc5eb23c6dfb5ec5ef34e076d5828049f34a99392410818418/diff:/var/lib/docker/overlay2/0f3379e001b2a4eb089fe614b806ae3c04ef477bacd1625a483b4c7524cbef16/diff:/var/lib/docker/overlay2/7fd11b20da7d2c5bc1b35afd9f5b26d63ba492dd6a78d1038253bdbad1b88476/diff:/var/lib/docker/overlay2/ac8520bb63ddf456918968b7a920b6ecdbd84afde8e8628d7c1f3aae06d92426/diff:/var/lib/docker/overlay2/8e1226e176214f841034674d508775b71a61d493243109beeccc32cf5c714b33/diff:/var/lib/docker/overlay2/0e41dca9a1b50ff520a92c999216df6e7d6c5910fbd10f97e5af34c917ca6c9d/diff"
+base = "/var/lib/docker/overlay2/ca134a3026b2382a92288bb7e78506288575474dd321f5b766683a87c3645d87/diff:/var/lib/docker/overlay2/a0c8023e31382cb2469cd7ba188f4fea47084c41111e34b479ab042a8550fcf8/diff:/var/lib/docker/overlay2/0f3379e001b2a4eb089fe614b806ae3c04ef477bacd1625a483b4c7524cbef16/diff:/var/lib/docker/overlay2/7fd11b20da7d2c5bc1b35afd9f5b26d63ba492dd6a78d1038253bdbad1b88476/diff:/var/lib/docker/overlay2/ac8520bb63ddf456918968b7a920b6ecdbd84afde8e8628d7c1f3aae06d92426/diff:/var/lib/docker/overlay2/8e1226e176214f841034674d508775b71a61d493243109beeccc32cf5c714b33/diff:/var/lib/docker/overlay2/0e41dca9a1b50ff520a92c999216df6e7d6c5910fbd10f97e5af34c917ca6c9d/diff"
 workdir = "/code"
 
 [cmd]
 compile = "/usr/local/go/bin/go build -o Main Main.go"
 run  = "/code/Main"
 ver = "/usr/local/go/bin/go version"
-env = ["ONLINE_JUDGE=1", "GOROOT=/usr/local/go", "HOME=/tmp", "GOCACHE=/tmp/go-build-cache"]
+env = ["ONLINE_JUDGE=1", "GOROOT=/usr/local/go", "HOME=/tmp", "GOCACHE=/go-cache"]
