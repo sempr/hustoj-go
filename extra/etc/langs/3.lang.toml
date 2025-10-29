@@ -8,3 +8,4 @@ workdir = "/code"
 compile = "/usr/bin/javac Main.java"
 run  = "/usr/bin/java Main"
 ver = "/usr/bin/javac --version"
+env = ["ONLINE_JUDGE=1"]

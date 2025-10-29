@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -74,9 +75,10 @@ type FsInfo struct {
 }
 
 type CmdInfo struct {
-	Compile string `toml:"compile"`
-	Run     string `toml:"run"`
-	Ver     string `toml:"ver"`
+	Compile string   `toml:"compile"`
+	Run     string   `toml:"run"`
+	Ver     string   `toml:"ver"`
+	Env     []string `toml:"env"`
 }
 
 var langMaps map[int]langBasic
@@ -351,6 +353,9 @@ func compile(lang int, rootDir string) int {
 		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Compile),
 		"-cwd=/code",
 	)
+	if len(langDetail.Cmd.Env) > 0 {
+		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
 	slog.Info("STUB: 正在编译...", "language", lang, "work_dir", rootDir)
@@ -476,6 +481,9 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 		fmt.Sprintf("-stdout=%s", "/code/data.usr"),
 		"-cwd=/code",
 	)
+	if len(langDetail.Cmd.Env) > 0 {
+		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
 	slog.Info("STUB: 正在运行...", "language", lang, "work_dir", rootDir, "data", inFile)
@@ -508,6 +516,15 @@ func cleanWorkDir(workDir string) {
 }
 
 // --- Main 工作流 ---
+
+func minimalBindMount(src, dst string) {
+	if err := os.MkdirAll(dst, 0755); err != nil {
+		panic(fmt.Errorf("mkdir %s: %w", dst, err))
+	}
+	if err := syscall.Mount(src, dst, "", syscall.MS_BIND, ""); err != nil {
+		panic(fmt.Errorf("mount %s -> %s failed: %w", src, dst, err))
+	}
+}
 
 func main() {
 	// 0. 设置 slog

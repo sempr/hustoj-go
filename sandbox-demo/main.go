@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -23,7 +24,7 @@ type Config struct {
 
 var config Config
 
-func runChild() {
+func initConfig() {
 	fmt.Printf("child: %v\n", os.Args)
 	flag.StringVar(&config.Rootfs, "rootfs", "/tmp", "")
 	flag.StringVar(&config.Command, "cmd", "/bin/false", "")
@@ -31,8 +32,14 @@ func runChild() {
 	flag.StringVar(&config.Stdin, "stdin", "", "")
 	flag.StringVar(&config.Stdout, "stdout", "", "")
 	flag.StringVar(&config.Stderr, "stderr", "", "")
-	flag.CommandLine.Parse(os.Args[2:])
+	if os.Args[1] == "child" {
+		flag.CommandLine.Parse(os.Args[2:])
+	} else {
+		flag.Parse()
+	}
+}
 
+func chRoot() {
 	newRootPath := config.Rootfs
 	fmt.Println("Shim：Marking root as private (MS_PRIVATE)...")
 	if err := syscall.Mount("none", "/", "none", syscall.MS_PRIVATE|syscall.MS_REC, ""); err != nil {
@@ -67,7 +74,6 @@ func runChild() {
 		fmt.Fprintf(os.Stderr, "Shim 错误: Chdir('/') 失败: %v\n", err)
 		os.Exit(1)
 	}
-
 	// 6. 卸载旧的 root
 	//    这是 pivot_root 最关键的安全步骤！
 	//    旧的 root 现在在 /.old_root (注意：/ 是新的根)
@@ -77,17 +83,14 @@ func runChild() {
 		os.Exit(1)
 	}
 
+	fmt.Println("Shim： 删除目录 /.old_root ...")
 	// 7. (可选) 删除临时目录
 	if err := os.RemoveAll("/.old_root"); err != nil {
 		fmt.Fprintf(os.Stderr, "Shim 警告: RemoveAll '/.old_root' 失败: %v\n", err)
 	}
-	syscall.Chdir(config.Workdir)
-	cmds := strings.Split(config.Command, " ")
+}
 
-	// fo, _ := os.OpenFile("output.txt", os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
-	// os.Stdout = fo
-	// os.Stderr = fo
-	// change user here
+func changeFiles() {
 	if config.Stdin != "" {
 		fi, _ := os.OpenFile(config.Stdin, os.O_RDONLY, 0644)
 		unix.Dup2(int(fi.Fd()), int(os.Stdin.Fd()))
@@ -100,8 +103,33 @@ func runChild() {
 		fe, _ := os.OpenFile(config.Stderr, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 		unix.Dup2(int(fe.Fd()), int(os.Stderr.Fd()))
 	}
+}
+
+func runChild() {
+	initConfig()
+	chRoot()
+	slog.Info("change to workdir")
+	syscall.Chdir(config.Workdir)
+
+	slog.Info("mount paths")
+	unix.Mount("proc", "/proc", "proc", 0, "")
+	// unix.Mount("tmpfs", "/tmp", "tmpfs", 0, "")
+	unix.Mount("tmpfs", "/dev", "tmpfs", 0, "")
+	unix.Mount("devpts", "/dev/pts", "devpts", 0, "")
+	unix.Mount("sysfs", "/sys", "sysfs", 0, "")
+
+	slog.Info("prepare /dev/null")
+	os.Remove(os.DevNull)
+	unix.Mknod("/dev/null", syscall.S_IFCHR|0666, int(unix.Mkdev(1, 3)))
+	unix.Chmod("/dev/null", 0666)
+	slog.Info("redirect files")
+	changeFiles()
+	// run command
+	// slog.Info("change users")
 	unix.Setuid(65534)
 	unix.Setgid(65534)
+	cmds := strings.Split(config.Command, " ")
+	// slog.Info("run commands")
 	if err := syscall.Exec(cmds[0], cmds, os.Environ()); err != nil {
 		panic(err)
 	}
@@ -119,13 +147,15 @@ func runParent() {
 	cmd := exec.Command(selfPath, childArgs...)
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS,
+		Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
-	if err := cmd.Run(); err != nil {
-		panic(err)
-	}
+	cmd.Start()
+
+	cmd.Wait()
+
+	slog.Info("Time Used: ", "sys", cmd.ProcessState.SystemTime(), "user", cmd.ProcessState.UserTime())
 }
 
 func main() {
