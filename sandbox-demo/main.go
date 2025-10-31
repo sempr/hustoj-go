@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"syscall"
 
@@ -132,6 +133,8 @@ func runChild() {
 	unix.Setuid(65534)
 	unix.Setgid(65534)
 
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	// start traceme then raise stop
 	unix.Syscall(unix.SYS_PTRACE, uintptr(unix.PTRACE_TRACEME), 0, 0)
 	unix.Kill(os.Getpid(), unix.SIGSTOP)
@@ -144,6 +147,8 @@ func runChild() {
 }
 
 func runParent() {
+	runtime.LockOSThread()
+	defer runtime.UnlockOSThread()
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	selfPath, err := os.Executable()
 	if err != nil {
@@ -205,7 +210,6 @@ func runParent() {
 			unix.PtraceCont(pidTmp, int(ws.StopSignal()))
 		}
 	}
-
 	slog.Info("Time Used: ", "sys", ru.Stime, "user", ru.Utime, "st", ws.ExitStatus())
 }
 

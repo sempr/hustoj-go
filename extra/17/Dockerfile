@@ -2,6 +2,9 @@ FROM golang:1.25.3-alpine
 
 ENV GOCACHE=/go-cache
 ENV PATH=/usr/local/go/bin:$PATH
+ENV HOME=/tmp
+RUN go telemetry off || true
+RUN rm -f "$(go env GOROOT)/libexec/telemetry" || true
 # 创建缓存目录并 chown 给 nobody 用户
 RUN mkdir -p /go-cache && chown -R 65534:65534 /go-cache
 # 切换到 nobody 用户
