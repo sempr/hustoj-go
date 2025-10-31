@@ -91,6 +91,7 @@ func chRoot() {
 }
 
 func changeFiles() {
+	slog.Info("redirect files")
 	if config.Stdin != "" {
 		fi, _ := os.OpenFile(config.Stdin, os.O_RDONLY, 0644)
 		unix.Dup2(int(fi.Fd()), int(os.Stdin.Fd()))
@@ -105,15 +106,9 @@ func changeFiles() {
 	}
 }
 
-func runChild() {
-	initConfig()
-	chRoot()
-	slog.Info("change to workdir")
-	syscall.Chdir(config.Workdir)
-
+func prepareMounts() {
 	slog.Info("mount paths")
 	unix.Mount("proc", "/proc", "proc", 0, "")
-	// unix.Mount("tmpfs", "/tmp", "tmpfs", 0, "")
 	unix.Mount("tmpfs", "/dev", "tmpfs", 0, "")
 	unix.Mount("devpts", "/dev/pts", "devpts", 0, "")
 	unix.Mount("sysfs", "/sys", "sysfs", 0, "")
@@ -122,14 +117,26 @@ func runChild() {
 	os.Remove(os.DevNull)
 	unix.Mknod("/dev/null", syscall.S_IFCHR|0666, int(unix.Mkdev(1, 3)))
 	unix.Chmod("/dev/null", 0666)
-	slog.Info("redirect files")
+}
+
+func runChild() {
+	initConfig()
+	chRoot()
+
+	slog.Info("change to workdir")
+	syscall.Chdir(config.Workdir)
+
+	prepareMounts()
 	changeFiles()
 	// run command
-	// slog.Info("change users")
 	unix.Setuid(65534)
 	unix.Setgid(65534)
+
+	// start traceme then raise stop
+	unix.Syscall(unix.SYS_PTRACE, uintptr(unix.PTRACE_TRACEME), 0, 0)
+	unix.Kill(os.Getpid(), unix.SIGSTOP)
+
 	cmds := strings.Split(config.Command, " ")
-	// slog.Info("run commands")
 	if err := syscall.Exec(cmds[0], cmds, os.Environ()); err != nil {
 		panic(err)
 	}
@@ -137,6 +144,7 @@ func runChild() {
 }
 
 func runParent() {
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	selfPath, err := os.Executable()
 	if err != nil {
 		panic(err)
@@ -148,14 +156,57 @@ func runParent() {
 
 	cmd.SysProcAttr = &syscall.SysProcAttr{
 		Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
+		Setpgid:    true,
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
+	// cmd.ExtraFiles = append(cmd.ExtraFiles, )
 	cmd.Start()
 
-	cmd.Wait()
+	var ws unix.WaitStatus
+	var childMainPid = cmd.Process.Pid
+	unix.Wait4(-childMainPid, &ws, 0, nil)
+	// TODO: prepare more here
+	// prepare cgroups here
 
-	slog.Info("Time Used: ", "sys", cmd.ProcessState.SystemTime(), "user", cmd.ProcessState.UserTime())
+	// set options
+	unix.PtraceSetOptions(childMainPid,
+		unix.PTRACE_O_EXITKILL|
+			unix.PTRACE_O_TRACECLONE|
+			unix.PTRACE_O_TRACEFORK|
+			unix.PTRACE_O_TRACEVFORK|
+			unix.PTRACE_O_TRACEVFORKDONE|
+			unix.PTRACE_O_TRACEEXIT|
+			unix.PTRACE_O_TRACEEXEC|
+			unix.PTRACE_O_TRACESYSGOOD|
+			unix.PTRACE_O_TRACESECCOMP,
+	)
+	// continue
+	unix.PtraceCont(childMainPid, int(ws.StopSignal()))
+	var ru unix.Rusage
+	for {
+		pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, &ru)
+		if err != nil {
+			panic(err)
+		}
+		slog.Debug("tracing", "pid", pidTmp, "ws", ws, "ru", ru)
+		if ws.Exited() {
+			slog.Debug("process exit ", "pid", pidTmp)
+			if pidTmp == childMainPid {
+				break
+			}
+			continue
+		}
+		if ws.Signaled() {
+			slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal())
+			break
+		}
+		if ws.Stopped() {
+			unix.PtraceCont(pidTmp, int(ws.StopSignal()))
+		}
+	}
+
+	slog.Info("Time Used: ", "sys", ru.Stime, "user", ru.Utime, "st", ws.ExitStatus())
 }
 
 func main() {
@@ -164,5 +215,4 @@ func main() {
 	} else {
 		runParent()
 	}
-
 }
