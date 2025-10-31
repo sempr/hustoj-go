@@ -1,0 +1,11 @@
+name = "Typescript"
+
+[fs]
+base = "/var/lib/docker/overlay2/c6d187b8effc96ce5a5dc49a0c3f5845af310bed476fe8c480fbe998d53e4d5d/diff:/var/lib/docker/overlay2/e8e5726f1c34b9d15476f02c9d2ffec2622297f4d242470a9f301c53ccfdfae6/diff:/var/lib/docker/overlay2/1d85d76d463d976cc9421531275614ecd2b4121f66912c698b9f2f199ffdc2c5/diff:/var/lib/docker/overlay2/0c894aa305022c7711d01cb737793aa90b67352d0bdc15716a5c37a67dadcb13/diff:/var/lib/docker/overlay2/7d999d36c849192d2c99ab1f2f8871c133f41f2836d1d7f3e100e644e0b95876/diff:/var/lib/docker/overlay2/f11659fe31dacded1bcd1a2595749ab2e5221c9ecf6ae4fcd100cde37c33f083/diff"
+workdir = "/code"
+
+[cmd]
+compile = "/bin/true"
+run  = "/usr/local/bin/ts-node Main.ts"
+ver = "/usr/local/bin/tsc -v"
+env = ["ONLINE_JUDGE=1", "HOME=/tmp", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]
