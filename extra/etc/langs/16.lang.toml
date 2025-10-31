@@ -5,7 +5,7 @@ base = "/var/lib/docker/overlay2/c6d187b8effc96ce5a5dc49a0c3f5845af310bed476fe8c
 workdir = "/code"
 
 [cmd]
-compile = "/bin/true"
-run  = "/usr/local/bin/ts-node Main.ts"
+compile = "/usr/local/bin/tsc Main.ts"
+run  = "/usr/local/bin/node Main.js"
 ver = "/usr/local/bin/tsc -v"
 env = ["ONLINE_JUDGE=1", "HOME=/tmp", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]
