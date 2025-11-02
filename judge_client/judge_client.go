@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog" // 导入 slog
@@ -12,7 +13,6 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -79,6 +79,14 @@ type CmdInfo struct {
 	Run     string   `toml:"run"`
 	Ver     string   `toml:"ver"`
 	Env     []string `toml:"env"`
+}
+
+type Output struct {
+	ExitStatus     int    `json:"status"`
+	CombinedOutput string `json:"output"`
+	Time           int    `json:"time"`
+	Memory         int    `json:"memory"`
+	UserStatus     int    `json:"user_status"`
 }
 
 var langMaps map[int]langBasic
@@ -345,7 +353,7 @@ func writeSourceCode(source string, lang int, workDir string) error {
 }
 
 // compile (Stub, 使用 slog)
-func compile(lang int, rootDir string) int {
+func compile(lang int, rootDir string) *Output {
 	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
 	fmt.Println("cmd=", langDetail.Cmd.Compile)
 	cmd := exec.Command("/usr/local/bin/judge-sandbox",
@@ -358,15 +366,39 @@ func compile(lang int, rootDir string) int {
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
+
+	r3, w3, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	cmd.ExtraFiles = append(cmd.ExtraFiles, w3)
 	slog.Info("STUB: 正在编译...", "language", lang, "work_dir", rootDir)
-	err := cmd.Run()
-	fmt.Println(err)
-	return 0 // 总是返回 0 (成功)
+	err = cmd.Start()
+	if err != nil {
+		panic(err)
+	}
+	w3.Close()
+
+	cmd.Wait()
+	var output Output
+	json.NewDecoder(r3).Decode(&output)
+	slog.Info("debug", "output", output)
+	return &output
 }
 
 // addCEInfo (Stub, 使用 slog)
-func addCEInfo(solutionID int) {
-	slog.Info("STUB: 正在添加编译错误信息", "solution_id", solutionID)
+func addCEInfo(solutionID int, msg string) error {
+	slog.Info("STUB: 正在添加编译错误信息", "solution_id", solutionID, "msg", msg)
+	_, err := db.Exec("DELETE FROM compileinfo WHERE solution_id=?", solutionID)
+	if err != nil {
+		return fmt.Errorf("delete failed: %w", err)
+	}
+	_, err = db.Exec("INSERT INTO compileinfo VALUES(?, ?)", solutionID, msg)
+	if err != nil {
+		return fmt.Errorf("insert failed: %w", err)
+	}
+	return nil
 }
 
 func findDataFiles(pID int) ([][]string, error) {
@@ -486,6 +518,7 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
+	cmd.ExtraFiles = append(cmd.ExtraFiles, os.Stdout)
 	slog.Info("STUB: 正在运行...", "language", lang, "work_dir", rootDir, "data", inFile)
 	err := cmd.Run()
 	fmt.Println(err)
@@ -516,15 +549,6 @@ func cleanWorkDir(workDir string) {
 }
 
 // --- Main 工作流 ---
-
-func minimalBindMount(src, dst string) {
-	if err := os.MkdirAll(dst, 0755); err != nil {
-		panic(fmt.Errorf("mkdir %s: %w", dst, err))
-	}
-	if err := syscall.Mount(src, dst, "", syscall.MS_BIND, ""); err != nil {
-		panic(fmt.Errorf("mount %s -> %s failed: %w", src, dst, err))
-	}
-}
 
 func main() {
 	// 0. 设置 slog
@@ -643,16 +667,16 @@ func main() {
 	}
 
 	compileResult := compile(lang, rootfs)
-	if compileResult != 0 {
-		slog.Info("编译失败")
-		addCEInfo(solutionID)
+	if compileResult.ExitStatus != 0 {
+		slog.Info("编译失败", "output", compileResult.CombinedOutput)
+		addCEInfo(solutionID, compileResult.CombinedOutput)
 		if err := updateSolution(solutionID, OJ_CE, 0, 0, 0.0); err != nil {
 			slog.Error("更新 '编译失败' 状态失败", "error", err)
 			os.Exit(1)
 		}
 		updateUser(userID)
 		updateProblem(pID, cID)
-		os.Exit(0)
+		return
 	}
 
 	if err := updateSolution(solutionID, OJ_RI, 0, 0, 0.0); err != nil { // 设置为运行中
@@ -663,7 +687,7 @@ func main() {
 	dataFiles, err := findDataFiles(pID)
 	if err != nil {
 		slog.Error("查找数据文件失败", "error", err)
-		os.Exit(1)
+		return
 	}
 
 	var (
