@@ -1,10 +1,14 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -13,7 +17,9 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"golang.org/x/sys/unix"
 )
@@ -145,8 +151,6 @@ func runChild() {
 	unix.Setuid(65534)
 	unix.Setgid(65534)
 
-	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 	// start traceme then raise stop
 	unix.Syscall(unix.SYS_PTRACE, uintptr(unix.PTRACE_TRACEME), 0, 0)
 	unix.Kill(os.Getpid(), unix.SIGSTOP)
@@ -158,132 +162,315 @@ func runChild() {
 	slog.Debug("compile ok")
 }
 
+// ErrCgroupLimitExceeded Cgroup CPU 时间超限
+var ErrCgroupLimitExceeded = errors.New("cgroup CPU time limit exceeded")
+
+// ErrRealTimeTimeout 物理时间执行超时
+var ErrRealTimeTimeout = errors.New("real-time execution timeout")
+
+func runCPUChecker(
+	ctx context.Context,
+	startTime time.Time,
+	cgroupCPULimit time.Duration,
+	realTimeLimit time.Duration,
+	cgroupStatFile string, // 您配置的 cgroup cpu.stat 文件路径
+) error {
+	log.Println("CPU Checker: 启动...")
+	ticker := time.NewTicker(50 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// 1. 检查 Cgroup CPU 时间
+			consumedCPUTime, err := readCgroupCPUTime(cgroupStatFile)
+			if err != nil {
+				log.Printf("CPU Checker: 读取 cgroup 失败: %v", err)
+				// 根据您的策略，这里也可以选择返回错误
+				continue
+			}
+
+			if consumedCPUTime > cgroupCPULimit {
+				log.Printf("CPU Checker: 违规! Cgroup CPU 时间 (%.2fs) 超出限制 (%.2fs)",
+					consumedCPUTime.Seconds(), cgroupCPULimit.Seconds())
+				// 立即退出，并报告错误
+				return ErrCgroupLimitExceeded
+			}
+
+			// 2. 检查物理时间
+			elapsedRealTime := time.Since(startTime)
+			if elapsedRealTime > realTimeLimit {
+				log.Printf("CPU Checker: 违规! 物理时间 (%.2fs) 超出限制 (%.2fs)",
+					elapsedRealTime.Seconds(), realTimeLimit.Seconds())
+				// 立即退出，并报告错误
+				return ErrRealTimeTimeout
+			}
+
+			// log.Printf("CPU Checker: OK (CPU: %.4fs, Real: %.4fs)",
+			// 	consumedCPUTime.Seconds(), elapsedRealTime.Seconds())
+
+		case <-ctx.Done():
+			// context 被取消 (因为 tracer 协程退出了)
+			log.Println("CPU Checker: 收到停止信号，停止检查。")
+			return nil // 正常停止
+		}
+	}
+}
+
+// readCgroupCPUTime 是 checkCPUUsage 的核心实现。
+// 它读取指定的 cpu.stat 文件并解析 "usage_usec" 字段。
+func readCgroupCPUTime(statFile string) (time.Duration, error) {
+	file, err := os.Open(statFile)
+	if err != nil {
+		return 0, fmt.Errorf("无法打开 %s: %w", statFile, err)
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if strings.HasPrefix(line, "usage_usec") {
+			parts := strings.Fields(line)
+			if len(parts) == 2 {
+				usec, err := strconv.ParseUint(parts[1], 10, 64)
+				if err != nil {
+					return 0, fmt.Errorf("无法解析 'usage_usec' 值: %w", err)
+				}
+				// 转换为 time.Duration
+				return time.Duration(usec) * time.Microsecond, nil
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return 0, fmt.Errorf("扫描 %s 时出错: %w", statFile, err)
+	}
+
+	return 0, fmt.Errorf("在 %s 中未找到 'usage_usec' 字段", statFile)
+}
+
 func runParent() {
-	runtime.LockOSThread()
-	slog.SetLogLoggerLevel(slog.LevelInfo)
+	slog.SetLogLoggerLevel(slog.LevelDebug)
 	file3 := os.NewFile(uintptr(3), "fd3")
 	if file3 == nil {
 		slog.Info("file3 is nil")
 	}
 	defer file3.Close()
-	selfPath, err := os.Executable()
-	if err != nil {
-		panic(err)
-	}
-	var childArgs []string
-	childArgs = append(childArgs, "child")
-	childArgs = append(childArgs, os.Args[1:]...)
-	cmd := exec.Command(selfPath, childArgs...)
-
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
-		Setpgid:    true,
-	}
-
-	var b bytes.Buffer
-	if config.Stderr == "" && config.Stdout == "" {
-		cmd.Stdout = &b
-		cmd.Stderr = &b
-	}
-
-	cmd.Start()
-
-	var ws unix.WaitStatus
-	var childMainPid = cmd.Process.Pid
-	pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, nil)
-	if err != nil {
-		panic(err)
-	}
-	// TODO: prepare more here
-	// prepare cgroups here
-	// slog.Info("prepare cgroup", "pid", childMainPid)
-	cgroupPath := filepath.Join("/sys/fs/cgroup", "hustoj", fmt.Sprintf("run-%d", childMainPid))
-	err = os.MkdirAll(cgroupPath, 0644)
-	if err != nil {
-		panic(err)
-	}
-	defer os.RemoveAll(cgroupPath)
-	err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0644)
-	if err != nil {
-		panic(err)
-	}
-	err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "hustoj", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0644)
-	if err != nil {
-		panic(err)
-	}
-	err = os.WriteFile(filepath.Join(cgroupPath, "cgroup.procs"), fmt.Append(nil, childMainPid), 0644)
-	if err != nil {
-		panic(err)
-	}
-
 	// set options
-	unix.PtraceSetOptions(childMainPid,
-		unix.PTRACE_O_EXITKILL|
-			unix.PTRACE_O_TRACECLONE|
-			unix.PTRACE_O_TRACEFORK|
-			unix.PTRACE_O_TRACEVFORK|
-			unix.PTRACE_O_TRACEVFORKDONE|
-			unix.PTRACE_O_TRACEEXIT|
-			unix.PTRACE_O_TRACEEXEC|
-			unix.PTRACE_O_TRACESYSGOOD|
-			unix.PTRACE_O_TRACESECCOMP,
-	)
-	// continue
-	slog.Info("before contnue child process", "sig", ws.StopSignal(), "pidMain", childMainPid, "pidTmp", pidTmp)
-	unix.PtraceCont(childMainPid, int(ws.StopSignal()))
 	var ru unix.Rusage
-	for {
-		pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, &ru)
+	var cgroupPath string
+	var b bytes.Buffer
+	var childMainPid int
+	var ws unix.WaitStatus
+
+	tracerReady := make(chan bool)
+
+	var runTracer = func() error {
+		runtime.LockOSThread()
+		defer runtime.UnlockOSThread()
+		selfPath, err := os.Executable()
 		if err != nil {
 			panic(err)
 		}
-		slog.Debug("tracing", "pid", pidTmp, "ws", fmt.Appendf(nil, "%X", ws), "ru", ru)
-		if ws.Exited() {
-			slog.Debug("process exit ", "pid", pidTmp, "exitCode", ws.ExitStatus())
-			if pidTmp == childMainPid {
+
+		var childArgs []string
+		childArgs = append(childArgs, "child")
+		childArgs = append(childArgs, os.Args[1:]...)
+		cmd := exec.Command(selfPath, childArgs...)
+
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
+			Setpgid:    true,
+		}
+
+		if config.Stderr == "" && config.Stdout == "" {
+			cmd.Stdout = &b
+			cmd.Stderr = &b
+		}
+
+		cmd.Start()
+
+		childMainPid = cmd.Process.Pid
+		pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, nil)
+		if err != nil {
+			panic(err)
+		}
+
+		cgroupPath = filepath.Join("/sys/fs/cgroup", "hustoj", fmt.Sprintf("run-%d", childMainPid))
+		err = os.MkdirAll(cgroupPath, 0644)
+		if err != nil {
+			panic(err)
+		}
+		defer os.RemoveAll(cgroupPath)
+		err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0644)
+		if err != nil {
+			panic(err)
+		}
+		err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "hustoj", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0644)
+		if err != nil {
+			panic(err)
+		}
+		// memroy max, total, default 256M here
+		if err = os.WriteFile(filepath.Join(cgroupPath, "memory.max"), fmt.Appendf(nil, "%d", 256*1024*1024), 0644); err != nil {
+			panic(err)
+		}
+		// cpu max, 1.2 core max
+		if err = os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), fmt.Appendf(nil, "120000 100000"), 0644); err != nil {
+			panic(err)
+		}
+		err = os.WriteFile(filepath.Join(cgroupPath, "cgroup.procs"), fmt.Append(nil, childMainPid), 0644)
+		if err != nil {
+			panic(err)
+		}
+
+		unix.PtraceSetOptions(childMainPid,
+			unix.PTRACE_O_EXITKILL|
+				unix.PTRACE_O_TRACECLONE|
+				unix.PTRACE_O_TRACEFORK|
+				unix.PTRACE_O_TRACEVFORK|
+				unix.PTRACE_O_TRACEVFORKDONE|
+				unix.PTRACE_O_TRACEEXIT|
+				unix.PTRACE_O_TRACEEXEC|
+				unix.PTRACE_O_TRACESYSGOOD|
+				unix.PTRACE_O_TRACESECCOMP,
+		)
+		// continue
+		slog.Info("before contnue child process", "sig", ws.StopSignal(), "pidMain", childMainPid, "pidTmp", pidTmp)
+		tracerReady <- true
+		unix.PtraceCont(childMainPid, int(ws.StopSignal()))
+		for {
+			slog.Debug("new wait here....")
+			pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, &ru)
+			if err != nil {
+				return err
+			}
+			slog.Debug("tracing", "pid", pidTmp, "ws", fmt.Appendf(nil, "%X", ws), "ru", ru)
+			if ws.Exited() {
+				slog.Debug("process exit ", "pid", pidTmp, "exitCode", ws.ExitStatus())
+				if pidTmp == childMainPid {
+					return nil
+				}
+				continue
+			}
+			if ws.Signaled() {
+				slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal())
 				break
 			}
-			continue
-		}
-		if ws.Signaled() {
-			slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal())
-			break
-		}
-		if ws.Stopped() {
-			slog.Debug("process stopped", "stopsig", ws.StopSignal(), "pidTmp", pidTmp)
-
-			stopsig := ws.StopSignal() & 0x7f
-			if stopsig == unix.SIGTRAP {
-				eventNumber := int(ws >> 16)
-				if eventNumber != 0 {
-					var Z []int = []int{unix.PTRACE_EVENT_CLONE, unix.PTRACE_EVENT_FORK, unix.PTRACE_EVENT_VFORK}
-					if slices.Contains(Z, eventNumber) {
-						slog.Info("trap event, clone/fork/vfork", "stopsig", stopsig, "eventnumber", eventNumber)
-					} else if eventNumber == unix.PTRACE_EVENT_EXEC {
-						slog.Info("trace event: exec", "eventNumber", eventNumber)
-					} else if eventNumber == unix.PTRACE_EVENT_VFORK_DONE {
-						slog.Info("trace event: vfork-done", "eventNumber", eventNumber)
-					} else if eventNumber == unix.PTRACE_EVENT_EXIT {
-						slog.Info("trace event: exit", "eventNumber", eventNumber)
+			if ws.Stopped() {
+				slog.Debug("process stopped", "stopsig", ws.StopSignal(), "pidTmp", pidTmp)
+				stopsig := ws.StopSignal() & 0x7f
+				if stopsig == unix.SIGTRAP {
+					eventNumber := int(ws >> 16)
+					if eventNumber != 0 {
+						var Z []int = []int{unix.PTRACE_EVENT_CLONE, unix.PTRACE_EVENT_FORK, unix.PTRACE_EVENT_VFORK}
+						if slices.Contains(Z, eventNumber) {
+							slog.Info("trap event, clone/fork/vfork", "stopsig", stopsig, "eventnumber", eventNumber)
+						} else if eventNumber == unix.PTRACE_EVENT_EXEC {
+							slog.Info("trace event: exec", "eventNumber", eventNumber)
+						} else if eventNumber == unix.PTRACE_EVENT_VFORK_DONE {
+							slog.Info("trace event: vfork-done", "eventNumber", eventNumber)
+						} else if eventNumber == unix.PTRACE_EVENT_EXIT {
+							slog.Info("trace event: exit", "eventNumber", eventNumber)
+						} else {
+							slog.Info("trace event: todo", "eventNumber", eventNumber)
+						}
+						msg, err := unix.PtraceGetEventMsg(pidTmp)
+						slog.Info("get event msg", "msg", msg, "err", err, "pid", pidTmp)
 					} else {
-						slog.Info("trace event: todo", "eventNumber", eventNumber)
+						slog.Info("eventNumber is 0")
 					}
-					msg, err := unix.PtraceGetEventMsg(pidTmp)
-					slog.Info("get event msg", "msg", msg, "err", err, "pid", pidTmp)
-				} else {
-					slog.Info("eventNumber is 0")
+				}
+				err := unix.PtraceCont(pidTmp, int(ws.StopSignal()))
+				if err != nil {
+					slog.Error("ptraceCont failed: ", "err", err, "pid", pidTmp)
+				}
+				if ws.StopSignal() == unix.SIGURG {
+					unix.Kill(pidTmp, syscall.SIGCONT)
 				}
 			}
-
-			err := unix.PtraceCont(pidTmp, int(ws.StopSignal()))
-			if err != nil {
-				slog.Error("ptraceCont failed: ", "err", err)
-			}
-			if ws.StopSignal() == unix.SIGURG {
-				unix.Kill(pidTmp, syscall.SIGCONT)
-			}
 		}
+		return nil
 	}
+
+	// 设置限制
+	const cgroupLimit = 3 * time.Second
+	const realTimeLimit = 15 * time.Second
+
+	// 创建用于通信的上下文和通道
+	ctx, cancel := context.WithCancel(context.Background())
+	var wg sync.WaitGroup
+
+	// tracerDoneChan 用于接收 tracer 协程的退出信号
+	tracerDoneChan := make(chan error, 1)
+	// checkerFailureChan 仅用于接收 checker 协程的 *失败* 信号
+	checkerFailureChan := make(chan error, 1)
+
+	startTime := time.Now()
+	log.Printf("Main: 启动... Cgroup 限制: %s, 物理时间限制: %s", cgroupLimit, realTimeLimit)
+
+	// --- 2. 启动 Goroutines ---
+
+	// 启动 Tracer Goroutine
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		err := runTracer()
+		if err != nil {
+			log.Printf("Main: Tracer 协程因 ptrace 错误退出: %v", err)
+		}
+		tracerDoneChan <- err
+	}()
+
+	// 启动 CPU Checker Goroutine
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		<-tracerReady
+		err := runCPUChecker(ctx, startTime, cgroupLimit, realTimeLimit, filepath.Join(cgroupPath, "cpu.stat"))
+		// 只有在 *真正* 发生违规时才发送信号
+		if err != nil {
+			checkerFailureChan <- err
+		}
+	}()
+
+	var finalResult error
+	log.Println("Main: 等待 ptrace 结束或检查器失败...")
+
+	select {
+	case err := <-checkerFailureChan:
+		// **情况 1: Checker 报告失败 (Cgroup 或超时)**
+		finalResult = err
+		log.Printf("Main: Checker 报告失败: %v。正在终止被 trace 的进程...", finalResult)
+
+		// *重要*: Main 负责发送 kill 信号
+		if err := unix.Kill(childMainPid, unix.SIGKILL); err != nil {
+			log.Printf("Main: 发送 SIGKILL 到 PID %d 失败: %v", childMainPid, err)
+		}
+		// 等待 tracer 协程确认进程被 kill (它会从 tracerDoneChan 收到信号)
+		<-tracerDoneChan
+		log.Println("Main: Tracer 协程已确认进程终止。")
+
+	case err := <-tracerDoneChan:
+		// **情况 2: Tracer 协程首先结束** (进程正常退出或崩溃)
+		finalResult = err
+		if err != nil {
+			log.Printf("Main: Tracer 首先完成 (有错误): %v", err)
+		} else {
+			log.Println("Main: Tracer 首先完成 (成功)。")
+		}
+		// 此时，tracer 已经结束，我们不需要再 kill 它了
+	}
+
+	// --- 4. 清理 ---
+
+	// 无论哪种情况，我们都必须通知 CPU Checker 协程停止
+	// (如果它尚未停止的话)
+	cancel()
+
+	// 等待所有协程 (特别是 checker) 干净地退出
+	log.Println("Main: 等待所有协程关闭...")
+	wg.Wait()
+
 	slog.Info("Time Used: ", "sys", ru.Stime, "user", ru.Utime, "st", ws.ExitStatus())
 	cdt, _ := os.ReadFile(filepath.Join(cgroupPath, "cpu.stat"))
 	mdt, _ := os.ReadFile(filepath.Join(cgroupPath, "memory.peak"))
@@ -302,6 +489,7 @@ func main() {
 	if os.Args[1] == "child" {
 		runChild()
 	} else {
+		runtime.GOMAXPROCS(1)
 		runParent()
 	}
 }
