@@ -398,6 +398,10 @@ func runParent() {
 			if ws.Stopped() {
 				slog.Debug("process stopped", "stopsig", ws.StopSignal(), "pidTmp", pidTmp)
 				stopsig := ws.StopSignal() & 0x7f
+				if stopsig == unix.SIGXFSZ {
+					unix.Kill(childMainPid, unix.SIGKILL)
+					return ErrOutputLimitExceeded
+				}
 				if stopsig == unix.SIGTRAP {
 					eventNumber := int(ws >> 16)
 					if eventNumber != 0 {
