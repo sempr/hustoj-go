@@ -518,15 +518,48 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout
-	cmd.ExtraFiles = append(cmd.ExtraFiles, os.Stdout)
+	r3, w3, err := os.Pipe()
+	if err != nil {
+		panic(err)
+	}
+
+	cmd.ExtraFiles = append(cmd.ExtraFiles, w3)
 	slog.Info("STUB: 正在运行...", "language", lang, "work_dir", rootDir, "data", inFile)
-	err := cmd.Run()
+	err = cmd.Start()
 	fmt.Println(err)
-	content, _ := os.ReadFile(filepath.Join(workDir, "data.usr"))
-	fmt.Println("content: ", string(content))
-	result = OJ_AC
-	timeUsed = 13
-	memUsed = 4096
+	w3.Close()
+	cmd.Wait()
+	// TODO: judge result, then do compare results
+
+	// content, _ := os.ReadFile(filepath.Join(workDir, "data.usr"))
+	// fmt.Println("content: ", string(content))
+
+	// var b []byte
+	// nn, _ := r3.Read(b)
+	// slog.Info("output", "o", string(b), "ct", nn)
+	var output Output
+	err = json.NewDecoder(r3).Decode(&output)
+	slog.Info("debug", "output", output, "err", err)
+
+	result = output.UserStatus
+	timeUsed = output.Time
+	memUsed = output.Memory
+	if result != OJ_AC {
+		return
+	}
+	// compare the results
+	res, err := compareFiles(outFile, filepath.Join(rootDir, "code", "data.usr"))
+	switch res {
+	case 1:
+		result = OJ_PE
+	case 2:
+		result = OJ_WA
+	case 0:
+		result = OJ_AC
+	}
+	if err != nil {
+		result = OJ_MC
+	}
 	return
 }
 
@@ -725,9 +758,10 @@ func main() {
 		passRate = 1.0
 	}
 
-	if finalResult == OJ_RE {
+	switch finalResult {
+	case OJ_RE:
 		addREInfo(solutionID)
-	} else if finalResult == OJ_WA || finalResult == OJ_PE {
+	case OJ_WA, OJ_PE:
 		addDiffInfo(solutionID)
 	}
 

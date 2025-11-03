@@ -24,6 +24,25 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// 判题结果
+const (
+	OJ_WT0 = 0  // 提交排队
+	OJ_WT1 = 1  // 重判排队
+	OJ_CI  = 2  // 编译中
+	OJ_RI  = 3  // 运行中
+	OJ_AC  = 4  // 答案正确
+	OJ_PE  = 5  // 格式错误
+	OJ_WA  = 6  // 答案错误
+	OJ_TL  = 7  // 时间超限
+	OJ_ML  = 8  // 内存超限
+	OJ_OL  = 9  // 输出超限
+	OJ_RE  = 10 // 运行错误
+	OJ_CE  = 11 // 编译错误
+	OJ_CO  = 12 // 编译完成
+	OJ_TR  = 13 // 测试运行结束
+	OJ_MC  = 14 // 等待裁判手工确认
+)
+
 type Output struct {
 	ExitStatus     int    `json:"status"`
 	CombinedOutput string `json:"output"`
@@ -147,6 +166,13 @@ func runChild() {
 
 	prepareMounts()
 	changeFiles()
+
+	// set rlimit, default 256MB
+	var rlim unix.Rlimit
+	rlim.Max = 256 << 20
+	rlim.Cur = rlim.Max
+	unix.Setrlimit(unix.RLIMIT_FSIZE, &rlim)
+
 	// run command
 	unix.Setuid(65534)
 	unix.Setgid(65534)
@@ -167,6 +193,9 @@ var ErrCgroupLimitExceeded = errors.New("cgroup CPU time limit exceeded")
 
 // ErrRealTimeTimeout 物理时间执行超时
 var ErrRealTimeTimeout = errors.New("real-time execution timeout")
+
+var ErrRuntimeError = errors.New("runtime error")
+var ErrOutputLimitExceeded = errors.New("output limit exceed")
 
 func runCPUChecker(
 	ctx context.Context,
@@ -262,6 +291,10 @@ func runParent() {
 	var b bytes.Buffer
 	var childMainPid int
 	var ws unix.WaitStatus
+	// 设置限制
+	const cgroupLimit = 3 * time.Second
+	const realTimeLimit = 15 * time.Second
+	const memoryLimit = 128 << 20
 
 	tracerReady := make(chan bool)
 
@@ -301,7 +334,6 @@ func runParent() {
 		if err != nil {
 			panic(err)
 		}
-		defer os.RemoveAll(cgroupPath)
 		err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0644)
 		if err != nil {
 			panic(err)
@@ -311,11 +343,15 @@ func runParent() {
 			panic(err)
 		}
 		// memroy max, total, default 256M here
-		if err = os.WriteFile(filepath.Join(cgroupPath, "memory.max"), fmt.Appendf(nil, "%d", 256*1024*1024), 0644); err != nil {
+		if err = os.WriteFile(filepath.Join(cgroupPath, "memory.max"), fmt.Appendf(nil, "%d", memoryLimit+4096), 0644); err != nil {
 			panic(err)
 		}
 		// cpu max, 1.2 core max
 		if err = os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), fmt.Appendf(nil, "120000 100000"), 0644); err != nil {
+			panic(err)
+		}
+		// pid max
+		if err = os.WriteFile(filepath.Join(cgroupPath, "pids.max"), fmt.Appendf(nil, "64"), 0644); err != nil {
 			panic(err)
 		}
 		err = os.WriteFile(filepath.Join(cgroupPath, "cgroup.procs"), fmt.Append(nil, childMainPid), 0644)
@@ -354,7 +390,10 @@ func runParent() {
 			}
 			if ws.Signaled() {
 				slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal())
-				break
+				if ws.Signal()&0x7f == unix.SIGXFSZ {
+					return ErrOutputLimitExceeded
+				}
+				return ErrRuntimeError
 			}
 			if ws.Stopped() {
 				slog.Debug("process stopped", "stopsig", ws.StopSignal(), "pidTmp", pidTmp)
@@ -389,12 +428,7 @@ func runParent() {
 				}
 			}
 		}
-		return nil
 	}
-
-	// 设置限制
-	const cgroupLimit = 3 * time.Second
-	const realTimeLimit = 15 * time.Second
 
 	// 创建用于通信的上下文和通道
 	ctx, cancel := context.WithCancel(context.Background())
@@ -436,6 +470,8 @@ func runParent() {
 	var finalResult error
 	log.Println("Main: 等待 ptrace 结束或检查器失败...")
 
+	defer os.RemoveAll(cgroupPath)
+
 	select {
 	case err := <-checkerFailureChan:
 		// **情况 1: Checker 报告失败 (Cgroup 或超时)**
@@ -472,16 +508,39 @@ func runParent() {
 	wg.Wait()
 
 	slog.Info("Time Used: ", "sys", ru.Stime, "user", ru.Utime, "st", ws.ExitStatus())
-	cdt, _ := os.ReadFile(filepath.Join(cgroupPath, "cpu.stat"))
-	mdt, _ := os.ReadFile(filepath.Join(cgroupPath, "memory.peak"))
-	mem, _ := strconv.Atoi(string(mdt))
-	slog.Info("Cgroup Data: ", "cpu", string(cdt), "memory", mdt)
+	cdt, err1 := readCgroupCPUTime(filepath.Join(cgroupPath, "cpu.stat"))
+	mdt, err2 := os.ReadFile(filepath.Join(cgroupPath, "memory.peak"))
+	mem, err3 := strconv.Atoi(strings.TrimSpace(string(mdt)))
+	slog.Info("Cgroup Data: ", "cpu", cdt, "memory", mdt, "err1", err1, "err2", err2, "err3", err3)
 
 	var out Output
 	out.ExitStatus = ws.ExitStatus()
 	out.CombinedOutput = b.String()
-	out.Memory = mem
-	out.Time = 13
+	out.Memory = mem / 1024
+	out.Time = int(cdt) / int(time.Millisecond)
+	out.UserStatus = OJ_AC
+
+	if ws.ExitStatus() != 0 {
+		// check error
+		if finalResult != nil {
+			switch finalResult {
+			case ErrCgroupLimitExceeded:
+				out.UserStatus = OJ_TL
+			case ErrRealTimeTimeout:
+				out.UserStatus = OJ_TL
+				out.Time = -1
+			case ErrRuntimeError:
+				if out.Memory > memoryLimit/1024 {
+					out.UserStatus = OJ_ML
+				} else {
+					out.UserStatus = OJ_RE
+				}
+			case ErrOutputLimitExceeded:
+				out.UserStatus = OJ_OL
+			}
+		}
+	}
+
 	json.NewEncoder(file3).Encode(out)
 }
 
