@@ -1,2 +1,2 @@
-FROM busybox
-RUN touch /tmp/hustoj.txt
+FROM alpine
+RUN apk add --no-cache bash 
