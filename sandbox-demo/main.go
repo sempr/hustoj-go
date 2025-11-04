@@ -49,6 +49,7 @@ type Output struct {
 	Time           int    `json:"time"`
 	Memory         int    `json:"memory"`
 	UserStatus     int    `json:"user_status"`
+	ProcessCnt     int    `json:"process_count"`
 }
 
 type Config struct {
@@ -291,6 +292,7 @@ func runParent() {
 	var b bytes.Buffer
 	var childMainPid int
 	var ws unix.WaitStatus
+	var processCnt int = 1
 	// 设置限制
 	const cgroupLimit = 3 * time.Second
 	const realTimeLimit = 15 * time.Second
@@ -408,6 +410,7 @@ func runParent() {
 						var Z []int = []int{unix.PTRACE_EVENT_CLONE, unix.PTRACE_EVENT_FORK, unix.PTRACE_EVENT_VFORK}
 						if slices.Contains(Z, eventNumber) {
 							slog.Info("trap event, clone/fork/vfork", "stopsig", stopsig, "eventnumber", eventNumber)
+							processCnt++
 						} else if eventNumber == unix.PTRACE_EVENT_EXEC {
 							slog.Info("trace event: exec", "eventNumber", eventNumber)
 						} else if eventNumber == unix.PTRACE_EVENT_VFORK_DONE {
@@ -523,6 +526,7 @@ func runParent() {
 	out.Memory = mem / 1024
 	out.Time = int(cdt) / int(time.Millisecond)
 	out.UserStatus = OJ_AC
+	out.ProcessCnt = processCnt
 
 	if ws.ExitStatus() != 0 {
 		// check error

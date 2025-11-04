@@ -87,6 +87,7 @@ type Output struct {
 	Time           int    `json:"time"`
 	Memory         int    `json:"memory"`
 	UserStatus     int    `json:"user_status"`
+	ProcessCnt     int    `json:"process_count"`
 }
 
 var langMaps map[int]langBasic
@@ -645,7 +646,7 @@ func main() {
 
 	// TODO: 准备工作目录 使用 overlay2, base作为lower,自建一个upper,merged,workdir,最后操作merged
 	workBaseDir := filepath.Join(ojHome, "run"+runnerID)
-	for _, zdir := range []string{"rootfs", "upper", "tmp"} {
+	for _, zdir := range []string{"rootfs", "tmp"} {
 		toCreateDir := filepath.Join(workBaseDir, zdir)
 		if err := os.MkdirAll(toCreateDir, 0755); err != nil {
 			slog.Error("创建工作目录失败", "path", toCreateDir, "error", err)
@@ -656,12 +657,26 @@ func main() {
 		defer cleanWorkDir(workBaseDir)
 	}
 
+	tmpfsDir := filepath.Join(workBaseDir, "tmp")
+	tmpfsSize := "size=280M"
+	// tmpfs to <workbase>/tmp/
+	err = unix.Mount("tmpfs", tmpfsDir, "tmpfs", uintptr(unix.MS_NOSUID|unix.MS_NODEV), tmpfsSize)
+	if err != nil {
+		panic(err)
+	}
+	if !debug {
+		defer unix.Unmount(tmpfsDir, 0)
+	}
 	// do mount here
+
+	for _, zdir := range []string{"upper", "work"} {
+		os.MkdirAll(filepath.Join(tmpfsDir, zdir), 0755)
+	}
 
 	options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s",
 		langDetail.Fs.Base,
-		filepath.Join(workBaseDir, "upper"),
-		filepath.Join(workBaseDir, "tmp"),
+		filepath.Join(workBaseDir, "tmp", "upper"),
+		filepath.Join(workBaseDir, "tmp", "work"),
 	)
 
 	// 3. 设置挂载参数
