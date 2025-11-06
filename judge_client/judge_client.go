@@ -360,6 +360,8 @@ func compile(lang int, rootDir string) *Output {
 	cmd := exec.Command("/usr/local/bin/judge-sandbox",
 		fmt.Sprintf("-rootfs=%s", rootDir),
 		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Compile),
+		fmt.Sprintf("-time=%d", 3000),
+		fmt.Sprintf("-memory=%d", 256<<10),
 		"-cwd=/code",
 	)
 	if len(langDetail.Cmd.Env) > 0 {
@@ -503,7 +505,7 @@ func CopyFile(src, dst string) error {
 }
 
 // runAndCompare (Stub, 使用 slog)
-func runAndCompare(lang int, rootDir string, workDir string, inFile string, outFile string, spj bool) (result int, timeUsed int, memUsed int) {
+func runAndCompare(lang int, rootDir string, workDir string, inFile string, outFile string, timeLimit int, memoryLimit int, spj bool) (result int, timeUsed int, memUsed int) {
 	slog.Info("STUB: 正在运行和比对", "in_file", inFile, "out_file", outFile)
 	CopyFile(inFile, filepath.Join(workDir, "data.in"))
 	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
@@ -512,6 +514,8 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Run),
 		fmt.Sprintf("-stdin=%s", "/code/data.in"),
 		fmt.Sprintf("-stdout=%s", "/code/data.usr"),
+		fmt.Sprintf("-time=%d", timeLimit),
+		fmt.Sprintf("-memory=%d", memoryLimit<<10), // in kb
 		"-cwd=/code",
 	)
 	if len(langDetail.Cmd.Env) > 0 {
@@ -530,14 +534,7 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 	fmt.Println(err)
 	w3.Close()
 	cmd.Wait()
-	// TODO: judge result, then do compare results
 
-	// content, _ := os.ReadFile(filepath.Join(workDir, "data.usr"))
-	// fmt.Println("content: ", string(content))
-
-	// var b []byte
-	// nn, _ := r3.Read(b)
-	// slog.Info("output", "o", string(b), "ct", nn)
 	var output Output
 	err = json.NewDecoder(r3).Decode(&output)
 	slog.Info("debug", "output", output, "err", err)
@@ -747,7 +744,7 @@ func main() {
 	)
 
 	for _, dataFile := range dataFiles {
-		result, timeUsed, memUsed := runAndCompare(lang, rootfs, workdir, dataFile[0], dataFile[1], spj > 0)
+		result, timeUsed, memUsed := runAndCompare(lang, rootfs, workdir, dataFile[0], dataFile[1], int(1000*timeLimit), memLimit, spj > 0)
 
 		if timeUsed > totalTime {
 			totalTime = timeUsed

@@ -53,12 +53,14 @@ type Output struct {
 }
 
 type Config struct {
-	Command string
-	Rootfs  string
-	Workdir string
-	Stdin   string
-	Stdout  string
-	Stderr  string
+	Command     string
+	Rootfs      string
+	Workdir     string
+	Stdin       string
+	Stdout      string
+	Stderr      string
+	TimeLimit   int
+	MemoryLimit int
 }
 
 var config Config
@@ -71,6 +73,8 @@ func initConfig() {
 	flag.StringVar(&config.Stdin, "stdin", "", "")
 	flag.StringVar(&config.Stdout, "stdout", "", "")
 	flag.StringVar(&config.Stderr, "stderr", "", "")
+	flag.IntVar(&config.TimeLimit, "time", 1000, "")
+	flag.IntVar(&config.MemoryLimit, "memory", 256<<10, "")
 	if os.Args[1] == "child" {
 		flag.CommandLine.Parse(os.Args[2:])
 	} else {
@@ -280,6 +284,7 @@ func readCgroupCPUTime(statFile string) (time.Duration, error) {
 }
 
 func runParent() {
+	initConfig()
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	file3 := os.NewFile(uintptr(3), "fd3")
 	if file3 == nil {
@@ -294,10 +299,10 @@ func runParent() {
 	var ws unix.WaitStatus
 	var processCnt int = 1
 	// 设置限制
-	const cgroupLimit = 3 * time.Second
-	const realTimeLimit = 15 * time.Second
-	const memoryLimit = 128 << 20
-
+	cgroupLimit := time.Millisecond * time.Duration(config.TimeLimit) // milisecond
+	realTimeLimit := cgroupLimit * 3
+	memoryLimit := config.MemoryLimit << 10 // kb to bytes
+	slog.Debug("args", "args", config)
 	tracerReady := make(chan bool)
 
 	var runTracer = func() error {
