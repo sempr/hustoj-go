@@ -382,11 +382,10 @@ func compile(lang int, rootDir string) *Output {
 		panic(err)
 	}
 	w3.Close()
-
-	cmd.Wait()
 	var output Output
 	json.NewDecoder(r3).Decode(&output)
 	slog.Info("debug", "output", output)
+	cmd.Wait()
 	return &output
 }
 

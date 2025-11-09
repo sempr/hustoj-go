@@ -1,11 +1,11 @@
 name = "c++"
 
 [fs]
-base = "/var/lib/docker/overlay2/d51f32267d52a66dfbd946dbf228f2c71609fb46b2a157850789b41cb4244b12/diff:/var/lib/docker/overlay2/3c65b0a958064d88586dcbd9da76934e148be7228b608b95fc5c3ef782034253/diff:/var/lib/docker/overlay2/a467928a9d31383830f4483cab85fed9b58e06799ae1d3f203b0d9af3d9baaac/diff"
+base = "/var/lib/docker/overlay2/rscb6ahm255tzyrvdwcg83snv/diff:/var/lib/docker/overlay2/zx0mi9wxs920qo4j3jjxysyl7/diff:/var/lib/docker/overlay2/a467928a9d31383830f4483cab85fed9b58e06799ae1d3f203b0d9af3d9baaac/diff"
 workdir = "/code"
 
 [cmd]
-compile = "/usr/bin/g++ -fno-asm -Wall -lm --static -O2 -std=c++23 -DONLINE_JUDGE -o /code/Main /code/Main.cc"
+compile = "/usr/bin/g++ -fno-asm -Wall -lm --static -O2 -std=c++14 -DONLINE_JUDGE -o /code/Main /code/Main.cc"
 run  = "/code/Main"
 ver = "/usr/bin/g++ --version"
 

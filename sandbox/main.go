@@ -283,6 +283,13 @@ func readCgroupCPUTime(statFile string) (time.Duration, error) {
 	return 0, fmt.Errorf("在 %s 中未找到 'usage_usec' 字段", statFile)
 }
 
+func truncateBytes(s string, max int) string {
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
+}
+
 func runParent() {
 	initConfig()
 	slog.SetLogLoggerLevel(slog.LevelDebug)
@@ -409,6 +416,10 @@ func runParent() {
 					unix.Kill(childMainPid, unix.SIGKILL)
 					return ErrOutputLimitExceeded
 				}
+				if stopsig == unix.SIGSEGV {
+					unix.Kill(childMainPid, unix.SIGKILL)
+					return ErrRuntimeError
+				}
 				if stopsig == unix.SIGTRAP {
 					eventNumber := int(ws >> 16)
 					if eventNumber != 0 {
@@ -467,11 +478,12 @@ func runParent() {
 		tracerDoneChan <- err
 	}()
 
+	<-tracerReady
+	defer os.RemoveAll(cgroupPath)
 	// 启动 CPU Checker Goroutine
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		<-tracerReady
 		err := runCPUChecker(ctx, startTime, cgroupLimit, realTimeLimit, filepath.Join(cgroupPath, "cpu.stat"))
 		// 只有在 *真正* 发生违规时才发送信号
 		if err != nil {
@@ -481,7 +493,6 @@ func runParent() {
 
 	var finalResult error
 	log.Println("Main: 等待 ptrace 结束或检查器失败...")
-
 
 	select {
 	case err := <-checkerFailureChan:
@@ -526,12 +537,12 @@ func runParent() {
 
 	var out Output
 	out.ExitStatus = ws.ExitStatus()
-	out.CombinedOutput = b.String()
+	out.CombinedOutput = truncateBytes(b.String(), 1024)
 	out.Memory = mem / 1024
 	out.Time = int(cdt) / int(time.Millisecond)
 	out.UserStatus = OJ_AC
 	out.ProcessCnt = processCnt
-
+	slog.Debug("prepare output data")
 	if ws.ExitStatus() != 0 {
 		// check error
 		if finalResult != nil {
@@ -553,10 +564,9 @@ func runParent() {
 		}
 	}
 
+	slog.Debug("write json file to file-no 3")
 	json.NewEncoder(file3).Encode(out)
-  if err := os.RemoveAll(cgroupPath); err != nil {
-    slog.Info("remove cgroup error ", "err", err)
-  }
+	slog.Debug("remove cgroup path")
 }
 
 func main() {
