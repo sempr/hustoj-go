@@ -61,6 +61,7 @@ type Config struct {
 	Stderr      string
 	TimeLimit   int
 	MemoryLimit int
+	SolutionId  int
 }
 
 var config Config
@@ -75,6 +76,7 @@ func initConfig() {
 	flag.StringVar(&config.Stderr, "stderr", "", "")
 	flag.IntVar(&config.TimeLimit, "time", 1000, "")
 	flag.IntVar(&config.MemoryLimit, "memory", 256<<10, "")
+	flag.IntVar(&config.SolutionId, "sid", 0, "")
 	if os.Args[1] == "child" {
 		flag.CommandLine.Parse(os.Args[2:])
 	} else {
@@ -343,7 +345,7 @@ func runParent() {
 			panic(err)
 		}
 
-		cgroupPath = filepath.Join("/sys/fs/cgroup", "hustoj", fmt.Sprintf("run-%d", childMainPid))
+		cgroupPath = filepath.Join("/sys/fs/cgroup", "hustoj", fmt.Sprintf("run-%d-%d", config.SolutionId, childMainPid))
 		err = os.MkdirAll(cgroupPath, 0644)
 		if err != nil {
 			panic(err)
@@ -385,6 +387,11 @@ func runParent() {
 				unix.PTRACE_O_TRACESECCOMP,
 		)
 		// continue
+		defer func() {
+			// detach tracee
+			err := unix.PtraceDetach(childMainPid)
+			slog.Info("ptrace detach", "err", err)
+		}()
 		slog.Info("before contnue child process", "sig", ws.StopSignal(), "pidMain", childMainPid, "pidTmp", pidTmp)
 		tracerReady <- true
 		unix.PtraceCont(childMainPid, int(ws.StopSignal()))
@@ -480,8 +487,24 @@ func runParent() {
 
 	<-tracerReady
 	defer func() {
+
 		if strings.HasPrefix(cgroupPath, "/sys/fs/cgroup/hustoj") {
-			os.RemoveAll(cgroupPath)
+			// 如果还有活的进程 先迁到cgroup的最祖先 然后删除当前的cgroup
+			procs := filepath.Join(cgroupPath, "cgroup.procs")
+			pprocs := "/sys/fs/cgroup/cgroup.procs"
+			if data, err := os.ReadFile(procs); err == nil {
+				for _, pidstr := range strings.Fields(string(data)) {
+					err := os.WriteFile(pprocs, []byte(pidstr), 0644)
+					slog.Info("remove pid", "pid", pidstr, "err", err, "pprocs", pprocs)
+				}
+			}
+
+			err := os.RemoveAll(cgroupPath)
+			if err != nil {
+				// slog.Info("sleep here.....")
+				// time.Sleep(time.Second * 30)
+				slog.Info("cgrouppath remove failed", "path", cgroupPath, "error", err)
+			}
 		}
 	}()
 	// 启动 CPU Checker Goroutine

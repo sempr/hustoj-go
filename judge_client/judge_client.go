@@ -92,6 +92,7 @@ type Output struct {
 
 var langMaps map[int]langBasic
 var langDetail langDetails
+var rsolutionID int
 
 func getLangMaps(path string) map[int]langBasic {
 	data, err := os.ReadFile(path)
@@ -362,6 +363,7 @@ func compile(lang int, rootDir string) *Output {
 		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Compile),
 		fmt.Sprintf("-time=%d", 3000),
 		fmt.Sprintf("-memory=%d", 256<<10),
+		fmt.Sprintf("-sid=%d", rsolutionID),
 		"-cwd=/code",
 	)
 	if len(langDetail.Cmd.Env) > 0 {
@@ -553,6 +555,7 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Run),
 		fmt.Sprintf("-time=%d", rcfg.Timelimit),         // in milisecond
 		fmt.Sprintf("-memory=%d", rcfg.MemoryLimit<<10), // in kb
+		fmt.Sprintf("-sid=%d", rsolutionID),
 		"-cwd=/code",
 	}
 	if stdinName != "" {
@@ -647,7 +650,8 @@ func main() {
 		debug = true
 	}
 
-	solutionID, err := strconv.Atoi(os.Args[1])
+  solutionID, err := strconv.Atoi(os.Args[1])
+  rsolutionID = solutionID
 	if err != nil {
 		slog.Error("无效的 Solution ID", "input", os.Args[1])
 		os.Exit(1)
