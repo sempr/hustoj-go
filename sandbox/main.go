@@ -317,6 +317,13 @@ func runParent() {
 	var runTracer = func() error {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
+
+		defer func() {
+			slog.Info("final clear")
+			pidt, err := unix.Wait4(-childMainPid, nil, unix.WALL, nil)
+			slog.Info("final wait", "err", err, "pid", pidt)
+		}()
+
 		selfPath, err := os.Executable()
 		if err != nil {
 			panic(err)
@@ -417,14 +424,15 @@ func runParent() {
 				return ErrRuntimeError
 			}
 			if ws.Stopped() {
-				slog.Debug("process stopped", "stopsig", ws.StopSignal(), "pidTmp", pidTmp)
 				stopsig := ws.StopSignal() & 0x7f
 				if stopsig == unix.SIGXFSZ {
 					unix.Kill(childMainPid, unix.SIGKILL)
+					unix.Wait4(childMainPid, nil, unix.WALL, nil)
 					return ErrOutputLimitExceeded
 				}
 				if stopsig == unix.SIGSEGV {
 					unix.Kill(childMainPid, unix.SIGKILL)
+					unix.Wait4(childMainPid, nil, unix.WALL, nil)
 					return ErrRuntimeError
 				}
 				if stopsig == unix.SIGTRAP {
@@ -498,7 +506,6 @@ func runParent() {
 					slog.Info("remove pid", "pid", pidstr, "err", err, "pprocs", pprocs)
 				}
 			}
-
 			err := os.RemoveAll(cgroupPath)
 			if err != nil {
 				// slog.Info("sleep here.....")
