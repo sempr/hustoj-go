@@ -41,8 +41,11 @@ type lineScanner struct {
 }
 
 func newLineScanner(f *os.File) *lineScanner {
+	scanner := bufio.NewScanner(f)
+	buf := make([]byte, 0, 1024*1024)
+	scanner.Buffer(buf, 128*1024*1024)
 	return &lineScanner{
-		scanner: bufio.NewScanner(f),
+		scanner: scanner,
 		cursor:  0,
 		eof:     false,
 	}
