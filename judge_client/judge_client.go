@@ -467,6 +467,22 @@ func findDataFiles(pID int) ([][]string, error) {
 	slog.Info("数据文件配对完成", "pairs", len(result))
 	return result, nil
 }
+func findInName(pID int) string {
+	inNameFile := filepath.Join(ojHome, "data", strconv.Itoa(pID), "input.name")
+	bt, err := os.ReadFile(inNameFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(bt))
+}
+func findOutName(pID int) string {
+	outNameFile := filepath.Join(ojHome, "data", strconv.Itoa(pID), "output.name")
+	bt, err := os.ReadFile(outNameFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(bt))
+}
 
 // CopyFile copies the file from src to dst.
 func CopyFile(src, dst string) error {
@@ -504,20 +520,50 @@ func CopyFile(src, dst string) error {
 	return nil
 }
 
+type RunConfig struct {
+	Lang        int
+	Rootdir     string
+	Workdir     string
+	InFile      string
+	OutFile     string
+	InName      string
+	OutName     string
+	Timelimit   int
+	MemoryLimit int
+	Spj         int
+}
+
 // runAndCompare (Stub, 使用 slog)
-func runAndCompare(lang int, rootDir string, workDir string, inFile string, outFile string, timeLimit int, memoryLimit int, spj bool) (result int, timeUsed int, memUsed int) {
-	slog.Info("STUB: 正在运行和比对", "in_file", inFile, "out_file", outFile)
-	CopyFile(inFile, filepath.Join(workDir, "data.in"))
-	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
-	cmd := exec.Command("/usr/local/bin/judge-sandbox",
-		fmt.Sprintf("-rootfs=%s", rootDir),
+func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
+	// var lang int, rootDir string, workDir string, inFile string, outFile string, timeLimit int, memoryLimit int, spj bool;
+	slog.Info("STUB: 正在运行和比对", "in_file", rcfg.InFile, "out_file", rcfg.OutFile)
+	// handle inName
+	stdinName := "/code/data.in"
+	stdoutName := "/code/data.usr"
+	if rcfg.InName != "" {
+		CopyFile(rcfg.InFile, filepath.Join(rcfg.Workdir, rcfg.InName))
+		stdinName = ""
+	} else {
+		CopyFile(rcfg.InFile, filepath.Join(rcfg.Workdir, "data.in"))
+	}
+	if rcfg.OutName != "" {
+		stdoutName = ""
+	}
+	var runArgs []string = []string{
+		fmt.Sprintf("-rootfs=%s", rcfg.Rootdir),
 		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Run),
-		fmt.Sprintf("-stdin=%s", "/code/data.in"),
-		fmt.Sprintf("-stdout=%s", "/code/data.usr"),
-		fmt.Sprintf("-time=%d", timeLimit),
-		fmt.Sprintf("-memory=%d", memoryLimit<<10), // in kb
+		fmt.Sprintf("-time=%d", rcfg.Timelimit),         // in milisecond
+		fmt.Sprintf("-memory=%d", rcfg.MemoryLimit<<10), // in kb
 		"-cwd=/code",
-	)
+	}
+	if stdinName != "" {
+		runArgs = append(runArgs, fmt.Sprintf("-stdin=%s", stdinName))
+	}
+	if stdoutName != "" {
+		runArgs = append(runArgs, fmt.Sprintf("-stdout=%s", stdoutName))
+	}
+
+	cmd := exec.Command("/usr/local/bin/judge-sandbox", runArgs...)
 	if len(langDetail.Cmd.Env) > 0 {
 		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
 	}
@@ -529,7 +575,7 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 	}
 
 	cmd.ExtraFiles = append(cmd.ExtraFiles, w3)
-	slog.Info("STUB: 正在运行...", "language", lang, "work_dir", rootDir, "data", inFile)
+	slog.Info("STUB: 正在运行...", "language", rcfg.Lang, "work_dir", rcfg.Rootdir, "data", rcfg.InFile)
 	err = cmd.Start()
 	fmt.Println(err)
 	w3.Close()
@@ -546,7 +592,11 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 		return
 	}
 	// compare the results
-	res, err := compareFiles(outFile, filepath.Join(rootDir, "code", "data.usr"))
+	targetOutputName := "data.usr"
+	if rcfg.OutName != "" {
+		targetOutputName = rcfg.OutName
+	}
+	res, err := compareFiles(rcfg.OutFile, filepath.Join(rcfg.Rootdir, "code", targetOutputName))
 	switch res {
 	case 1:
 		result = OJ_PE
@@ -556,7 +606,7 @@ func runAndCompare(lang int, rootDir string, workDir string, inFile string, outF
 		result = OJ_AC
 	}
 	if err != nil {
-		result = OJ_MC
+		result = OJ_RE
 	}
 	return
 }
@@ -734,7 +784,9 @@ func main() {
 		slog.Error("查找数据文件失败", "error", err)
 		return
 	}
-
+	// TODO: input.name output.name
+	inName := findInName(pID)
+	outName := findOutName(pID)
 	var (
 		finalResult = OJ_AC
 		totalTime   = 0
@@ -743,8 +795,17 @@ func main() {
 		testCases   = float64(len(dataFiles))
 	)
 
+	var rCfg RunConfig = RunConfig{Lang: lang,
+		Rootdir: rootfs, Workdir: workdir,
+		Timelimit: int(1000 * timeLimit), MemoryLimit: memLimit,
+		InName: inName, OutName: outName,
+		Spj: spj}
+
 	for _, dataFile := range dataFiles {
-		result, timeUsed, memUsed := runAndCompare(lang, rootfs, workdir, dataFile[0], dataFile[1], int(1000*timeLimit), memLimit, spj > 0)
+		rCfg.InFile = dataFile[0]
+		rCfg.OutFile = dataFile[1]
+
+		result, timeUsed, memUsed := runAndCompare(rCfg)
 
 		if timeUsed > totalTime {
 			totalTime = timeUsed
