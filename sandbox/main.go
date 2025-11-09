@@ -479,7 +479,11 @@ func runParent() {
 	}()
 
 	<-tracerReady
-	defer os.RemoveAll(cgroupPath)
+	defer func() {
+		if strings.HasPrefix(cgroupPath, "/sys/fs/cgroup/hustoj") {
+			os.RemoveAll(cgroupPath)
+		}
+	}()
 	// 启动 CPU Checker Goroutine
 	wg.Add(1)
 	go func() {
