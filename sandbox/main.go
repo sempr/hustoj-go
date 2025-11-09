@@ -335,7 +335,7 @@ func runParent() {
 		cmd := exec.Command(selfPath, childArgs...)
 
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWPID | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
+			Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
 			Setpgid:    true,
 		}
 
@@ -424,17 +424,8 @@ func runParent() {
 				return ErrRuntimeError
 			}
 			if ws.Stopped() {
+				slog.Debug("process stopped", "pid", pidTmp, "signal", ws.StopSignal(), "signal", ws.StopSignal()&0x7f)
 				stopsig := ws.StopSignal() & 0x7f
-				if stopsig == unix.SIGXFSZ {
-					unix.Kill(childMainPid, unix.SIGKILL)
-					unix.Wait4(childMainPid, nil, unix.WALL, nil)
-					return ErrOutputLimitExceeded
-				}
-				if stopsig == unix.SIGSEGV {
-					unix.Kill(childMainPid, unix.SIGKILL)
-					unix.Wait4(childMainPid, nil, unix.WALL, nil)
-					return ErrRuntimeError
-				}
 				if stopsig == unix.SIGTRAP {
 					eventNumber := int(ws >> 16)
 					if eventNumber != 0 {
