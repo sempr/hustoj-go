@@ -482,7 +482,6 @@ func runParent() {
 	var finalResult error
 	log.Println("Main: 等待 ptrace 结束或检查器失败...")
 
-	defer os.RemoveAll(cgroupPath)
 
 	select {
 	case err := <-checkerFailureChan:
@@ -555,6 +554,9 @@ func runParent() {
 	}
 
 	json.NewEncoder(file3).Encode(out)
+  if err := os.RemoveAll(cgroupPath); err != nil {
+    slog.Info("remove cgroup error ", "err", err)
+  }
 }
 
 func main() {
