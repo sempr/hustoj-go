@@ -650,8 +650,8 @@ func main() {
 		debug = true
 	}
 
-  solutionID, err := strconv.Atoi(os.Args[1])
-  rsolutionID = solutionID
+	solutionID, err := strconv.Atoi(os.Args[1])
+	rsolutionID = solutionID
 	if err != nil {
 		slog.Error("无效的 Solution ID", "input", os.Args[1])
 		os.Exit(1)
@@ -708,7 +708,7 @@ func main() {
 	}
 
 	tmpfsDir := filepath.Join(workBaseDir, "tmp")
-	tmpfsSize := "size=280M"
+	tmpfsSize := "size=580M"
 	// tmpfs to <workbase>/tmp/
 	err = unix.Mount("tmpfs", tmpfsDir, "tmpfs", uintptr(unix.MS_NOSUID|unix.MS_NODEV), tmpfsSize)
 	if err != nil {
@@ -791,11 +791,10 @@ func main() {
 	inName := findInName(pID)
 	outName := findOutName(pID)
 	var (
-		finalResult = OJ_AC
-		totalTime   = 0
-		peakMemory  = 0
-		passRate    = 0.0
-		testCases   = float64(len(dataFiles))
+		totalTime  = 0
+		peakMemory = 0
+		passRate   = 0.0
+		testCases  = float64(len(dataFiles))
 	)
 
 	var rCfg RunConfig = RunConfig{Lang: lang,
@@ -803,6 +802,20 @@ func main() {
 		Timelimit: int(1000 * timeLimit), MemoryLimit: memLimit,
 		InName: inName, OutName: outName,
 		Spj: spj}
+
+	type OneResult struct {
+		Datafile string
+		Result   int
+		Time     int
+		Mem      int
+	}
+	type TotalResults struct {
+		Results     []OneResult
+		FinalResult int
+	}
+
+	var tot TotalResults
+	tot.FinalResult = OJ_AC
 
 	for _, dataFile := range dataFiles {
 		rCfg.InFile = dataFile[0]
@@ -817,24 +830,29 @@ func main() {
 			peakMemory = memUsed
 		}
 
+		filename := filepath.Base(dataFile[0])
 		if result != OJ_AC {
-			finalResult = result
-			slog.Warn("测试点失败", "data_file", dataFile, "result", finalResult)
-			break
+			if tot.FinalResult == OJ_AC {
+				tot.FinalResult = result
+			}
+			tot.Results = append(tot.Results, OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed})
+			slog.Warn("测试点失败", "data_file", filename, "result", result)
+			// break
 		} else {
+			tot.Results = append(tot.Results, OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed})
 			passRate += 1.0
-			slog.Info("测试点通过", "data_file", dataFile)
+			slog.Info("测试点通过", "data_file", filename)
 		}
 	}
 
 	// 8. 处理最终结果
 	if testCases > 0 {
 		passRate = passRate / testCases
-	} else if finalResult == OJ_AC {
+	} else if tot.FinalResult == OJ_AC {
 		passRate = 1.0
 	}
 
-	switch finalResult {
+	switch tot.FinalResult {
 	case OJ_RE:
 		addREInfo(solutionID)
 	case OJ_WA, OJ_PE:
@@ -842,8 +860,9 @@ func main() {
 	}
 
 	// 9. 更新数据库
-	slog.Info("判题完成", "final_result", finalResult, "total_time_ms", totalTime, "peak_mem_kb", peakMemory, "pass_rate", passRate)
-	if err := updateSolution(solutionID, finalResult, totalTime, peakMemory, passRate); err != nil {
+	slog.Info("判题完成", "final_result", tot.FinalResult, "total_time_ms", totalTime, "peak_mem_kb", peakMemory, "pass_rate", passRate)
+	slog.Info("判题结果", "FF", tot)
+	if err := updateSolution(solutionID, tot.FinalResult, totalTime, peakMemory, passRate); err != nil {
 		slog.Error("更新最终判题结果失败", "error", err)
 		os.Exit(1)
 	}

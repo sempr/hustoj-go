@@ -20,6 +20,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unsafe"
 
 	"golang.org/x/sys/unix"
 )
@@ -65,6 +66,7 @@ type Config struct {
 }
 
 var config Config
+var logger *slog.Logger
 
 func initConfig() {
 	// fmt.Printf("child: %v\n", os.Args)
@@ -88,13 +90,13 @@ func chRoot() {
 	newRootPath := config.Rootfs
 	// fmt.Println("Shim：Marking root as private (MS_PRIVATE)...")
 	if err := syscall.Mount("none", "/", "none", syscall.MS_PRIVATE|syscall.MS_REC, ""); err != nil {
-		fmt.Fprintf(os.Stderr, "Shim 错误: Failed to mark root private: %v\n", err)
+		logger.Error("Shim 错误: Failed to mark root private", "err", err)
 		os.Exit(1)
 	}
 	// 3. 确保新的根是一个挂载点 (旧的第2步)
 	// fmt.Printf("Shim：Bind-mounting %s ...\n", newRootPath)
 	if err := syscall.Mount(newRootPath, newRootPath, "bind", syscall.MS_BIND, ""); err != nil {
-		fmt.Fprintf(os.Stderr, "Shim 错误: bind-mount %s 失败: %v\n", newRootPath, err)
+		logger.Error("Shim 错误: bind-mount", "rootPath", newRootPath, "err", err)
 		os.Exit(1)
 	}
 	// 3. 创建一个目录来存放旧的 root
@@ -102,21 +104,21 @@ func chRoot() {
 	putOldPath := filepath.Join(newRootPath, ".old_root")
 	// fmt.Printf("Shim：创建旧 root 挂载点 %s ...\n", putOldPath)
 	if err := os.MkdirAll(putOldPath, 0700); err != nil {
-		fmt.Fprintf(os.Stderr, "Shim 错误: 创建 %s 失败: %v\n", putOldPath, err)
+		logger.Error("Shim 错误: 创建 失败", "putOldPath", putOldPath, "err", err)
 		os.Exit(1)
 	}
 
 	// 4. 执行 PivotRoot
 	// fmt.Println("Shim：执行 syscall.PivotRoot...")
 	if err := syscall.PivotRoot(newRootPath, putOldPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Shim 错误: PivotRoot 失败: %v newRootPath=%s\n", err, newRootPath)
+		logger.Error("Shim 错误: PivotRoot 失败:  newRootPath=", "err", err, "newRootPath", newRootPath)
 		os.Exit(1)
 	}
 
 	// 5. 切换到新的根目录
 	// fmt.Println("Shim：Chdir 到新的 '/' ...")
 	if err := syscall.Chdir("/"); err != nil {
-		fmt.Fprintf(os.Stderr, "Shim 错误: Chdir('/') 失败: %v\n", err)
+		logger.Error("Shim 错误: Chdir('/') 失败", "err", err)
 		os.Exit(1)
 	}
 	// 6. 卸载旧的 root
@@ -124,75 +126,92 @@ func chRoot() {
 	//    旧的 root 现在在 /.old_root (注意：/ 是新的根)
 	// fmt.Println("Shim：卸载 /.old_root ...")
 	if err := syscall.Unmount("/.old_root", syscall.MNT_DETACH); err != nil {
-		fmt.Fprintf(os.Stderr, "Shim 错误: Unmount '/.old_root' 失败: %v\n", err)
+		logger.Error("Shim 错误: Unmount '/.old_root' 失败", "err", err)
 		os.Exit(1)
 	}
 
 	// fmt.Println("Shim： 删除目录 /.old_root ...")
 	// 7. (可选) 删除临时目录
 	if err := os.RemoveAll("/.old_root"); err != nil {
-		fmt.Fprintf(os.Stderr, "Shim 警告: RemoveAll '/.old_root' 失败: %v\n", err)
+		logger.Warn("Shim 警告: RemoveAll '/.old_root' 失败", "err", err)
 	}
 }
 
 func changeFiles() {
-	// slog.Info("redirect files")
+	logger.Info("redirect files")
 	if config.Stdin != "" {
-		fi, _ := os.OpenFile(config.Stdin, os.O_RDONLY, 0644)
+		fi, err := os.OpenFile(config.Stdin, os.O_RDONLY, 0644)
+		if err != nil {
+			logger.Error("redir-stdin", "err", err)
+		}
 		unix.Dup2(int(fi.Fd()), int(os.Stdin.Fd()))
 	}
 	if config.Stdout != "" {
-		fo, _ := os.OpenFile(config.Stdout, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		fo, err := os.OpenFile(config.Stdout, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			logger.Error("redir-stdout", "err", err)
+		}
 		unix.Dup2(int(fo.Fd()), int(os.Stdout.Fd()))
 	}
 	if config.Stderr != "" {
-		fe, _ := os.OpenFile(config.Stderr, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		fe, err := os.OpenFile(config.Stderr, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		if err != nil {
+			logger.Error("redir-stderr", "err", err)
+		}
 		unix.Dup2(int(fe.Fd()), int(os.Stderr.Fd()))
 	}
 }
 
 func prepareMounts() {
-	slog.Debug("mount paths")
+	logger.Info("mount paths")
 	unix.Mount("proc", "/proc", "proc", 0, "")
 	unix.Mount("tmpfs", "/dev", "tmpfs", 0, "")
 	unix.Mount("devpts", "/dev/pts", "devpts", 0, "")
 	unix.Mount("sysfs", "/sys", "sysfs", 0, "")
 
-	slog.Debug("prepare /dev/null")
+	logger.Info("prepare /dev/null")
 	os.Remove(os.DevNull)
 	unix.Mknod("/dev/null", syscall.S_IFCHR|0666, int(unix.Mkdev(1, 3)))
 	unix.Chmod("/dev/null", 0666)
 }
 
 func runChild() {
+	runtime.LockOSThread()
+	file3 := os.NewFile(uintptr(3), "fd3")
+	logger = slog.New(slog.NewJSONHandler(file3, nil)).With("P", "child")
 	initConfig()
 	chRoot()
 
-	slog.Debug("change to workdir")
+	logger.Info("change to workdir")
 	syscall.Chdir(config.Workdir)
 
 	prepareMounts()
 	changeFiles()
 
+	logger.Info("before setrlimit")
 	// set rlimit, default 256MB
 	var rlim unix.Rlimit
 	rlim.Max = 256 << 20
 	rlim.Cur = rlim.Max
 	unix.Setrlimit(unix.RLIMIT_FSIZE, &rlim)
 
+	logger.Info("before setuid")
 	// run command
 	unix.Setuid(65534)
 	unix.Setgid(65534)
 
+	logger.Info("before traceme")
 	// start traceme then raise stop
-	unix.Syscall(unix.SYS_PTRACE, uintptr(unix.PTRACE_TRACEME), 0, 0)
+	a, b, err := unix.Syscall(unix.SYS_PTRACE, uintptr(unix.PTRACE_TRACEME), 0, 0)
+	logger.Info("traceme msg", "a", a, "b", b, "err", err)
+	logger.Info("before stop myself")
 	unix.Kill(os.Getpid(), unix.SIGSTOP)
-
 	cmds := strings.Split(config.Command, " ")
-	if err := syscall.Exec(cmds[0], cmds, os.Environ()); err != nil {
-		panic(err)
+	logger.Info("starting Exec", "cmds", cmds)
+	if err := unix.Exec(cmds[0], cmds, os.Environ()); err != nil {
+		logger.Error("exec error", "err", err)
 	}
-	slog.Debug("compile ok")
+	logger.Info("maybe not used here")
 }
 
 // ErrCgroupLimitExceeded Cgroup CPU 时间超限
@@ -317,6 +336,7 @@ func runParent() {
 	var runTracer = func() error {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
+		slog.Info("runTracer")
 
 		defer func() {
 			slog.Info("final clear")
@@ -333,6 +353,7 @@ func runParent() {
 		childArgs = append(childArgs, "child")
 		childArgs = append(childArgs, os.Args[1:]...)
 		cmd := exec.Command(selfPath, childArgs...)
+		cmd.ExtraFiles = append(cmd.ExtraFiles, os.Stderr)
 
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
@@ -343,11 +364,19 @@ func runParent() {
 			cmd.Stdout = &b
 			cmd.Stderr = &b
 		}
+		slog.Info("start cmd")
 
-		cmd.Start()
+		err = cmd.Start()
+		if err != nil {
+			slog.Info("cmd start failed", "err", err)
+			panic(err)
+		}
+		slog.Info("after start cmd")
 
 		childMainPid = cmd.Process.Pid
+		slog.Info("start wait for the stop")
 		pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, nil)
+		slog.Info("before to stop signal", "pidTmp", pidTmp, "ws", fmt.Sprintf("%0X", ws))
 		if err != nil {
 			panic(err)
 		}
@@ -389,9 +418,9 @@ func runParent() {
 				unix.PTRACE_O_TRACEVFORK|
 				unix.PTRACE_O_TRACEVFORKDONE|
 				unix.PTRACE_O_TRACEEXIT|
-				unix.PTRACE_O_TRACEEXEC|
 				unix.PTRACE_O_TRACESYSGOOD|
-				unix.PTRACE_O_TRACESECCOMP,
+				unix.PTRACE_O_TRACESECCOMP|
+				unix.PTRACE_O_TRACEEXEC,
 		)
 		// continue
 		defer func() {
@@ -399,9 +428,12 @@ func runParent() {
 			err := unix.PtraceDetach(childMainPid)
 			slog.Info("ptrace detach", "err", err)
 		}()
-		slog.Info("before contnue child process", "sig", ws.StopSignal(), "pidMain", childMainPid, "pidTmp", pidTmp)
+		slog.Info("before contnue child process", "sig", ws.StopSignal(), "pidMain", childMainPid)
 		tracerReady <- true
-		unix.PtraceCont(childMainPid, int(ws.StopSignal()))
+		err = unix.PtraceCont(pidTmp, int(ws.StopSignal()))
+		if err != nil {
+			slog.Info("ptrace cont error", "err", err)
+		}
 		for {
 			slog.Debug("new wait here....")
 			pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, &ru)
@@ -416,8 +448,12 @@ func runParent() {
 				}
 				continue
 			}
+			if ws == 0x85 {
+				data, err := os.ReadFile(fmt.Sprintf("/proc/%d/status", pidTmp))
+				slog.Info("status info ", "data", data, "err", err)
+			}
 			if ws.Signaled() {
-				slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal())
+				slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal(), "status", ws.ExitStatus(), "exit", ws.Exited())
 				if ws.Signal()&0x7f == unix.SIGXFSZ {
 					return ErrOutputLimitExceeded
 				}
@@ -425,7 +461,39 @@ func runParent() {
 			}
 			if ws.Stopped() {
 				slog.Debug("process stopped", "pid", pidTmp, "signal", ws.StopSignal(), "signal", ws.StopSignal()&0x7f)
-				stopsig := ws.StopSignal() & 0x7f
+				stopsig := ws.StopSignal()
+				if stopsig == unix.SIGSEGV {
+
+					type PtracePeekSigInfoArgs struct {
+						Off   uint64
+						Flags uint64
+						Nr    uint64
+					}
+					args := PtracePeekSigInfoArgs{
+						Off:   0,
+						Flags: 0,
+						Nr:    1, // 最多读取1个信号
+					}
+					var siginfo unix.Siginfo
+
+					ret, _, errno := unix.Syscall6(
+						unix.SYS_PTRACE,
+						uintptr(unix.PTRACE_PEEKSIGINFO),
+						uintptr(pidTmp),
+						uintptr(unsafe.Pointer(&args)),
+						uintptr(unsafe.Pointer(&siginfo)),
+						0, 0,
+					)
+					slog.Info("siginfo peeked", "sig", ret, "errno", errno)
+					// print the info here
+				}
+
+				if stopsig == (unix.SIGTRAP | 0x80) {
+					slog.Info("got stopsig=85, just do Ptrace")
+					unix.PtraceCont(pidTmp, 0)
+					continue
+				}
+
 				if stopsig == unix.SIGTRAP {
 					eventNumber := int(ws >> 16)
 					if eventNumber != 0 {
@@ -435,6 +503,9 @@ func runParent() {
 							processCnt++
 						} else if eventNumber == unix.PTRACE_EVENT_EXEC {
 							slog.Info("trace event: exec", "eventNumber", eventNumber)
+							data, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", childMainPid))
+							args := strings.Split(string(data), "\x00")
+							slog.Info("exec argv:", "args", args)
 						} else if eventNumber == unix.PTRACE_EVENT_VFORK_DONE {
 							slog.Info("trace event: vfork-done", "eventNumber", eventNumber)
 						} else if eventNumber == unix.PTRACE_EVENT_EXIT {
@@ -448,7 +519,7 @@ func runParent() {
 						slog.Info("eventNumber is 0")
 					}
 				}
-				err := unix.PtraceCont(pidTmp, int(ws.StopSignal()))
+				err := unix.PtraceCont(pidTmp, int(stopsig))
 				if err != nil {
 					slog.Error("ptraceCont failed: ", "err", err, "pid", pidTmp)
 				}
@@ -484,7 +555,9 @@ func runParent() {
 		tracerDoneChan <- err
 	}()
 
+	slog.Info("before tracer Ready")
 	<-tracerReady
+	slog.Info("after  tracer Ready")
 	defer func() {
 
 		if strings.HasPrefix(cgroupPath, "/sys/fs/cgroup/hustoj") {
@@ -581,7 +654,7 @@ func runParent() {
 				if out.Memory > memoryLimit/1024 {
 					out.UserStatus = OJ_ML
 				} else {
-					out.UserStatus = OJ_RE
+					out.UserStatus = OJ_MC
 				}
 			case ErrOutputLimitExceeded:
 				out.UserStatus = OJ_OL
@@ -595,10 +668,10 @@ func runParent() {
 }
 
 func main() {
+	runtime.GOMAXPROCS(1)
 	if os.Args[1] == "child" {
 		runChild()
 	} else {
-		runtime.GOMAXPROCS(1)
 		runParent()
 	}
 }
