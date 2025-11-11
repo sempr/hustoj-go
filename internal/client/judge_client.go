@@ -17,28 +17,8 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/pelletier/go-toml/v2"
+	"github.com/sempr/hustoj-go/pkg/constants"
 	"golang.org/x/sys/unix"
-)
-
-// --- 常量定义 (来自 C++ defines) ---
-
-// 判题结果
-const (
-	OJ_WT0 = 0  // 提交排队
-	OJ_WT1 = 1  // 重判排队
-	OJ_CI  = 2  // 编译中
-	OJ_RI  = 3  // 运行中
-	OJ_AC  = 4  // 答案正确
-	OJ_PE  = 5  // 格式错误
-	OJ_WA  = 6  // 答案错误
-	OJ_TL  = 7  // 时间超限
-	OJ_ML  = 8  // 内存超限
-	OJ_OL  = 9  // 输出超限
-	OJ_RE  = 10 // 运行错误
-	OJ_CE  = 11 // 编译错误
-	OJ_CO  = 12 // 编译完成
-	OJ_TR  = 13 // 测试运行结束
-	OJ_MC  = 14 // 等待裁判手工确认
 )
 
 // 配置变量 (简化 C++ 中的全局变量)
@@ -590,7 +570,7 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 	result = output.UserStatus
 	timeUsed = output.Time
 	memUsed = output.Memory
-	if result != OJ_AC {
+	if result != constants.OJ_AC {
 		return
 	}
 	// compare the results
@@ -601,14 +581,14 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 	res, err := compareFiles(rcfg.OutFile, filepath.Join(rcfg.Rootdir, "code", targetOutputName))
 	switch res {
 	case 1:
-		result = OJ_PE
+		result = constants.OJ_PE
 	case 2:
-		result = OJ_WA
+		result = constants.OJ_WA
 	case 0:
-		result = OJ_AC
+		result = constants.OJ_AC
 	}
 	if err != nil {
-		result = OJ_RE
+		result = constants.OJ_RE
 	}
 	return
 }
@@ -760,7 +740,7 @@ func Main() {
 	}
 
 	// 6. 编译 (Stub)
-	if err := updateSolution(solutionID, OJ_CI, 0, 0, 0.0); err != nil { // 设置为编译中
+	if err := updateSolution(solutionID, constants.OJ_CI, 0, 0, 0.0); err != nil { // 设置为编译中
 		slog.Warn("更新到 '编译中' 失败", "error", err)
 	}
 
@@ -768,7 +748,7 @@ func Main() {
 	if compileResult.ExitStatus != 0 {
 		slog.Info("编译失败", "output", compileResult.CombinedOutput)
 		addCEInfo(solutionID, compileResult.CombinedOutput)
-		if err := updateSolution(solutionID, OJ_CE, 0, 0, 0.0); err != nil {
+		if err := updateSolution(solutionID, constants.OJ_CE, 0, 0, 0.0); err != nil {
 			slog.Error("更新 '编译失败' 状态失败", "error", err)
 			os.Exit(1)
 		}
@@ -777,7 +757,7 @@ func Main() {
 		return
 	}
 
-	if err := updateSolution(solutionID, OJ_RI, 0, 0, 0.0); err != nil { // 设置为运行中
+	if err := updateSolution(solutionID, constants.OJ_RI, 0, 0, 0.0); err != nil { // 设置为运行中
 		slog.Warn("更新到 '运行中' 失败", "error", err)
 	}
 
@@ -815,7 +795,7 @@ func Main() {
 	}
 
 	var tot TotalResults
-	tot.FinalResult = OJ_AC
+	tot.FinalResult = constants.OJ_AC
 
 	for _, dataFile := range dataFiles {
 		rCfg.InFile = dataFile[0]
@@ -831,8 +811,8 @@ func Main() {
 		}
 
 		filename := filepath.Base(dataFile[0])
-		if result != OJ_AC {
-			if tot.FinalResult == OJ_AC {
+		if result != constants.OJ_AC {
+			if tot.FinalResult == constants.OJ_AC {
 				tot.FinalResult = result
 			}
 			tot.Results = append(tot.Results, OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed})
@@ -848,14 +828,14 @@ func Main() {
 	// 8. 处理最终结果
 	if testCases > 0 {
 		passRate = passRate / testCases
-	} else if tot.FinalResult == OJ_AC {
+	} else if tot.FinalResult == constants.OJ_AC {
 		passRate = 1.0
 	}
 
 	switch tot.FinalResult {
-	case OJ_RE:
+	case constants.OJ_RE:
 		addREInfo(solutionID)
-	case OJ_WA, OJ_PE:
+	case constants.OJ_WA, constants.OJ_PE:
 		addDiffInfo(solutionID)
 	}
 

@@ -22,26 +22,8 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/sempr/hustoj-go/pkg/constants"
 	"golang.org/x/sys/unix"
-)
-
-// 判题结果
-const (
-	OJ_WT0 = 0  // 提交排队
-	OJ_WT1 = 1  // 重判排队
-	OJ_CI  = 2  // 编译中
-	OJ_RI  = 3  // 运行中
-	OJ_AC  = 4  // 答案正确
-	OJ_PE  = 5  // 格式错误
-	OJ_WA  = 6  // 答案错误
-	OJ_TL  = 7  // 时间超限
-	OJ_ML  = 8  // 内存超限
-	OJ_OL  = 9  // 输出超限
-	OJ_RE  = 10 // 运行错误
-	OJ_CE  = 11 // 编译错误
-	OJ_CO  = 12 // 编译完成
-	OJ_TR  = 13 // 测试运行结束
-	OJ_MC  = 14 // 等待裁判手工确认
 )
 
 type Output struct {
@@ -638,7 +620,7 @@ func ParentMain() {
 	out.CombinedOutput = truncateBytes(b.String(), 1024)
 	out.Memory = mem / 1024
 	out.Time = int(cdt) / int(time.Millisecond)
-	out.UserStatus = OJ_AC
+	out.UserStatus = constants.OJ_AC
 	out.ProcessCnt = processCnt
 	slog.Debug("prepare output data")
 	if ws.ExitStatus() != 0 {
@@ -646,18 +628,18 @@ func ParentMain() {
 		if finalResult != nil {
 			switch finalResult {
 			case ErrCgroupLimitExceeded:
-				out.UserStatus = OJ_TL
+				out.UserStatus = constants.OJ_TL
 			case ErrRealTimeTimeout:
-				out.UserStatus = OJ_TL
+				out.UserStatus = constants.OJ_TL
 				out.Time = -1
 			case ErrRuntimeError:
 				if out.Memory > memoryLimit/1024 {
-					out.UserStatus = OJ_ML
+					out.UserStatus = constants.OJ_ML
 				} else {
-					out.UserStatus = OJ_MC
+					out.UserStatus = constants.OJ_MC
 				}
 			case ErrOutputLimitExceeded:
-				out.UserStatus = OJ_OL
+				out.UserStatus = constants.OJ_OL
 			}
 		}
 	}
