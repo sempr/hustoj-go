@@ -1,4 +1,4 @@
-package main
+package sandbox
 
 import (
 	"bufio"
@@ -175,7 +175,7 @@ func prepareMounts() {
 	unix.Chmod("/dev/null", 0666)
 }
 
-func runChild() {
+func ChildMain() {
 	runtime.LockOSThread()
 	file3 := os.NewFile(uintptr(3), "fd3")
 	logger = slog.New(slog.NewJSONHandler(file3, nil)).With("P", "child")
@@ -311,7 +311,7 @@ func truncateBytes(s string, max int) string {
 	return s
 }
 
-func runParent() {
+func ParentMain() {
 	initConfig()
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	file3 := os.NewFile(uintptr(3), "fd3")
@@ -665,13 +665,4 @@ func runParent() {
 	slog.Debug("write json file to file-no 3")
 	json.NewEncoder(file3).Encode(out)
 	slog.Debug("remove cgroup path")
-}
-
-func main() {
-	runtime.GOMAXPROCS(1)
-	if os.Args[1] == "child" {
-		runChild()
-	} else {
-		runParent()
-	}
 }

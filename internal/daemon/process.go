@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"fmt"
@@ -25,7 +25,7 @@ func RunClient(cfg *Config, solutionID, clientID int, done chan<- int) {
 		if !cfg.InternalClient {
 			clientPath = "/home/judge/src/core/judge_client/judge_client"
 		}
-		
+
 		dockerVolume := fmt.Sprintf("%s:/home/judge", cfg.OJHome)
 		dataVolume := fmt.Sprintf("%s/data:/home/judge/data", cfg.OJHome)
 

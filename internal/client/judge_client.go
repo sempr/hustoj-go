@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"bufio"
@@ -633,7 +633,7 @@ func cleanWorkDir(workDir string) {
 
 // --- Main 工作流 ---
 
-func main() {
+func Main() {
 	// 0. 设置 slog
 	// 使用 JSON Handler 以便进行结构化日志记录
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))

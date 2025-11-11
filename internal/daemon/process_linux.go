@@ -1,10 +1,11 @@
 //go:build linux
 
-package main
+package daemon
 
 import (
 	"fmt"
 	"os/exec"
+
 	"golang.org/x/sys/unix"
 )
 

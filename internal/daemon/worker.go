@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"context"
@@ -11,18 +11,18 @@ const (
 
 // Worker manages the cycle of fetching and running jobs.
 type Worker struct {
-	cfg       *Config
-	fetcher   JobFetcher
-	done      chan int // Channel to receive client IDs of finished jobs
-	running   map[int]int // Maps clientID to solutionID
+	cfg     *Config
+	fetcher JobFetcher
+	done    chan int    // Channel to receive client IDs of finished jobs
+	running map[int]int // Maps clientID to solutionID
 }
 
 func NewWorker(cfg *Config, fetcher JobFetcher) *Worker {
 	return &Worker{
-		cfg:       cfg,
-		fetcher:   fetcher,
-		done:      make(chan int, cfg.MaxRunning),
-		running:   make(map[int]int),
+		cfg:     cfg,
+		fetcher: fetcher,
+		done:    make(chan int, cfg.MaxRunning),
+		running: make(map[int]int),
 	}
 }
 
@@ -42,7 +42,7 @@ func (w *Worker) Run(ctx context.Context) {
 			if w.cfg.Once && jobsProcessed == 0 {
 				return
 			}
-			
+
 			// If there were no jobs, wait before trying again.
 			if jobsProcessed == 0 {
 				AppLogger.Printf("DEBUG: Sleeping for %d seconds...", w.cfg.SleepTime)

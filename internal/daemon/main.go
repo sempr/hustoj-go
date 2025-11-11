@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"context"
@@ -18,7 +18,7 @@ var (
 	once   = flag.Bool("once", false, "Run only one work cycle")
 )
 
-func main() {
+func Main() {
 	flag.Parse()
 
 	// Change to the working directory
@@ -42,7 +42,7 @@ func main() {
 	if !cfg.Debug {
 		pidFilePath := filepath.Join(cfg.OJHome, "etc", "judge.pid")
 		logFilePath := filepath.Join(cfg.OJHome, "log", "judged-go.log")
-		
+
 		cntxt := &daemon.Context{
 			PidFileName: pidFilePath,
 			PidFilePerm: 0644,
