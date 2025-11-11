@@ -18,6 +18,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/pelletier/go-toml/v2"
 	"github.com/sempr/hustoj-go/pkg/constants"
+	"github.com/sempr/hustoj-go/pkg/models"
 	"golang.org/x/sys/unix"
 )
 
@@ -59,15 +60,6 @@ type CmdInfo struct {
 	Run     string   `toml:"run"`
 	Ver     string   `toml:"ver"`
 	Env     []string `toml:"env"`
-}
-
-type Output struct {
-	ExitStatus     int    `json:"status"`
-	CombinedOutput string `json:"output"`
-	Time           int    `json:"time"`
-	Memory         int    `json:"memory"`
-	UserStatus     int    `json:"user_status"`
-	ProcessCnt     int    `json:"process_count"`
 }
 
 var langMaps map[int]langBasic
@@ -335,7 +327,7 @@ func writeSourceCode(source string, lang int, workDir string) error {
 }
 
 // compile (Stub, 使用 slog)
-func compile(lang int, rootDir string) *Output {
+func compile(lang int, rootDir string) *models.SandboxOutput {
 	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
 	fmt.Println("cmd=", langDetail.Cmd.Compile)
 	selfname, _ := os.Executable()
@@ -366,7 +358,7 @@ func compile(lang int, rootDir string) *Output {
 		panic(err)
 	}
 	w3.Close()
-	var output Output
+	var output models.SandboxOutput
 	json.NewDecoder(r3).Decode(&output)
 	slog.Info("debug", "output", output)
 	cmd.Wait()
@@ -567,7 +559,7 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 	w3.Close()
 	cmd.Wait()
 
-	var output Output
+	var output models.SandboxOutput
 	err = json.NewDecoder(r3).Decode(&output)
 	slog.Info("debug", "output", output, "err", err)
 

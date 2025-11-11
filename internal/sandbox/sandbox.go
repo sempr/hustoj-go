@@ -26,15 +26,6 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-type Output struct {
-	ExitStatus     int    `json:"status"`
-	CombinedOutput string `json:"output"`
-	Time           int    `json:"time"`
-	Memory         int    `json:"memory"`
-	UserStatus     int    `json:"user_status"`
-	ProcessCnt     int    `json:"process_count"`
-}
-
 var config *models.SandboxArgs
 var logger *slog.Logger
 
@@ -286,7 +277,13 @@ func ParentMain(cfg *models.SandboxArgs) {
 	slog.Debug("args", "args", config)
 	tracerReady := make(chan bool)
 
-	var runTracer = func() error {
+	type TraceResult struct {
+		Err  error
+		Sig  unix.Signal
+		Code int
+	}
+
+	var runTracer = func() TraceResult {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 		slog.Info("runTracer")
@@ -391,13 +388,13 @@ func ParentMain(cfg *models.SandboxArgs) {
 			slog.Debug("new wait here....")
 			pidTmp, err := unix.Wait4(-childMainPid, &ws, 0, &ru)
 			if err != nil {
-				return err
+				return TraceResult{err, 0, 0}
 			}
 			slog.Debug("tracing", "pid", pidTmp, "ws", fmt.Appendf(nil, "%X", ws), "ru", ru)
 			if ws.Exited() {
 				slog.Debug("process exit ", "pid", pidTmp, "exitCode", ws.ExitStatus())
 				if pidTmp == childMainPid {
-					return nil
+					return TraceResult{nil, 0, 0}
 				}
 				continue
 			}
@@ -408,9 +405,9 @@ func ParentMain(cfg *models.SandboxArgs) {
 			if ws.Signaled() {
 				slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal(), "status", ws.ExitStatus(), "exit", ws.Exited())
 				if ws.Signal()&0x7f == unix.SIGXFSZ {
-					return ErrOutputLimitExceeded
+					return TraceResult{ErrOutputLimitExceeded, 0, 0}
 				}
-				return ErrRuntimeError
+				return TraceResult{ErrRuntimeError, ws.Signal(), 0}
 			}
 			if ws.Stopped() {
 				slog.Debug("process stopped", "pid", pidTmp, "signal", ws.StopSignal(), "signal", ws.StopSignal()&0x7f)
@@ -488,7 +485,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 	var wg sync.WaitGroup
 
 	// tracerDoneChan 用于接收 tracer 协程的退出信号
-	tracerDoneChan := make(chan error, 1)
+	tracerDoneChan := make(chan TraceResult, 1)
 	// checkerFailureChan 仅用于接收 checker 协程的 *失败* 信号
 	checkerFailureChan := make(chan error, 1)
 
@@ -501,11 +498,11 @@ func ParentMain(cfg *models.SandboxArgs) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := runTracer()
-		if err != nil {
-			log.Printf("Main: Tracer 协程因 ptrace 错误退出: %v", err)
+		res := runTracer()
+		if res.Err != nil {
+			log.Printf("Main: Tracer 协程因 ptrace 错误退出: %v %v", res.Err, res.Sig)
 		}
-		tracerDoneChan <- err
+		tracerDoneChan <- res
 	}()
 
 	slog.Info("before tracer Ready")
@@ -544,7 +541,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 
 	var finalResult error
 	log.Println("Main: 等待 ptrace 结束或检查器失败...")
-
+	var finalTraceResult TraceResult
 	select {
 	case err := <-checkerFailureChan:
 		// **情况 1: Checker 报告失败 (Cgroup 或超时)**
@@ -559,11 +556,11 @@ func ParentMain(cfg *models.SandboxArgs) {
 		<-tracerDoneChan
 		log.Println("Main: Tracer 协程已确认进程终止。")
 
-	case err := <-tracerDoneChan:
+	case finalTraceResult = <-tracerDoneChan:
 		// **情况 2: Tracer 协程首先结束** (进程正常退出或崩溃)
-		finalResult = err
-		if err != nil {
-			log.Printf("Main: Tracer 首先完成 (有错误): %v", err)
+		finalResult = finalTraceResult.Err
+		if finalTraceResult.Err != nil {
+			log.Printf("Main: Tracer 首先完成 (有错误): %v", finalTraceResult.Err)
 		} else {
 			log.Println("Main: Tracer 首先完成 (成功)。")
 		}
@@ -586,7 +583,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 	mem, err3 := strconv.Atoi(strings.TrimSpace(string(mdt)))
 	slog.Info("Cgroup Data: ", "cpu", cdt, "memory", mdt, "err1", err1, "err2", err2, "err3", err3)
 
-	var out Output
+	var out models.SandboxOutput
 	out.ExitStatus = ws.ExitStatus()
 	out.CombinedOutput = truncateBytes(b.String(), 1024)
 	out.Memory = mem / 1024
@@ -607,7 +604,8 @@ func ParentMain(cfg *models.SandboxArgs) {
 				if out.Memory > memoryLimit/1024 {
 					out.UserStatus = constants.OJ_ML
 				} else {
-					out.UserStatus = constants.OJ_MC
+					out.UserStatus = constants.OJ_RE
+					out.ExitSignal = finalTraceResult.Sig.String()
 				}
 			case ErrOutputLimitExceeded:
 				out.UserStatus = constants.OJ_OL
