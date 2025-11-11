@@ -1,4 +1,4 @@
-package main
+package sandbox
 
 import (
 	"bufio"
@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"log/slog"
@@ -22,26 +21,9 @@ import (
 	"time"
 	"unsafe"
 
+	"github.com/sempr/hustoj-go/pkg/constants"
+	"github.com/sempr/hustoj-go/pkg/models"
 	"golang.org/x/sys/unix"
-)
-
-// 判题结果
-const (
-	OJ_WT0 = 0  // 提交排队
-	OJ_WT1 = 1  // 重判排队
-	OJ_CI  = 2  // 编译中
-	OJ_RI  = 3  // 运行中
-	OJ_AC  = 4  // 答案正确
-	OJ_PE  = 5  // 格式错误
-	OJ_WA  = 6  // 答案错误
-	OJ_TL  = 7  // 时间超限
-	OJ_ML  = 8  // 内存超限
-	OJ_OL  = 9  // 输出超限
-	OJ_RE  = 10 // 运行错误
-	OJ_CE  = 11 // 编译错误
-	OJ_CO  = 12 // 编译完成
-	OJ_TR  = 13 // 测试运行结束
-	OJ_MC  = 14 // 等待裁判手工确认
 )
 
 type Output struct {
@@ -53,38 +35,8 @@ type Output struct {
 	ProcessCnt     int    `json:"process_count"`
 }
 
-type Config struct {
-	Command     string
-	Rootfs      string
-	Workdir     string
-	Stdin       string
-	Stdout      string
-	Stderr      string
-	TimeLimit   int
-	MemoryLimit int
-	SolutionId  int
-}
-
-var config Config
+var config *models.SandboxArgs
 var logger *slog.Logger
-
-func initConfig() {
-	// fmt.Printf("child: %v\n", os.Args)
-	flag.StringVar(&config.Rootfs, "rootfs", "/tmp", "")
-	flag.StringVar(&config.Command, "cmd", "/bin/false", "")
-	flag.StringVar(&config.Workdir, "cwd", "/code", "")
-	flag.StringVar(&config.Stdin, "stdin", "", "")
-	flag.StringVar(&config.Stdout, "stdout", "", "")
-	flag.StringVar(&config.Stderr, "stderr", "", "")
-	flag.IntVar(&config.TimeLimit, "time", 1000, "")
-	flag.IntVar(&config.MemoryLimit, "memory", 256<<10, "")
-	flag.IntVar(&config.SolutionId, "sid", 0, "")
-	if os.Args[1] == "child" {
-		flag.CommandLine.Parse(os.Args[2:])
-	} else {
-		flag.Parse()
-	}
-}
 
 func chRoot() {
 	newRootPath := config.Rootfs
@@ -175,11 +127,11 @@ func prepareMounts() {
 	unix.Chmod("/dev/null", 0666)
 }
 
-func runChild() {
+func ChildMain(cfg *models.SandboxArgs) {
+	config = cfg
 	runtime.LockOSThread()
 	file3 := os.NewFile(uintptr(3), "fd3")
 	logger = slog.New(slog.NewJSONHandler(file3, nil)).With("P", "child")
-	initConfig()
 	chRoot()
 
 	logger.Info("change to workdir")
@@ -311,8 +263,9 @@ func truncateBytes(s string, max int) string {
 	return s
 }
 
-func runParent() {
-	initConfig()
+func ParentMain(cfg *models.SandboxArgs) {
+	runtime.LockOSThread()
+	config = cfg
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	file3 := os.NewFile(uintptr(3), "fd3")
 	if file3 == nil {
@@ -351,7 +304,7 @@ func runParent() {
 
 		var childArgs []string
 		childArgs = append(childArgs, "child")
-		childArgs = append(childArgs, os.Args[1:]...)
+		childArgs = append(childArgs, os.Args[2:]...)
 		cmd := exec.Command(selfPath, childArgs...)
 		cmd.ExtraFiles = append(cmd.ExtraFiles, os.Stderr)
 
@@ -638,7 +591,7 @@ func runParent() {
 	out.CombinedOutput = truncateBytes(b.String(), 1024)
 	out.Memory = mem / 1024
 	out.Time = int(cdt) / int(time.Millisecond)
-	out.UserStatus = OJ_AC
+	out.UserStatus = constants.OJ_AC
 	out.ProcessCnt = processCnt
 	slog.Debug("prepare output data")
 	if ws.ExitStatus() != 0 {
@@ -646,18 +599,18 @@ func runParent() {
 		if finalResult != nil {
 			switch finalResult {
 			case ErrCgroupLimitExceeded:
-				out.UserStatus = OJ_TL
+				out.UserStatus = constants.OJ_TL
 			case ErrRealTimeTimeout:
-				out.UserStatus = OJ_TL
+				out.UserStatus = constants.OJ_TL
 				out.Time = -1
 			case ErrRuntimeError:
 				if out.Memory > memoryLimit/1024 {
-					out.UserStatus = OJ_ML
+					out.UserStatus = constants.OJ_ML
 				} else {
-					out.UserStatus = OJ_MC
+					out.UserStatus = constants.OJ_MC
 				}
 			case ErrOutputLimitExceeded:
-				out.UserStatus = OJ_OL
+				out.UserStatus = constants.OJ_OL
 			}
 		}
 	}
@@ -665,13 +618,4 @@ func runParent() {
 	slog.Debug("write json file to file-no 3")
 	json.NewEncoder(file3).Encode(out)
 	slog.Debug("remove cgroup path")
-}
-
-func main() {
-	runtime.GOMAXPROCS(1)
-	if os.Args[1] == "child" {
-		runChild()
-	} else {
-		runParent()
-	}
 }

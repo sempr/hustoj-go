@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"context"
@@ -33,7 +33,7 @@ func NewFetcher(cfg *Config) (JobFetcher, error) {
 
 // --- MySQL Fetcher ---
 type MySQLFetcher struct {
-	db        *sql.DB
+	db          *sql.DB
 	selectQuery string
 }
 
@@ -110,11 +110,10 @@ func (f *MySQLFetcher) Close() error {
 	return f.db.Close()
 }
 
-
 // --- Redis Fetcher ---
 type RedisFetcher struct {
 	client *redis.Client
-	qname string
+	qname  string
 }
 
 func NewRedisFetcher(cfg *Config) (*RedisFetcher, error) {
@@ -131,22 +130,20 @@ func NewRedisFetcher(cfg *Config) (*RedisFetcher, error) {
 	return &RedisFetcher{client: rdb, qname: cfg.RedisQName}, nil
 }
 
-
 func (f *RedisFetcher) GetJobs(maxJobs int) ([]int, error) {
-    var jobs []int
-    for i := 0; i < maxJobs; i++ {
-        val, err := f.client.RPop(context.Background(), f.qname).Int()
-        if err == redis.Nil {
-            break // Queue is empty
-        }
-        if err != nil {
-            return nil, fmt.Errorf("error getting job from Redis: %w", err)
-        }
-        jobs = append(jobs, val)
-    }
-    return jobs, nil
+	var jobs []int
+	for i := 0; i < maxJobs; i++ {
+		val, err := f.client.RPop(context.Background(), f.qname).Int()
+		if err == redis.Nil {
+			break // Queue is empty
+		}
+		if err != nil {
+			return nil, fmt.Errorf("error getting job from Redis: %w", err)
+		}
+		jobs = append(jobs, val)
+	}
+	return jobs, nil
 }
-
 
 func (f *RedisFetcher) CheckOut(solutionID int, result int) (bool, error) {
 	// RPop is atomic, so no explicit checkout is needed.

@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/judged-go --debug
+ExecStart=/usr/bin/hustoj-go daemon --ojhome /home/judge --debug
 Restart=on-failure
 RestartSec=5s
 User=root

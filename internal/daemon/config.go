@@ -1,4 +1,4 @@
-package main
+package daemon
 
 import (
 	"bufio"
@@ -10,52 +10,52 @@ import (
 
 // Config stores all configuration for judged.
 type Config struct {
-	OJHome          string
-	Debug           bool
-	Once            bool
-	HostName        string
-	UserName        string
-	Password        string
-	DBName          string
-	PortNumber      int
-	MaxRunning      int
-	SleepTime       int
-	TotalJudges     int
-	JudgeMod        int
-	LangSet         string
-	HTTPJudge       bool
-	HTTPBaseURL     string
-	HTTPAPIPath     string
-	HTTPLoginPath   string
-	HTTPUsername    string
-	HTTPPassword    string
-	RedisEnable     bool
-	RedisServer     string
-	RedisPort       int
-	RedisAuth       string
-	RedisQName      string
-	UDPEable        bool
-	UDPServer       string
-	UDPPort         int
-	UseDocker       bool
-	DockerPath      string
-	InternalClient  bool
-	TurboMode       int
+	OJHome         string
+	Debug          bool
+	Once           bool
+	HostName       string
+	UserName       string
+	Password       string
+	DBName         string
+	PortNumber     int
+	MaxRunning     int
+	SleepTime      int
+	TotalJudges    int
+	JudgeMod       int
+	LangSet        string
+	HTTPJudge      bool
+	HTTPBaseURL    string
+	HTTPAPIPath    string
+	HTTPLoginPath  string
+	HTTPUsername   string
+	HTTPPassword   string
+	RedisEnable    bool
+	RedisServer    string
+	RedisPort      int
+	RedisAuth      string
+	RedisQName     string
+	UDPEable       bool
+	UDPServer      string
+	UDPPort        int
+	UseDocker      bool
+	DockerPath     string
+	InternalClient bool
+	TurboMode      int
 }
 
 // LoadConfig reads the judge.conf file and returns a Config struct.
 func LoadConfig(path string) (*Config, error) {
 	// Default values
 	cfg := &Config{
-		PortNumber:  3306,
-		MaxRunning:  3,
-		SleepTime:   1,
-		TotalJudges: 1,
-		JudgeMod:    0,
-		LangSet:     "0,1,3,6",
-		DockerPath:  "/usr/bin/docker",
-		UDPServer: "127.0.0.1",
-		UDPPort: 1536,
+		PortNumber:     3306,
+		MaxRunning:     3,
+		SleepTime:      1,
+		TotalJudges:    1,
+		JudgeMod:       0,
+		LangSet:        "0,1,3,6",
+		DockerPath:     "/usr/bin/docker",
+		UDPServer:      "127.0.0.1",
+		UDPPort:        1536,
 		InternalClient: true,
 	}
 
@@ -130,7 +130,7 @@ func assignConfigValue(cfg *Config, key, value string) {
 		cfg.DockerPath = value
 	case "OJ_INTERNAL_CLIENT":
 		v, _ := strconv.Atoi(value)
-		cfg.InternalClient = (v==1)
+		cfg.InternalClient = (v == 1)
 	case "OJ_TURBO_MODE":
 		cfg.TurboMode, _ = strconv.Atoi(value)
 	}
