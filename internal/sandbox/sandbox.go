@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log"
 	"log/slog"
@@ -23,6 +22,7 @@ import (
 	"unsafe"
 
 	"github.com/sempr/hustoj-go/pkg/constants"
+	"github.com/sempr/hustoj-go/pkg/models"
 	"golang.org/x/sys/unix"
 )
 
@@ -35,38 +35,8 @@ type Output struct {
 	ProcessCnt     int    `json:"process_count"`
 }
 
-type Config struct {
-	Command     string
-	Rootfs      string
-	Workdir     string
-	Stdin       string
-	Stdout      string
-	Stderr      string
-	TimeLimit   int
-	MemoryLimit int
-	SolutionId  int
-}
-
-var config Config
+var config *models.SandboxArgs
 var logger *slog.Logger
-
-func initConfig() {
-	// fmt.Printf("child: %v\n", os.Args)
-	flag.StringVar(&config.Rootfs, "rootfs", "/tmp", "")
-	flag.StringVar(&config.Command, "cmd", "/bin/false", "")
-	flag.StringVar(&config.Workdir, "cwd", "/code", "")
-	flag.StringVar(&config.Stdin, "stdin", "", "")
-	flag.StringVar(&config.Stdout, "stdout", "", "")
-	flag.StringVar(&config.Stderr, "stderr", "", "")
-	flag.IntVar(&config.TimeLimit, "time", 1000, "")
-	flag.IntVar(&config.MemoryLimit, "memory", 256<<10, "")
-	flag.IntVar(&config.SolutionId, "sid", 0, "")
-	if os.Args[1] == "child" {
-		flag.CommandLine.Parse(os.Args[2:])
-	} else {
-		flag.Parse()
-	}
-}
 
 func chRoot() {
 	newRootPath := config.Rootfs
@@ -157,11 +127,11 @@ func prepareMounts() {
 	unix.Chmod("/dev/null", 0666)
 }
 
-func ChildMain() {
+func ChildMain(cfg *models.SandboxArgs) {
+	config = cfg
 	runtime.LockOSThread()
 	file3 := os.NewFile(uintptr(3), "fd3")
 	logger = slog.New(slog.NewJSONHandler(file3, nil)).With("P", "child")
-	initConfig()
 	chRoot()
 
 	logger.Info("change to workdir")
@@ -293,8 +263,9 @@ func truncateBytes(s string, max int) string {
 	return s
 }
 
-func ParentMain() {
-	initConfig()
+func ParentMain(cfg *models.SandboxArgs) {
+	runtime.LockOSThread()
+	config = cfg
 	slog.SetLogLoggerLevel(slog.LevelDebug)
 	file3 := os.NewFile(uintptr(3), "fd3")
 	if file3 == nil {
@@ -333,7 +304,7 @@ func ParentMain() {
 
 		var childArgs []string
 		childArgs = append(childArgs, "child")
-		childArgs = append(childArgs, os.Args[1:]...)
+		childArgs = append(childArgs, os.Args[2:]...)
 		cmd := exec.Command(selfPath, childArgs...)
 		cmd.ExtraFiles = append(cmd.ExtraFiles, os.Stderr)
 

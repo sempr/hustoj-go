@@ -338,13 +338,15 @@ func writeSourceCode(source string, lang int, workDir string) error {
 func compile(lang int, rootDir string) *Output {
 	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
 	fmt.Println("cmd=", langDetail.Cmd.Compile)
-	cmd := exec.Command("/usr/local/bin/judge-sandbox",
-		fmt.Sprintf("-rootfs=%s", rootDir),
-		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Compile),
-		fmt.Sprintf("-time=%d", 3000),
-		fmt.Sprintf("-memory=%d", 256<<10),
-		fmt.Sprintf("-sid=%d", rsolutionID),
-		"-cwd=/code",
+	selfname, _ := os.Executable()
+	cmd := exec.Command(selfname,
+		"sandbox",
+		fmt.Sprintf("--rootfs=%s", rootDir),
+		fmt.Sprintf("--cmd=%s", langDetail.Cmd.Compile),
+		fmt.Sprintf("--time=%d", 3000),
+		fmt.Sprintf("--memory=%d", 256<<10),
+		fmt.Sprintf("--sid=%d", rsolutionID),
+		"--cwd=/code",
 	)
 	if len(langDetail.Cmd.Env) > 0 {
 		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
@@ -531,12 +533,13 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 		stdoutName = ""
 	}
 	var runArgs []string = []string{
-		fmt.Sprintf("-rootfs=%s", rcfg.Rootdir),
-		fmt.Sprintf("-cmd=%s", langDetail.Cmd.Run),
-		fmt.Sprintf("-time=%d", rcfg.Timelimit),         // in milisecond
-		fmt.Sprintf("-memory=%d", rcfg.MemoryLimit<<10), // in kb
-		fmt.Sprintf("-sid=%d", rsolutionID),
-		"-cwd=/code",
+		"sandbox",
+		fmt.Sprintf("--rootfs=%s", rcfg.Rootdir),
+		fmt.Sprintf("--cmd=%s", langDetail.Cmd.Run),
+		fmt.Sprintf("--time=%d", rcfg.Timelimit),         // in milisecond
+		fmt.Sprintf("--memory=%d", rcfg.MemoryLimit<<10), // in kb
+		fmt.Sprintf("--sid=%d", rsolutionID),
+		"--cwd=/code",
 	}
 	if stdinName != "" {
 		runArgs = append(runArgs, fmt.Sprintf("-stdin=%s", stdinName))
@@ -545,7 +548,8 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 		runArgs = append(runArgs, fmt.Sprintf("-stdout=%s", stdoutName))
 	}
 
-	cmd := exec.Command("/usr/bin/judge-sandbox", runArgs...)
+	selfname, _ := os.Executable()
+	cmd := exec.Command(selfname, runArgs...)
 	if len(langDetail.Cmd.Env) > 0 {
 		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
 	}
@@ -619,28 +623,30 @@ func Main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
 	slog.SetDefault(logger)
 
+	var nArgs = os.Args[1:]
+
 	// 1. 初始化参数
-	if len(os.Args) < 3 {
-		fmt.Println("用法: go_judger <solution_id> <runner_id> [oj_home_path]")
+	if len(nArgs) < 3 {
+		fmt.Println("用法: <> client <solution_id> <runner_id> [oj_home_path]")
 		os.Exit(1)
 	}
 
 	debug := false
-	if len(os.Args) > 4 && os.Args[4] == "DEBUG" {
+	if len(nArgs) > 4 && nArgs[4] == "DEBUG" {
 		debug = true
 	}
 
-	solutionID, err := strconv.Atoi(os.Args[1])
+	solutionID, err := strconv.Atoi(nArgs[1])
 	rsolutionID = solutionID
 	if err != nil {
-		slog.Error("无效的 Solution ID", "input", os.Args[1])
+		slog.Error("无效的 Solution ID", "input", nArgs[1])
 		os.Exit(1)
 	}
 
-	runnerID := os.Args[2]
+	runnerID := nArgs[2]
 	homePath := "/home/judge"
-	if len(os.Args) > 3 {
-		homePath = os.Args[3]
+	if len(nArgs) > 3 {
+		homePath = nArgs[3]
 	}
 
 	slog.Info("开始判题", "solution_id", solutionID, "runner_id", runnerID)

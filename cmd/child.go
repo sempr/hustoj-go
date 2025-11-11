@@ -5,8 +5,11 @@ package cmd
 
 import (
 	"github.com/sempr/hustoj-go/internal/sandbox"
+	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/spf13/cobra"
 )
+
+var childArgs models.SandboxArgs
 
 // childCmd represents the child command
 var childCmd = &cobra.Command{
@@ -19,7 +22,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		sandbox.ChildMain()
+		sandbox.ChildMain(&childArgs)
 	},
 }
 
@@ -35,4 +38,13 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// childCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	childCmd.Flags().StringVar(&childArgs.Rootfs, "rootfs", "/tmp", "root filesystem path")
+	childCmd.Flags().StringVar(&childArgs.Command, "cmd", "/bin/false", "command to execute")
+	childCmd.Flags().StringVar(&childArgs.Workdir, "cwd", "/code", "working directory inside sandbox")
+	childCmd.Flags().StringVar(&childArgs.Stdin, "stdin", "", "path to stdin file")
+	childCmd.Flags().StringVar(&childArgs.Stdout, "stdout", "", "path to stdout file")
+	childCmd.Flags().StringVar(&childArgs.Stderr, "stderr", "", "path to stderr file")
+	childCmd.Flags().IntVar(&childArgs.TimeLimit, "time", 1000, "time limit in ms")
+	childCmd.Flags().IntVar(&childArgs.MemoryLimit, "memory", 256<<10, "memory limit in KB")
+	childCmd.Flags().IntVar(&childArgs.SolutionId, "sid", 0, "solution ID")
 }
