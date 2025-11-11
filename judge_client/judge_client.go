@@ -565,7 +565,7 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 		runArgs = append(runArgs, fmt.Sprintf("-stdout=%s", stdoutName))
 	}
 
-	cmd := exec.Command("/usr/local/bin/judge-sandbox", runArgs...)
+	cmd := exec.Command("/usr/bin/judge-sandbox", runArgs...)
 	if len(langDetail.Cmd.Env) > 0 {
 		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
 	}
