@@ -2,28 +2,23 @@ package daemon
 
 import (
 	"context"
-	"flag"
 	"log"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
+	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/sevlyar/go-daemon"
 )
 
-var (
-	ojHome = flag.String("oj_home", "/home/judge", "OJ home directory")
-	debug  = flag.Bool("debug", false, "Enable debug mode")
-	once   = flag.Bool("once", false, "Run only one work cycle")
-)
+var daemonArgs *models.DaemonArgs
 
-func Main() {
-	flag.Parse()
-
+func Main(ccfg *models.DaemonArgs) {
+	daemonArgs = ccfg
 	// Change to the working directory
-	if err := os.Chdir(*ojHome); err != nil {
-		log.Fatalf("FATAL: Could not change to directory %s: %v", *ojHome, err)
+	if err := os.Chdir(daemonArgs.OJHome); err != nil {
+		log.Fatalf("FATAL: Could not change to directory %s: %v", daemonArgs.OJHome, err)
 	}
 
 	// Load configuration
@@ -31,9 +26,10 @@ func Main() {
 	if err != nil {
 		log.Fatalf("FATAL: Error loading judge.conf: %v", err)
 	}
-	cfg.OJHome = *ojHome
-	cfg.Debug = *debug
-	cfg.Once = *once
+
+	cfg.OJHome = daemonArgs.OJHome
+	cfg.Debug = daemonArgs.Debug
+	cfg.Once = daemonArgs.Once
 
 	// Initialize logger
 	InitLogger(cfg)

@@ -5,8 +5,11 @@ package cmd
 
 import (
 	"github.com/sempr/hustoj-go/internal/daemon"
+	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/spf13/cobra"
 )
+
+var daemonArgs models.DaemonArgs
 
 // daemonCmd represents the daemon command
 var daemonCmd = &cobra.Command{
@@ -19,7 +22,7 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		daemon.Main()
+		daemon.Main(&daemonArgs)
 	},
 }
 
@@ -35,4 +38,7 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// daemonCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	daemonCmd.Flags().StringVar(&daemonArgs.OJHome, "ojhome", "/home/judge", "online judge home")
+	daemonCmd.Flags().BoolVar(&daemonArgs.Debug, "debug", false, "debug?")
+	daemonCmd.Flags().BoolVar(&daemonArgs.Once, "once", false, "run once")
 }

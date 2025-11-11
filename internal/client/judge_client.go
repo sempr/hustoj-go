@@ -542,10 +542,10 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 		"--cwd=/code",
 	}
 	if stdinName != "" {
-		runArgs = append(runArgs, fmt.Sprintf("-stdin=%s", stdinName))
+		runArgs = append(runArgs, fmt.Sprintf("--stdin=%s", stdinName))
 	}
 	if stdoutName != "" {
-		runArgs = append(runArgs, fmt.Sprintf("-stdout=%s", stdoutName))
+		runArgs = append(runArgs, fmt.Sprintf("--stdout=%s", stdoutName))
 	}
 
 	selfname, _ := os.Executable()

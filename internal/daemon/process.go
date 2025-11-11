@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 )
@@ -19,26 +20,9 @@ func RunClient(cfg *Config, solutionID, clientID int, done chan<- int) {
 	clientIDStr := strconv.Itoa(clientID)
 
 	var cmd *exec.Cmd
-
-	if cfg.UseDocker {
-		clientPath := "/usr/bin/judge_client"
-		if !cfg.InternalClient {
-			clientPath = "/home/judge/src/core/judge_client/judge_client"
-		}
-
-		dockerVolume := fmt.Sprintf("%s:/home/judge", cfg.OJHome)
-		dataVolume := fmt.Sprintf("%s/data:/home/judge/data", cfg.OJHome)
-
-		args := []string{
-			"container", "run", "--pids-limit", "100", "--rm",
-			"--cap-add", "SYS_PTRACE", "--cap-add", "CAP_SYS_ADMIN",
-			"--net=host", "-v", dockerVolume, "-v", dataVolume,
-			"hustoj", clientPath, solutionIDStr, clientIDStr,
-		}
-		cmd = exec.Command(cfg.DockerPath, args...)
-	} else {
-		cmd = exec.Command("/usr/bin/judge_client", solutionIDStr, clientIDStr, cfg.OJHome)
-	}
+	selfexe, _ := os.Executable()
+	fmt.Printf("%s client %s %s %s\n", selfexe, solutionIDStr, clientIDStr, cfg.OJHome)
+	cmd = exec.Command(selfexe, "client", solutionIDStr, clientIDStr, cfg.OJHome)
 
 	// This function call will be resolved at compile time to the correct
 	// OS-specific implementation.
