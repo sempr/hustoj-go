@@ -599,7 +599,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 				out.UserStatus = constants.OJ_TL
 			case ErrRealTimeTimeout:
 				out.UserStatus = constants.OJ_TL
-				out.Time = -1
+				out.Time = int(realTimeLimit/time.Millisecond) + 233
 			case ErrRuntimeError:
 				if out.Memory > memoryLimit/1024 {
 					out.UserStatus = constants.OJ_ML

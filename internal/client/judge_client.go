@@ -569,22 +569,77 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 	if result != constants.OJ_AC {
 		return
 	}
+
+	// do spj here
+
 	// compare the results
 	targetOutputName := "data.usr"
 	if rcfg.OutName != "" {
 		targetOutputName = rcfg.OutName
 	}
-	res, err := compareFiles(rcfg.OutFile, filepath.Join(rcfg.Rootdir, "code", targetOutputName))
-	switch res {
-	case 1:
-		result = constants.OJ_PE
-	case 2:
-		result = constants.OJ_WA
-	case 0:
-		result = constants.OJ_AC
+	targetInputName := "data.in"
+	if rcfg.InName != "" {
+		targetInputName = rcfg.InName
 	}
-	if err != nil {
-		result = constants.OJ_RE
+	if rcfg.Spj == 0 {
+		res, err := compareFiles(rcfg.OutFile, filepath.Join(rcfg.Rootdir, "code", targetOutputName))
+		switch res {
+		case 1:
+			result = constants.OJ_PE
+		case 2:
+			result = constants.OJ_WA
+		case 0:
+			result = constants.OJ_AC
+		}
+		if err != nil {
+			result = constants.OJ_RE
+		}
+		return
+	}
+	if rcfg.Spj == 1 {
+		// data
+		var sysdatafile = filepath.Join(rcfg.Rootdir, "/code/sysdata.out")
+		CopyFile(rcfg.OutFile, sysdatafile)
+		defer os.Remove(sysdatafile)
+		// spj
+		var spjfile = filepath.Join(rcfg.Rootdir, "code/spj")
+		CopyFile(filepath.Join(filepath.Dir(rcfg.OutFile), "spj"), spjfile)
+		defer os.Remove(spjfile)
+		// run cmd
+		var runArgs []string = []string{
+			"sandbox",
+			fmt.Sprintf("--rootfs=%s", rcfg.Rootdir),
+			fmt.Sprintf("--cmd=/code/spj %s %s %s", targetInputName, targetOutputName, "sysdata.out"),
+			fmt.Sprintf("--time=%d", rcfg.Timelimit),         // in milisecond
+			fmt.Sprintf("--memory=%d", rcfg.MemoryLimit<<10), // in kb
+			fmt.Sprintf("--sid=%d", rsolutionID),
+			"--cwd=/code",
+		}
+
+		pipeRead, pipeWrite, err := os.Pipe()
+		if err != nil {
+			panic(fmt.Errorf("os.Pipe() failed: %s", err))
+		}
+		defer pipeRead.Close()
+
+		slog.Info("runArgs", "args", runArgs)
+		cmd := exec.Command(selfname, runArgs...)
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+		cmd.ExtraFiles = []*os.File{pipeWrite}
+		cmd.Start()
+		pipeWrite.Close()
+		err = cmd.Wait()
+		slog.Info("run err", "err", err)
+		var output2 models.SandboxOutput
+		json.NewDecoder(pipeRead).Decode(&output2)
+
+		slog.Info("exitoutput", "outputdata", output2)
+		if output2.ExitStatus == 0 {
+			result = constants.OJ_AC
+		} else {
+			result = constants.OJ_WA
+		}
 	}
 	return
 }
