@@ -608,12 +608,12 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 		// run cmd
 		var runArgs []string = []string{
 			"sandbox",
-			fmt.Sprintf("--rootfs=%s", rcfg.Rootdir),
-			fmt.Sprintf("--cmd=/code/spj %s %s %s", targetInputName, targetOutputName, "sysdata.out"),
+			fmt.Sprintf("--rootfs=%s", filepath.Join(rcfg.Rootdir, "code")),
+			fmt.Sprintf("--cmd=/spj %s %s %s", targetInputName, targetOutputName, "sysdata.out"),
 			fmt.Sprintf("--time=%d", rcfg.Timelimit),         // in milisecond
 			fmt.Sprintf("--memory=%d", rcfg.MemoryLimit<<10), // in kb
 			fmt.Sprintf("--sid=%d", rsolutionID),
-			"--cwd=/code",
+			"--cwd=/",
 		}
 
 		pipeRead, pipeWrite, err := os.Pipe()
