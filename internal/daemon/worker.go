@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"log/slog"
 	"time"
 )
 
@@ -45,7 +46,7 @@ func (w *Worker) Run(ctx context.Context) {
 
 			// If there were no jobs, wait before trying again.
 			if jobsProcessed == 0 {
-				AppLogger.Printf("DEBUG: Sleeping for %d seconds...", w.cfg.SleepTime)
+				slog.Debug("Sleeping", "duration_sec", w.cfg.SleepTime)
 				<-ticker.C
 			}
 		}
@@ -60,7 +61,7 @@ func (w *Worker) work() int {
 	// Get new jobs
 	jobs, err := w.fetcher.GetJobs(w.cfg.MaxRunning)
 	if err != nil {
-		AppLogger.Printf("ERROR: Could not get jobs: %v", err)
+		slog.Error("Could not get jobs", "err", err)
 		return 0
 	}
 	if len(jobs) == 0 && len(w.running) == 0 {
@@ -86,11 +87,11 @@ func (w *Worker) work() int {
 		if clientID != -1 {
 			ok, err := w.fetcher.CheckOut(solutionID, OJ_CI)
 			if err != nil {
-				AppLogger.Printf("ERROR: Checkout failed for solution %d: %v", solutionID, err)
+				slog.Error("Checkout failed for solution", "solution_id", solutionID, "err", err)
 				continue
 			}
 			if ok {
-				AppLogger.Printf("INFO: Starting judgment for solution %d with client %d", solutionID, clientID)
+				slog.Info("Starting judgment", "solution_id", solutionID, "client_id", clientID)
 				w.running[clientID] = solutionID
 				go RunClient(w.cfg, solutionID, clientID, w.done)
 				jobCount++
@@ -105,7 +106,7 @@ func (w *Worker) cleanupFinishedJobs() {
 		select {
 		case clientID := <-w.done:
 			solutionID := w.running[clientID]
-			AppLogger.Printf("INFO: Judgment finished for solution %d (client %d)", solutionID, clientID)
+			slog.Info("Judgment finished", "solution_id", solutionID, "client_id", clientID)
 			delete(w.running, clientID)
 		default:
 			return // No more finished jobs

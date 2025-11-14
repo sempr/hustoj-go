@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -172,8 +171,9 @@ func runCPUChecker(
 	cgroupCPULimit time.Duration,
 	realTimeLimit time.Duration,
 	cgroupStatFile string, // 您配置的 cgroup cpu.stat 文件路径
+	logger *slog.Logger,
 ) error {
-	log.Println("CPU Checker: 启动...")
+	logger.Info("CPU Checker: 启动...")
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -183,14 +183,14 @@ func runCPUChecker(
 			// 1. 检查 Cgroup CPU 时间
 			consumedCPUTime, err := readCgroupCPUTime(cgroupStatFile)
 			if err != nil {
-				log.Printf("CPU Checker: 读取 cgroup 失败: %v", err)
+				logger.Warn("CPU Checker: 读取 cgroup 失败", "error", err)
 				// 根据您的策略，这里也可以选择返回错误
 				continue
 			}
 
 			if consumedCPUTime > cgroupCPULimit {
-				log.Printf("CPU Checker: 违规! Cgroup CPU 时间 (%.2fs) 超出限制 (%.2fs)",
-					consumedCPUTime.Seconds(), cgroupCPULimit.Seconds())
+				logger.Warn("违规! Cgroup CPU 时间超出限制",
+					"consumed_cpu_sec", consumedCPUTime.Seconds(), "limit_cpu_sec", cgroupCPULimit.Seconds())
 				// 立即退出，并报告错误
 				return ErrCgroupLimitExceeded
 			}
@@ -198,8 +198,8 @@ func runCPUChecker(
 			// 2. 检查物理时间
 			elapsedRealTime := time.Since(startTime)
 			if elapsedRealTime > realTimeLimit {
-				log.Printf("CPU Checker: 违规! 物理时间 (%.2fs) 超出限制 (%.2fs)",
-					elapsedRealTime.Seconds(), realTimeLimit.Seconds())
+				logger.Warn("违规! 物理时间超出限制",
+					"elapsed_real_sec", elapsedRealTime.Seconds(), "limit_real_sec", realTimeLimit.Seconds())
 				// 立即退出，并报告错误
 				return ErrRealTimeTimeout
 			}
@@ -209,7 +209,7 @@ func runCPUChecker(
 
 		case <-ctx.Done():
 			// context 被取消 (因为 tracer 协程退出了)
-			log.Println("CPU Checker: 收到停止信号，停止检查。")
+			logger.Info("CPU Checker: 收到停止信号，停止检查。")
 			return nil // 正常停止
 		}
 	}
@@ -490,7 +490,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 	checkerFailureChan := make(chan error, 1)
 
 	startTime := time.Now()
-	log.Printf("Main: 启动... Cgroup 限制: %s, 物理时间限制: %s", cgroupLimit, realTimeLimit)
+	slog.Info("ParentMain: 启动...", "cgroup_limit", cgroupLimit, "real_time_limit", realTimeLimit)
 
 	// --- 2. 启动 Goroutines ---
 
@@ -500,7 +500,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 		defer wg.Done()
 		res := runTracer()
 		if res.Err != nil {
-			log.Printf("Main: Tracer 协程因 ptrace 错误退出: %v %v", res.Err, res.Sig)
+			slog.Warn("Tracer 协程因 ptrace 错误退出", "error", res.Err, "signal", res.Sig)
 		}
 		tracerDoneChan <- res
 	}()
@@ -532,7 +532,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		err := runCPUChecker(ctx, startTime, cgroupLimit, realTimeLimit, filepath.Join(cgroupPath, "cpu.stat"))
+		err := runCPUChecker(ctx, startTime, cgroupLimit, realTimeLimit, filepath.Join(cgroupPath, "cpu.stat"), slog.Default())
 		// 只有在 *真正* 发生违规时才发送信号
 		if err != nil {
 			checkerFailureChan <- err
@@ -540,29 +540,29 @@ func ParentMain(cfg *models.SandboxArgs) {
 	}()
 
 	var finalResult error
-	log.Println("Main: 等待 ptrace 结束或检查器失败...")
+	slog.Info("Main: 等待 ptrace 结束或检查器失败...")
 	var finalTraceResult TraceResult
 	select {
 	case err := <-checkerFailureChan:
 		// **情况 1: Checker 报告失败 (Cgroup 或超时)**
 		finalResult = err
-		log.Printf("Main: Checker 报告失败: %v。正在终止被 trace 的进程...", finalResult)
+		slog.Warn("Checker 报告失败，正在终止被 trace 的进程...", "error", finalResult)
 
 		// *重要*: Main 负责发送 kill 信号
 		if err := unix.Kill(childMainPid, unix.SIGKILL); err != nil {
-			log.Printf("Main: 发送 SIGKILL 到 PID %d 失败: %v", childMainPid, err)
+			slog.Error("发送 SIGKILL 失败", "pid", childMainPid, "error", err)
 		}
 		// 等待 tracer 协程确认进程被 kill (它会从 tracerDoneChan 收到信号)
 		<-tracerDoneChan
-		log.Println("Main: Tracer 协程已确认进程终止。")
+		slog.Info("Tracer 协程已确认进程终止。")
 
 	case finalTraceResult = <-tracerDoneChan:
 		// **情况 2: Tracer 协程首先结束** (进程正常退出或崩溃)
 		finalResult = finalTraceResult.Err
 		if finalTraceResult.Err != nil {
-			log.Printf("Main: Tracer 首先完成 (有错误): %v", finalTraceResult.Err)
+			slog.Warn("Tracer 首先完成 (有错误)", "error", finalTraceResult.Err)
 		} else {
-			log.Println("Main: Tracer 首先完成 (成功)。")
+			slog.Info("Tracer 首先完成 (成功)。")
 		}
 		// 此时，tracer 已经结束，我们不需要再 kill 它了
 	}
@@ -574,7 +574,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 	cancel()
 
 	// 等待所有协程 (特别是 checker) 干净地退出
-	log.Println("Main: 等待所有协程关闭...")
+	slog.Info("Main: 等待所有协程关闭...")
 	wg.Wait()
 
 	slog.Info("Time Used: ", "sys", ru.Stime, "user", ru.Utime, "st", ws.ExitStatus())

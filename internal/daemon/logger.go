@@ -2,27 +2,34 @@ package daemon
 
 import (
 	"log"
+	"log/slog"
 	"os"
 	"path/filepath"
 )
 
-var AppLogger *log.Logger
-
 // InitLogger initializes the global logger.
 func InitLogger(cfg *Config) {
-	logFile, err := os.OpenFile(
-		filepath.Join(cfg.OJHome, "log", "client.log"),
-		os.O_APPEND|os.O_CREATE|os.O_WRONLY,
-		0644,
-	)
-	if err != nil {
-		log.Fatalf("FATAL: Could not open log file: %v", err)
+	var handler slog.Handler
+
+	logLevel := slog.LevelInfo
+	if cfg.Debug {
+		logLevel = slog.LevelDebug
 	}
 
-	// If in debug mode, log to stdout as well as the file.
-	if cfg.Debug {
-		AppLogger = log.New(os.Stdout, "", 0)
-	} else {
-		AppLogger = log.New(logFile, "", log.LstdFlags)
+	opts := &slog.HandlerOptions{
+		Level: logLevel,
 	}
+
+	if cfg.Debug {
+		handler = slog.NewTextHandler(os.Stdout, opts)
+	} else {
+		logFilePath := filepath.Join(cfg.OJHome, "log", "judged-go.log")
+		logFile, err := os.OpenFile(logFilePath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+		if err != nil {
+			log.Fatalf("FATAL: Could not open log file %s: %v", logFilePath, err)
+		}
+		handler = slog.NewJSONHandler(logFile, opts)
+	}
+	logger := slog.New(handler)
+	slog.SetDefault(logger)
 }

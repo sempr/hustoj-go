@@ -92,18 +92,17 @@ func getLangMaps(path string) map[int]langBasic {
 	return langMap
 }
 
-func getLangDetails(lang int) langDetails {
+func getLangDetails(lang int) (langDetails, error) {
 	data, err := os.ReadFile(filepath.Join(ojHome, "etc", "langs", fmt.Sprintf("%d.lang.toml", lang)))
 	if err != nil {
-		panic(err)
+		return langDetails{}, fmt.Errorf("读取语言配置文件失败: %w", err)
 	}
 	var tempConfig langDetails
 	err = toml.Unmarshal(data, &tempConfig)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "parse error")
-		os.Exit(1)
+		return langDetails{}, fmt.Errorf("解析语言配置文件失败: %w", err)
 	}
-	return tempConfig
+	return tempConfig, nil
 }
 
 // initJudgeConf (使用 slog)
@@ -265,7 +264,7 @@ func updateSolution(solutionID int, result int, time int, memory int, passRate f
 	if err != nil {
 		return fmt.Errorf("更新提交状态失败: %v", err)
 	}
-	slog.Info("更新 Solution", "solution_id", solutionID, "result", result, "time_ms", time, "memory_kb", memory, "pass_rate", passRate)
+	slog.Info("更新 Solution", "result", result, "time_ms", time, "memory_kb", memory, "pass_rate", passRate)
 	return nil
 }
 
@@ -348,14 +347,14 @@ func compile(lang int, rootDir string) *models.SandboxOutput {
 
 	r3, w3, err := os.Pipe()
 	if err != nil {
-		panic(err)
+		return &models.SandboxOutput{UserStatus: constants.OJ_SE, CombinedOutput: "failed to create pipe for compile"}
 	}
 
 	cmd.ExtraFiles = append(cmd.ExtraFiles, w3)
 	slog.Info("STUB: 正在编译...", "language", lang, "work_dir", rootDir)
 	err = cmd.Start()
 	if err != nil {
-		panic(err)
+		return &models.SandboxOutput{UserStatus: constants.OJ_SE, CombinedOutput: "failed to start compile command"}
 	}
 	w3.Close()
 	var output models.SandboxOutput
@@ -367,7 +366,7 @@ func compile(lang int, rootDir string) *models.SandboxOutput {
 
 // addCEInfo (Stub, 使用 slog)
 func addCEInfo(solutionID int, msg string) error {
-	slog.Info("STUB: 正在添加编译错误信息", "solution_id", solutionID, "msg", msg)
+	slog.Info("STUB: 正在添加编译错误信息", "msg", msg)
 	_, err := db.Exec("DELETE FROM compileinfo WHERE solution_id=?", solutionID)
 	if err != nil {
 		return fmt.Errorf("delete failed: %w", err)
@@ -549,7 +548,7 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 	cmd.Stderr = os.Stdout
 	r3, w3, err := os.Pipe()
 	if err != nil {
-		panic(err)
+		return constants.OJ_SE, 0, 0
 	}
 
 	cmd.ExtraFiles = append(cmd.ExtraFiles, w3)
@@ -646,12 +645,14 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 
 // addREInfo (Stub, 使用 slog)
 func addREInfo(solutionID int) {
-	slog.Info("STUB: 添加运行错误信息", "solution_id", solutionID)
+	_ = solutionID
+	slog.Info("STUB: 添加运行错误信息")
 }
 
 // addDiffInfo (Stub, 使用 slog)
 func addDiffInfo(solutionID int) {
-	slog.Info("STUB: 添加 Diff 详情", "solution_id", solutionID)
+	_ = solutionID
+	slog.Info("STUB: 添加 Diff 详情")
 }
 
 // cleanWorkDir (Stub, 使用 slog)
@@ -690,13 +691,16 @@ func Main() {
 		os.Exit(1)
 	}
 
+	// 使用 slog.With 创建一个包含 solution_id 的新 logger，并设为默认
+	slog.SetDefault(slog.Default().With("solution_id", solutionID))
+
 	runnerID := nArgs[2]
 	homePath := "/home/judge"
 	if len(nArgs) > 3 {
 		homePath = nArgs[3]
 	}
 
-	slog.Info("开始判题", "solution_id", solutionID, "runner_id", runnerID)
+	slog.Info("开始判题", "runner_id", runnerID)
 
 	// 2. 初始化配置和数据库
 	initJudgeConf(homePath)
@@ -725,7 +729,12 @@ func Main() {
 	slog.Info("题目限制", "time_limit_s", timeLimit, "mem_limit_mb", memLimit, "spj", spj)
 
 	// 获取语言对应的环境配置信息
-	langDetail = getLangDetails(lang)
+	var errLang error
+	langDetail, errLang = getLangDetails(lang)
+	if errLang != nil {
+		slog.Error("获取语言详情失败", "err", errLang)
+		os.Exit(1)
+	}
 
 	// TODO: 准备工作目录 使用 overlay2, base作为lower,自建一个upper,merged,workdir,最后操作merged
 	workBaseDir := filepath.Join(ojHome, "run"+runnerID)
@@ -745,7 +754,8 @@ func Main() {
 	// tmpfs to <workbase>/tmp/
 	err = unix.Mount("tmpfs", tmpfsDir, "tmpfs", uintptr(unix.MS_NOSUID|unix.MS_NODEV), tmpfsSize)
 	if err != nil {
-		panic(err)
+		slog.Error("挂载 tmpfs 失败", "err", err)
+		os.Exit(1)
 	}
 	if !debug {
 		defer unix.Unmount(tmpfsDir, 0)
@@ -769,7 +779,8 @@ func Main() {
 	rootfs := filepath.Join(workBaseDir, "rootfs")
 	fmt.Printf("mount -t overlay overlay -o %s %s\n", options, rootfs)
 	if err := unix.Mount(fsource, rootfs, fstype, flags, options); err != nil {
-		panic(err)
+		slog.Error("挂载 overlayfs 失败", "err", err)
+		os.Exit(1)
 	}
 
 	if !debug {
@@ -784,7 +795,8 @@ func Main() {
 	workdir := filepath.Join(rootfs, "code")
 	err = os.MkdirAll(workdir, 0777)
 	if err != nil {
-		panic(err)
+		slog.Error("创建代码工作目录失败", "path", workdir, "err", err)
+		os.Exit(1)
 	}
 	os.Chmod(workdir, 0777)
 	if err := writeSourceCode(source, lang, filepath.Join(rootfs, "code")); err != nil {
@@ -868,7 +880,7 @@ func Main() {
 			if tot.FinalResult == constants.OJ_AC {
 				tot.FinalResult = result
 			}
-			tot.Results = append(tot.Results, OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed})
+			tot.Results = append(tot.Results, OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed}) //nolint:all
 			slog.Warn("测试点失败", "data_file", filename, "result", result)
 			// break
 		} else {
@@ -893,7 +905,7 @@ func Main() {
 	}
 
 	// 9. 更新数据库
-	slog.Info("判题完成", "final_result", tot.FinalResult, "total_time_ms", totalTime, "peak_mem_kb", peakMemory, "pass_rate", passRate)
+	slog.Info("判题完成", "final_result", tot.FinalResult, "total_time_ms", totalTime, "peak_mem_kb", peakMemory, "pass_rate", passRate) //nolint:all
 	slog.Info("判题结果", "FF", tot)
 	if err := updateSolution(solutionID, tot.FinalResult, totalTime, peakMemory, passRate); err != nil {
 		slog.Error("更新最终判题结果失败", "error", err)

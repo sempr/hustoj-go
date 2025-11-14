@@ -16,10 +16,14 @@ const (
 	OJ_CO  = 12 // 编译完成
 	OJ_TR  = 13 // 测试运行结束
 	OJ_MC  = 14 // 等待裁判手工确认
+	OJ_SE  = 99 // system error
 )
 
 func GetOJResultName(status int) string {
 	var names = []string{"WT0", "WT1", "CI", "RI", "AC", "PE", "WA", "TL", "ML", "OL", "RE", "CE", "CO", "TR", "MC"}
+	if status == OJ_SE {
+		return "SE"
+	}
 	if status < 0 || status >= len(names) {
 		return "OT"
 	}

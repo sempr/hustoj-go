@@ -2,7 +2,7 @@ package daemon
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -18,13 +18,15 @@ func Main(ccfg *models.DaemonArgs) {
 	daemonArgs = ccfg
 	// Change to the working directory
 	if err := os.Chdir(daemonArgs.OJHome); err != nil {
-		log.Fatalf("FATAL: Could not change to directory %s: %v", daemonArgs.OJHome, err)
+		slog.Error("FATAL: Could not change to directory", "path", daemonArgs.OJHome, "err", err)
+		os.Exit(1)
 	}
 
 	// Load configuration
 	cfg, err := LoadConfig("etc/judge.conf")
 	if err != nil {
-		log.Fatalf("FATAL: Error loading judge.conf: %v", err)
+		slog.Error("FATAL: Error loading judge.conf", "err", err)
+		os.Exit(1)
 	}
 
 	cfg.OJHome = daemonArgs.OJHome
@@ -50,7 +52,8 @@ func Main(ccfg *models.DaemonArgs) {
 
 		d, err := cntxt.Reborn()
 		if err != nil {
-			log.Fatalf("FATAL: Could not reborn as daemon: %v", err)
+			slog.Error("FATAL: Could not reborn as daemon", "err", err)
+			os.Exit(1)
 		}
 		if d != nil {
 			return // Parent process exits
@@ -58,21 +61,21 @@ func Main(ccfg *models.DaemonArgs) {
 		defer cntxt.Release()
 	}
 
-	AppLogger.Println("INFO: judged-go started")
+	slog.Info("judged-go started")
 
 	// Lock PID file to ensure a single instance
 	lockFile := filepath.Join(cfg.OJHome, "etc", "judge.pid")
 	if err := Lock(lockFile); err != nil {
-		AppLogger.Printf("FATAL: Daemon is already running: %v", err)
-		log.Fatalf("FATAL: Daemon is already running: %v", err)
+		slog.Error("FATAL: Daemon is already running", "err", err)
+		os.Exit(1)
 	}
 	defer Unlock()
 
 	// Create the job fetcher
 	fetcher, err := NewFetcher(cfg)
 	if err != nil {
-		AppLogger.Printf("FATAL: Could not create fetcher: %v", err)
-		log.Fatalf("FATAL: Could not create fetcher: %v", err)
+		slog.Error("FATAL: Could not create fetcher", "err", err)
+		os.Exit(1)
 	}
 	defer fetcher.Close()
 
@@ -83,7 +86,7 @@ func Main(ccfg *models.DaemonArgs) {
 
 	go func() {
 		<-stop
-		AppLogger.Println("INFO: Stop signal received, shutting down...")
+		slog.Info("Stop signal received, shutting down...")
 		cancel()
 	}()
 
@@ -91,5 +94,5 @@ func Main(ccfg *models.DaemonArgs) {
 	worker := NewWorker(cfg, fetcher)
 	worker.Run(ctx)
 
-	AppLogger.Println("INFO: judged-go stopped.")
+	slog.Info("judged-go stopped.")
 }

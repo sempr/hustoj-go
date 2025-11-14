@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"strconv"
@@ -27,11 +28,11 @@ func RunClient(cfg *Config, solutionID, clientID int, done chan<- int) {
 	// This function call will be resolved at compile time to the correct
 	// OS-specific implementation.
 	if err := setResourceLimits(cmd, cfg); err != nil {
-		AppLogger.Printf("WARN: Failed to set resource limits for solution %d: %v", solutionID, err)
+		slog.Warn("Failed to set resource limits", "solution_id", solutionID, "err", err)
 	}
 
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		AppLogger.Printf("ERROR: Failed to run client for sol %d: %v. Output: %s", solutionID, err, string(output))
+		slog.Error("Failed to run client", "solution_id", solutionID, "err", err, "output", string(output))
 	}
 }
