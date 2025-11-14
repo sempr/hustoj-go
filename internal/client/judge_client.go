@@ -848,18 +848,7 @@ func Main() {
 		InName: inName, OutName: outName,
 		Spj: spj}
 
-	type OneResult struct {
-		Datafile string
-		Result   int
-		Time     int
-		Mem      int
-	}
-	type TotalResults struct {
-		Results     []OneResult
-		FinalResult int
-	}
-
-	var tot TotalResults
+	var tot models.TotalResults
 	tot.FinalResult = constants.OJ_AC
 
 	for _, dataFile := range dataFiles {
@@ -880,11 +869,11 @@ func Main() {
 			if tot.FinalResult == constants.OJ_AC {
 				tot.FinalResult = result
 			}
-			tot.Results = append(tot.Results, OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed}) //nolint:all
+			tot.Results = append(tot.Results, models.OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed}) //nolint:all
 			slog.Warn("测试点失败", "data_file", filename, "result", result)
 			// break
 		} else {
-			tot.Results = append(tot.Results, OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed})
+			tot.Results = append(tot.Results, models.OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed})
 			passRate += 1.0
 			slog.Info("测试点通过", "data_file", filename)
 		}
