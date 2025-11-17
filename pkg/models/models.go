@@ -25,6 +25,7 @@ type OneResult struct {
 	Result   int    `json:"result"`
 	Time     int    `json:"time"`
 	Mem      int    `json:"mem"`
+	Extra    string `json:"extra"`
 }
 
 // TotalResults 聚合所有测试点的结果以及最终的判题结果。

@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"text/template"
 	"time"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -364,6 +366,31 @@ func compile(lang int, rootDir string) *models.SandboxOutput {
 	return &output
 }
 
+const tpl = `time_space_table:
+{{- range .Results }}
+{{ .Datafile }}:{{ getResult .Result }} mem={{ .Mem }}k time={{ .Time }}ms
+{{- end }}`
+
+func Render(tr models.TotalResults) (string, error) {
+	// 注册自定义函数
+	funcMap := template.FuncMap{
+		"getResult": constants.GetOJResultName,
+	}
+
+	// 创建带函数的模板
+	t, err := template.New("result").Funcs(funcMap).Parse(tpl)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, tr); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
+}
+
 // addCEInfo (Stub, 使用 slog)
 func addCEInfo(solutionID int, msg string) error {
 	slog.Info("STUB: 正在添加编译错误信息", "msg", msg)
@@ -644,16 +671,17 @@ func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
 }
 
 // addREInfo (Stub, 使用 slog)
-func addREInfo(solutionID int) {
-	_ = solutionID
-	slog.Info("STUB: 添加运行错误信息")
+func addREInfo(solutionID int, tot models.TotalResults) {
+	db.Exec("DELETE FROM runtimeinfo WHERE solution_id=?", solutionID)
+	b, _ := Render(tot)
+	db.Exec("INSERT INTO runtimeinfo VALUES(?, ?)", solutionID, b)
 }
 
-// addDiffInfo (Stub, 使用 slog)
-func addDiffInfo(solutionID int) {
-	_ = solutionID
-	slog.Info("STUB: 添加 Diff 详情")
-}
+// // addDiffInfo (Stub, 使用 slog)
+// func addDiffInfo(solutionID int, tot models.TotalResults) {
+// 	_ = solutionID
+// 	slog.Info("STUB: 添加 Diff 详情")
+// }
 
 // cleanWorkDir (Stub, 使用 slog)
 func cleanWorkDir(workDir string) {
@@ -886,12 +914,14 @@ func Main() {
 		passRate = 1.0
 	}
 
-	switch tot.FinalResult {
-	case constants.OJ_RE:
-		addREInfo(solutionID)
-	case constants.OJ_WA, constants.OJ_PE:
-		addDiffInfo(solutionID)
-	}
+	addREInfo(solutionID, tot)
+
+	// switch tot.FinalResult {
+	// case constants.OJ_RE:
+	// 	addREInfo(solutionID)
+	// case constants.OJ_WA, constants.OJ_PE:
+	// 	addDiffInfo(solutionID)
+	// }
 
 	// 9. 更新数据库
 	slog.Info("判题完成", "final_result", tot.FinalResult, "total_time_ms", totalTime, "peak_mem_kb", peakMemory, "pass_rate", passRate) //nolint:all
