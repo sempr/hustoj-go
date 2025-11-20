@@ -10,4 +10,4 @@ LDFLAGS := -X '$(MODULE)/cmd.Version=$(VERSION)' \
            -X '$(MODULE)/cmd.Date=$(DATE)'
 
 build:
-	go build -trimpath -ldflags "$(LDFLAGS)" .
+	go mod tidy && go build -trimpath -ldflags "$(LDFLAGS)" .
