@@ -697,9 +697,6 @@ func cleanWorkDir(workDir string) {
 func Main() {
 	// 0. 设置 slog
 	// 使用 JSON Handler 以便进行结构化日志记录
-	logger := slog.New(slog.NewJSONHandler(os.Stderr, nil))
-	slog.SetDefault(logger)
-
 	var nArgs = os.Args[1:]
 
 	// 1. 初始化参数

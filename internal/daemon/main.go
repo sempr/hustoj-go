@@ -33,9 +33,6 @@ func Main(ccfg *models.DaemonArgs) {
 	cfg.Debug = daemonArgs.Debug
 	cfg.Once = daemonArgs.Once
 
-	// Initialize logger
-	InitLogger(cfg)
-
 	// Set up daemonization if not in debug mode
 	if !cfg.Debug {
 		pidFilePath := filepath.Join(cfg.OJHome, "etc", "judge.pid")
