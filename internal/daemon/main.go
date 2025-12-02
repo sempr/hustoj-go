@@ -6,10 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"syscall"
 
 	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/sevlyar/go-daemon"
+	"golang.org/x/sys/unix"
 )
 
 var daemonArgs *models.DaemonArgs
@@ -81,7 +81,7 @@ func Main(ccfg *models.DaemonArgs) {
 
 	// Channel to stop the program gracefully
 	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	signal.Notify(stop, unix.SIGINT, unix.SIGTERM, unix.SIGQUIT)
 	ctx, cancel := context.WithCancel(context.Background())
 
 	go func() {

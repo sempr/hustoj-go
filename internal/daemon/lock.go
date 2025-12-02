@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"syscall"
+
+	"golang.org/x/sys/unix"
 )
 
 var lockFile *os.File
@@ -18,10 +19,10 @@ func Lock(path string) error {
 	lockFile = f
 
 	// Try to get an exclusive, non-blocking lock.
-	err = syscall.Flock(int(f.Fd()), syscall.LOCK_EX|syscall.LOCK_NB)
+	err = unix.Flock(int(f.Fd()), unix.LOCK_EX|unix.LOCK_NB)
 	if err != nil {
 		// EAGAIN or EWOULDBLOCK means the lock is already held.
-		if err == syscall.EAGAIN {
+		if err == unix.EAGAIN {
 			return fmt.Errorf("file %s is already locked", path)
 		}
 		return fmt.Errorf("could not lock file %s: %w", path, err)
@@ -41,7 +42,7 @@ func Lock(path string) error {
 // Unlock releases the PID file lock.
 func Unlock() {
 	if lockFile != nil {
-		syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+		unix.Flock(int(lockFile.Fd()), unix.LOCK_UN)
 		lockFile.Close()
 	}
 }
