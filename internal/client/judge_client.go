@@ -21,6 +21,7 @@ import (
 	"github.com/pelletier/go-toml/v2"
 	"github.com/sempr/hustoj-go/pkg/constants"
 	"github.com/sempr/hustoj-go/pkg/models"
+	"github.com/sempr/hustoj-go/pkg/rawtext"
 	"golang.org/x/sys/unix"
 )
 
@@ -830,6 +831,27 @@ func Main() {
 	if err := writeSourceCode(source, lang, filepath.Join(rootfs, "code")); err != nil {
 		slog.Error("写入源代码失败", "error", err)
 		os.Exit(1)
+	}
+
+	// rawtext judge here
+	if spj == constants.OJ_SPJ_MODE_RAWTEXT {
+		ext1 := langMaps[lang]
+		userScore, totalScore, err := rawtext.RawTextJudge(
+			filepath.Join(ojHome, "data", fmt.Sprint(pID), "data.in"),
+			filepath.Join(ojHome, "data", fmt.Sprint(pID), "data.out"),
+			filepath.Join(rootfs, "code", fmt.Sprintf("Main%s", ext1.Suffix)),
+		)
+		var result = constants.OJ_AC
+		var rate = 1.0
+		if err != nil {
+			slog.Info("error", "err", err)
+			result = constants.OJ_RE
+		} else if userScore < totalScore {
+			result = constants.OJ_WA
+			rate = userScore * 1.0 / totalScore
+		}
+		updateSolution(solutionID, result, 0, 0, rate)
+		return
 	}
 
 	// 6. 编译 (Stub)

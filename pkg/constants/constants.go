@@ -29,3 +29,9 @@ func GetOJResultName(status int) string {
 	}
 	return names[status]
 }
+
+const (
+	OJ_SPJ_MODE_NONE    = 0
+	OJ_SPJ_MODE_SPJ     = 1
+	OJ_SPJ_MODE_RAWTEXT = 2
+)
