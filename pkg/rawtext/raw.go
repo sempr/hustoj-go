@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/template"
 )
 
 // Question 结构体
@@ -115,8 +116,18 @@ func ReadUserFilePath(filename string) ([]UserAnswer, error) {
 }
 
 // CalculateScore 评分逻辑（纯逻辑，不依赖文件）
-func CalculateScore(answers map[int]Question, userAnswers []UserAnswer) float64 {
+func CalculateScore(answers map[int]Question, userAnswers []UserAnswer) (float64, string) {
 	var score float64
+
+	type ScoreDetail struct {
+		Id    int
+		Ans   string
+		You   string
+		Score int
+	}
+
+	var details []ScoreDetail
+
 	for _, ua := range userAnswers {
 		q, ok := answers[ua.QuestionID]
 		if !ok {
@@ -124,24 +135,33 @@ func CalculateScore(answers map[int]Question, userAnswers []UserAnswer) float64 
 		}
 		if strings.EqualFold(ua.Answer, q.Answer) || strings.EqualFold(q.Answer, "*") {
 			score += q.Score
+		} else {
+			details = append(details, ScoreDetail{Id: ua.QuestionID, Ans: q.Answer, You: ua.Answer, Score: int(q.Score)})
 		}
 	}
-	return score
+	tmpl := `{{- range . }}
+{{.Id}} Answer:{{.Ans}}[You:{{.You}}] -{{.Score}}
+{{- end }}
+	`
+	t, _ := template.New("test").Parse(tmpl)
+	var b strings.Builder
+	t.Execute(&b, details)
+	return score, b.String()
 }
 
 // RawTextJudge 调用文件路径进行评分
-func RawTextJudge(infile, outfile, userfile string) (float64, float64, error) {
+func RawTextJudge(infile, outfile, userfile string) (string, float64, float64, error) {
 	slog.Info("judging", "infile", infile, "outfile", outfile, "userfile", userfile)
 	answers, totalScore, err := ReadAnswerFilePath(outfile)
 	if err != nil {
-		return 0, 0, err
+		return "", 0, 0, err
 	}
 
 	userAns, err := ReadUserFilePath(userfile)
 	if err != nil {
-		return 0, 0, err
+		return "", 0, 0, err
 	}
 
-	userScore := CalculateScore(answers, userAns)
-	return userScore, totalScore, nil
+	userScore, details := CalculateScore(answers, userAns)
+	return details, userScore, totalScore, nil
 }

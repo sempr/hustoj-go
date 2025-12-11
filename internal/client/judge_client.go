@@ -367,10 +367,13 @@ func compile(lang int, rootDir string) *models.SandboxOutput {
 	return &output
 }
 
-const tpl = `time_space_table:
+const tpl = `
+filename|size|result|memory|time
+--|--|--|--|--
 {{- range .Results }}
-{{ .Datafile }}:{{ getResult .Result }} mem={{ .Mem }}k time={{ .Time }}ms
-{{- end }}`
+{{ .Datafile }}|0|{{ getResult .Result }}/1.00|{{ .Mem }}KB|{{ .Time }}ms
+{{- end }}
+`
 
 func Render(tr models.TotalResults) (string, error) {
 	// 注册自定义函数
@@ -381,7 +384,7 @@ func Render(tr models.TotalResults) (string, error) {
 	// 创建带函数的模板
 	t, err := template.New("result").Funcs(funcMap).Parse(tpl)
 	if err != nil {
-		return "", err
+		return "xxxx", err
 	}
 
 	var buf bytes.Buffer
@@ -678,6 +681,11 @@ func addREInfo(solutionID int, tot models.TotalResults) {
 	db.Exec("INSERT INTO runtimeinfo VALUES(?, ?)", solutionID, b)
 }
 
+func addREInfo2(solutionID int, details string) {
+	db.Exec("DELETE FROM runtimeinfo WHERE solution_id=?", solutionID)
+	db.Exec("INSERT INTO runtimeinfo VALUES(?, ?)", solutionID, details)
+}
+
 // // addDiffInfo (Stub, 使用 slog)
 // func addDiffInfo(solutionID int, tot models.TotalResults) {
 // 	_ = solutionID
@@ -833,7 +841,7 @@ func Main() {
 	// rawtext judge here
 	if spj == constants.OJ_SPJ_MODE_RAWTEXT {
 		ext1 := langMaps[lang]
-		userScore, totalScore, err := rawtext.RawTextJudge(
+		redetails, userScore, totalScore, err := rawtext.RawTextJudge(
 			filepath.Join(ojHome, "data", fmt.Sprint(pID), "data.in"),
 			filepath.Join(ojHome, "data", fmt.Sprint(pID), "data.out"),
 			filepath.Join(rootfs, "code", fmt.Sprintf("Main%s", ext1.Suffix)),
@@ -848,6 +856,7 @@ func Main() {
 			rate = userScore * 1.0 / totalScore
 		}
 		updateSolution(solutionID, result, 0, 0, rate)
+		addREInfo2(solutionID, redetails)
 		return
 	}
 

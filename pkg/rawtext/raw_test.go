@@ -1,18 +1,21 @@
 package rawtext
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
 // --------- 1️⃣ 直接测试评分逻辑（无文件） ---------
 func TestCalculateScore(t *testing.T) {
 	tests := []struct {
-		name      string
-		answers   map[int]Question
-		userAns   []UserAnswer
-		wantScore float64
+		name        string
+		answers     map[int]Question
+		userAns     []UserAnswer
+		wantScore   float64
+		wantDetails string
 	}{
 		{
 			name: "all correct",
@@ -24,7 +27,8 @@ func TestCalculateScore(t *testing.T) {
 				{QuestionID: 1, Answer: "A"},
 				{QuestionID: 2, Answer: "B"},
 			},
-			wantScore: 5.0,
+			wantScore:   5.0,
+			wantDetails: "",
 		},
 		{
 			name: "case insensitive",
@@ -34,7 +38,8 @@ func TestCalculateScore(t *testing.T) {
 			userAns: []UserAnswer{
 				{QuestionID: 1, Answer: "HELLO"},
 			},
-			wantScore: 2.0,
+			wantScore:   2.0,
+			wantDetails: "",
 		},
 		{
 			name: "wildcard *",
@@ -44,7 +49,8 @@ func TestCalculateScore(t *testing.T) {
 			userAns: []UserAnswer{
 				{QuestionID: 1, Answer: "anything"},
 			},
-			wantScore: 1.0,
+			wantScore:   1.0,
+			wantDetails: "",
 		},
 		{
 			name: "wrong answer",
@@ -54,15 +60,21 @@ func TestCalculateScore(t *testing.T) {
 			userAns: []UserAnswer{
 				{QuestionID: 1, Answer: "B"},
 			},
-			wantScore: 0.0,
+			wantScore:   0.0,
+			wantDetails: "1 Answer:A[You:B] -2",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := CalculateScore(tt.answers, tt.userAns)
+			got, details := CalculateScore(tt.answers, tt.userAns)
 			if got != tt.wantScore {
 				t.Errorf("got %.2f, want %.2f", got, tt.wantScore)
+			}
+			details = strings.Trim(details, " \n\t")
+			if details != tt.wantDetails {
+				t.Errorf("got [%s], want [%s]", details, tt.wantDetails)
+
 			}
 		})
 	}
@@ -115,7 +127,7 @@ func TestRawTextJudge_File_Normal(t *testing.T) {
 			os.WriteFile(answerFile, []byte(tt.answerTxt), 0644)
 			os.WriteFile(userFile, []byte(tt.userTxt), 0644)
 
-			gotScore, gotTotal, err := RawTextJudge("", answerFile, userFile)
+			ss, gotScore, gotTotal, err := RawTextJudge("", answerFile, userFile)
 			if err != nil {
 				t.Fatalf("RawTextJudge returned error: %v", err)
 			}
@@ -124,6 +136,9 @@ func TestRawTextJudge_File_Normal(t *testing.T) {
 			}
 			if gotTotal != tt.wantTotal {
 				t.Errorf("gotTotal = %.2f, want %.2f", gotTotal, tt.wantTotal)
+			}
+			if ss != "" {
+				fmt.Println(ss)
 			}
 		})
 	}
@@ -176,7 +191,7 @@ func TestRawTextJudge_File_Error(t *testing.T) {
 				os.WriteFile(userFile, []byte(tt.userTxt), 0644)
 			}
 
-			_, _, err := RawTextJudge("", answerFile, userFile)
+			_, _, _, err := RawTextJudge("", answerFile, userFile)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("RawTextJudge() error = %v, wantErr %v", err, tt.wantErr)
 			}
@@ -225,7 +240,7 @@ func TestRawTextJudge_File_CommentsEmpty(t *testing.T) {
 			os.WriteFile(answerFile, []byte(tt.answerTxt), 0644)
 			os.WriteFile(userFile, []byte(tt.userTxt), 0644)
 
-			gotScore, gotTotal, err := RawTextJudge("", answerFile, userFile)
+			_, gotScore, gotTotal, err := RawTextJudge("", answerFile, userFile)
 			if err != nil {
 				t.Fatalf("RawTextJudge returned error: %v", err)
 			}
