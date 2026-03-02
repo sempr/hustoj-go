@@ -1,24 +1,26 @@
 package constants
 
+// Judge result status codes
 const (
-	OJ_WT0 = 0  // 提交排队
-	OJ_WT1 = 1  // 重判排队
-	OJ_CI  = 2  // 编译中
-	OJ_RI  = 3  // 运行中
-	OJ_AC  = 4  // 答案正确
-	OJ_PE  = 5  // 格式错误
-	OJ_WA  = 6  // 答案错误
-	OJ_TL  = 7  // 时间超限
-	OJ_ML  = 8  // 内存超限
-	OJ_OL  = 9  // 输出超限
-	OJ_RE  = 10 // 运行错误
-	OJ_CE  = 11 // 编译错误
-	OJ_CO  = 12 // 编译完成
-	OJ_TR  = 13 // 测试运行结束
-	OJ_MC  = 14 // 等待裁判手工确认
-	OJ_SE  = 99 // system error
+	OJ_WT0 = 0  // Waiting in queue
+	OJ_WT1 = 1  // Rejudge waiting
+	OJ_CI  = 2  // Compiling
+	OJ_RI  = 3  // Running
+	OJ_AC  = 4  // Accepted
+	OJ_PE  = 5  // Presentation Error
+	OJ_WA  = 6  // Wrong Answer
+	OJ_TL  = 7  // Time Limit Exceeded
+	OJ_ML  = 8  // Memory Limit Exceeded
+	OJ_OL  = 9  // Output Limit Exceeded
+	OJ_RE  = 10 // Runtime Error
+	OJ_CE  = 11 // Compile Error
+	OJ_CO  = 12 // Compile Complete
+	OJ_TR  = 13 // Test Run Complete
+	OJ_MC  = 14 // Manual Check Required
+	OJ_SE  = 99 // System Error
 )
 
+// GetOJResultName returns the string representation of judge status
 func GetOJResultName(status int) string {
 	var names = []string{"WT0", "WT1", "CI", "RI", "AC", "PE", "WA", "TL", "ML", "OL", "RE", "CE", "CO", "TR", "MC"}
 	if status == OJ_SE {
@@ -30,8 +32,9 @@ func GetOJResultName(status int) string {
 	return names[status]
 }
 
+// Special judge modes
 const (
-	OJ_SPJ_MODE_NONE    = 0
-	OJ_SPJ_MODE_SPJ     = 1
-	OJ_SPJ_MODE_RAWTEXT = 2
+	OJ_SPJ_MODE_NONE    = 0 // No special judge
+	OJ_SPJ_MODE_SPJ     = 1 // Special judge program
+	OJ_SPJ_MODE_RAWTEXT = 2 // Raw text comparison judge
 )

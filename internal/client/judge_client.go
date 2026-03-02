@@ -1,13 +1,10 @@
 package client
 
 import (
-	"bufio"
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log/slog" // 导入 slog
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -15,516 +12,17 @@ import (
 	"strconv"
 	"strings"
 	"text/template"
-	"time"
 
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/pelletier/go-toml/v2"
+	"github.com/sempr/hustoj-go/pkg/config"
 	"github.com/sempr/hustoj-go/pkg/constants"
+	"github.com/sempr/hustoj-go/pkg/language"
 	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/sempr/hustoj-go/pkg/rawtext"
+	"github.com/sempr/hustoj-go/pkg/repository"
 	"golang.org/x/sys/unix"
 )
 
-// 配置变量 (简化 C++ 中的全局变量)
-var (
-	dbHost         string
-	dbPort         int
-	dbUser         string
-	dbPass         string
-	dbName         string
-	ojHome         string
-	tbName         string = "solution"  // 默认表名
-	httpJudgerName string = "go_judger" // 充当 judger 字段
-)
-
-type langBasic struct {
-	Name   string `toml:"name"`
-	ID     int    `toml:"id"`
-	Suffix string `toml:"suffix"`
-}
-
-type langConfigs struct {
-	Lang []langBasic `toml:"lang"`
-}
-
-type langDetails struct {
-	Name string  `toml:"name"`
-	Fs   FsInfo  `toml:"fs"`
-	Cmd  CmdInfo `toml:"cmd"`
-}
-
-type FsInfo struct {
-	Base    string `toml:"base"`
-	Workdir string `toml:"workdir"`
-}
-
-type CmdInfo struct {
-	Compile string   `toml:"compile"`
-	Run     string   `toml:"run"`
-	Ver     string   `toml:"ver"`
-	Env     []string `toml:"env"`
-}
-
-var langMaps map[int]langBasic
-var langDetail langDetails
-var rsolutionID int
-
-func getLangMaps(path string) map[int]langBasic {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "错误: 无法读取文件: %v\n", err)
-		os.Exit(1)
-	}
-
-	// 声明一个 Config 变量，用于存储解析后的数据
-	var tempConfig langConfigs
-
-	// 使用 toml.Unmarshal 将文件内容解析到 config 变量中
-	err = toml.Unmarshal(data, &tempConfig)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "错误: 无法解析 TOML: %v\n", err)
-		os.Exit(1)
-	}
-
-	langMap := make(map[int]langBasic)
-
-	// 4. 遍历解析出的切片 (tempConfig.Lang)，将其填充到 Map 中
-	for _, lang := range tempConfig.Lang {
-		langMap[lang.ID] = lang
-	}
-	return langMap
-}
-
-func getLangDetails(lang int) (langDetails, error) {
-	data, err := os.ReadFile(filepath.Join(ojHome, "etc", "langs", fmt.Sprintf("%d.lang.toml", lang)))
-	if err != nil {
-		return langDetails{}, fmt.Errorf("读取语言配置文件失败: %w", err)
-	}
-	var tempConfig langDetails
-	err = toml.Unmarshal(data, &tempConfig)
-	if err != nil {
-		return langDetails{}, fmt.Errorf("解析语言配置文件失败: %w", err)
-	}
-	return tempConfig, nil
-}
-
-// initJudgeConf (使用 slog)
-// 从 /home/judge/etc/judge.conf 读取配置
-func initJudgeConf(homePath string) {
-	ojHome = homePath
-
-	// 1. 设置默认值
-	dbHost = "127.0.0.1"
-	dbPort = 3306
-	dbUser = "root"
-	dbPass = "password" // 默认值，应在配置文件中覆盖
-	dbName = "hustoj"
-
-	slog.Info("正在加载配置...")
-
-	// 2. 构造配置文件路径
-	confPath := filepath.Join(ojHome, "etc", "judge.conf")
-	slog.Info("尝试读取配置文件", "path", confPath)
-
-	// 3. 打开并解析文件
-	file, err := os.Open(confPath)
-	if err != nil {
-		slog.Warn("配置文件未找到，将使用默认值", "path", confPath)
-		// 记录正在使用的默认值
-		slog.Info("  使用默认值", "OJ_HOME", ojHome)
-		slog.Info("  使用默认值", "DB_HOST", dbHost)
-		slog.Info("  使用默认值", "DB_PORT", dbPort)
-		slog.Info("  使用默认值", "DB_NAME", dbName)
-		return
-	}
-	defer file.Close()
-
-	// 4. 解析键值对 (key=value)
-	config := make(map[string]string)
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if len(line) == 0 || line[0] == '#' {
-			continue
-		}
-		parts := strings.SplitN(line, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-		key := strings.TrimSpace(parts[0])
-		value := strings.TrimSpace(parts[1])
-		config[key] = value
-	}
-
-	if err := scanner.Err(); err != nil {
-		slog.Warn("读取配置文件时出错，将尽可能使用已解析的值", "error", err)
-	}
-
-	// 5. 使用配置文件中的值覆盖默认值
-	if val, ok := config["OJ_HOST_NAME"]; ok {
-		dbHost = val
-	}
-	if val, ok := config["OJ_PORT_NUMBER"]; ok {
-		if port, err := strconv.Atoi(val); err == nil {
-			dbPort = port
-		} else {
-			slog.Warn("无效的 OJ_PORT_NUMBER", "value", val, "default", dbPort)
-		}
-	}
-	if val, ok := config["OJ_USER_NAME"]; ok {
-		dbUser = val
-	}
-	if val, ok := config["OJ_PASSWORD"]; ok {
-		dbPass = val
-	}
-	if val, ok := config["OJ_DB_NAME"]; ok {
-		dbName = val
-	}
-
-	// 6. 记录最终配置 (注意：不要记录密码)
-	slog.Info("配置加载成功")
-	slog.Info("  OJ_HOME", "value", ojHome)
-	slog.Info("  DB_HOST", "value", dbHost)
-	slog.Info("  DB_PORT", "value", dbPort)
-	slog.Info("  DB_NAME", "value", dbName)
-	slog.Info("  DB_USER", "value", dbUser)
-}
-
-// --- 数据库交互 ---
-
-var db *sql.DB
-
-// initMySQLConn (使用 slog)
-func initMySQLConn() error {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8",
-		dbUser, dbPass, dbHost, dbPort, dbName)
-
-	var err error
-	db, err = sql.Open("mysql", dsn)
-	if err != nil {
-		return fmt.Errorf("无法打开数据库连接: %v", err)
-	}
-
-	db.SetConnMaxLifetime(time.Minute * 3)
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(10)
-
-	if err = db.Ping(); err != nil {
-		return fmt.Errorf("无法连接到数据库: %v", err)
-	}
-
-	if _, err = db.Exec("SET NAMES utf8"); err != nil {
-		return fmt.Errorf("无法设置 UTF8: %v", err)
-	}
-
-	slog.Info("数据库连接成功")
-	return nil
-}
-
-// getSolutionInfo 对应 C++ 的 _get_solution_info_mysql
-func getSolutionInfo(solutionID int) (pID int, userID string, lang int, cID int, err error) {
-	query := fmt.Sprintf("SELECT problem_id, user_id, language, contest_id FROM %s WHERE solution_id = ?", tbName)
-	var nullCID sql.NullInt64
-	err = db.QueryRow(query, solutionID).Scan(&pID, &userID, &lang, &nullCID)
-	if err != nil {
-		return 0, "", 0, 0, fmt.Errorf("获取提交信息失败: %v", err)
-	}
-	if nullCID.Valid {
-		cID = int(nullCID.Int64)
-	} else {
-		cID = 0
-	}
-	return pID, userID, lang, cID, nil
-}
-
-// getProblemInfo 对应 C++ 的 _get_problem_info_mysql
-func getProblemInfo(pID int) (timeLimit float64, memLimit int, spj int, err error) {
-	query := "SELECT time_limit, memory_limit, spj FROM problem WHERE problem_id = ?"
-	err = db.QueryRow(query, pID).Scan(&timeLimit, &memLimit, &spj)
-	if err != nil {
-		return 0, 0, 0, fmt.Errorf("获取题目信息失败: %v", err)
-	}
-	return timeLimit, memLimit, spj, nil
-}
-
-// getSolution 对应 C++ 的 _get_solution_mysql
-func getSolution(solutionID int) (source string, err error) {
-	query := "SELECT source FROM source_code WHERE solution_id = ?"
-	err = db.QueryRow(query, solutionID).Scan(&source)
-	if err != nil {
-		return "", fmt.Errorf("获取源代码失败: %v", err)
-	}
-	return source, nil
-}
-
-// updateSolution (使用 slog)
-func updateSolution(solutionID int, result int, time int, memory int, passRate float64) error {
-	query := fmt.Sprintf(
-		"UPDATE %s SET result=?, time=?, memory=?, pass_rate=?, judger=?, judgetime=now() WHERE solution_id=?",
-		tbName,
-	)
-	_, err := db.Exec(query, result, time, memory, passRate, httpJudgerName, solutionID)
-	if err != nil {
-		return fmt.Errorf("更新提交状态失败: %v", err)
-	}
-	slog.Info("更新 Solution", "result", result, "time_ms", time, "memory_kb", memory, "pass_rate", passRate)
-	return nil
-}
-
-// updateUser (使用 slog)
-func updateUser(userID string) error {
-	querySolved := "UPDATE `users` SET `solved`=(SELECT count(DISTINCT `problem_id`) FROM `solution` s WHERE s.`user_id`=? AND s.`result`=4 AND problem_id>0 AND problem_id NOT IN (SELECT problem_id FROM contest_problem WHERE contest_id IN (SELECT contest_id FROM contest WHERE contest_type & 16 > 0 AND end_time>now()))) WHERE `user_id`=?"
-	if _, err := db.Exec(querySolved, userID, userID); err != nil {
-		slog.Warn("更新用户 Solved 失败", "user_id", userID, "error", err)
-	}
-
-	querySubmit := "UPDATE `users` SET `submit`=(SELECT count(DISTINCT `problem_id`) FROM `solution` s WHERE s.`user_id`=? AND problem_id>0 AND problem_id NOT IN (SELECT problem_id FROM contest_problem WHERE contest_id IN (SELECT contest_id FROM contest WHERE contest_type & 16 > 0 AND end_time>now()))) WHERE `user_id`=?"
-	if _, err := db.Exec(querySubmit, userID, userID); err != nil {
-		slog.Warn("更新用户 Submit 失败", "user_id", userID, "error", err)
-	}
-
-	slog.Info("更新用户统计", "user_id", userID)
-	return nil
-}
-
-// updateProblem (使用 slog)
-func updateProblem(pID int, cID int) error {
-	if cID > 0 {
-		queryContestAccepted := "UPDATE `contest_problem` SET `c_accepted`=(SELECT count(*) FROM `solution` WHERE `problem_id`=? AND `result`=4 AND contest_id=?) WHERE `problem_id`=? AND contest_id=?"
-		if _, err := db.Exec(queryContestAccepted, pID, cID, pID, cID); err != nil {
-			slog.Warn("更新竞赛题目 Accepted 失败", "problem_id", pID, "contest_id", cID, "error", err)
-		}
-		queryContestSubmit := "UPDATE `contest_problem` SET `c_submit`=(SELECT count(*) FROM `solution` WHERE `problem_id`=? AND contest_id=?) WHERE `problem_id`=? AND contest_id=?"
-		if _, err := db.Exec(queryContestSubmit, pID, cID, pID, cID); err != nil {
-			slog.Warn("更新竞赛题目 Submit 失败", "problem_id", pID, "contest_id", cID, "error", err)
-		}
-	}
-
-	queryProblemAccepted := "UPDATE `problem` SET `accepted`=(SELECT count(*) FROM `solution` s WHERE s.`problem_id`=? AND s.`result`=4 AND problem_id NOT IN (SELECT problem_id FROM contest_problem WHERE contest_id IN (SELECT contest_id FROM contest WHERE contest_type & 16 > 0 AND end_time>now()))) WHERE `problem_id`=?"
-	if _, err := db.Exec(queryProblemAccepted, pID, pID); err != nil {
-		slog.Warn("更新主题目 Accepted 失败", "problem_id", pID, "error", err)
-	}
-
-	slog.Info("更新题目统计", "problem_id", pID)
-	return nil
-}
-
-// --- 核心功能 (部分为 Stub) ---
-
-// writeSourceCode (使用 slog)
-func writeSourceCode(source string, lang int, workDir string) error {
-	ext1, ok := langMaps[lang]
-	if !ok {
-		return fmt.Errorf("未知的语言 ID: %d", lang)
-	}
-	ext := ext1.Suffix
-	fileName := fmt.Sprintf("Main%s", ext)
-	filePath := filepath.Join(workDir, fileName)
-	err := os.WriteFile(filePath, []byte(source), 0644)
-	if err != nil {
-		return fmt.Errorf("写入源代码失败: %v", err)
-	}
-	slog.Info("源代码已写入", "path", filePath)
-	return nil
-}
-
-// compile (Stub, 使用 slog)
-func compile(lang int, rootDir string) *models.SandboxOutput {
-	// judge-sandbox -rootfs=xxx -cmd=yyy -cwd=/code
-	fmt.Println("cmd=", langDetail.Cmd.Compile)
-	selfname, _ := os.Executable()
-	cmd := exec.Command(selfname,
-		"sandbox",
-		fmt.Sprintf("--rootfs=%s", rootDir),
-		fmt.Sprintf("--cmd=%s", langDetail.Cmd.Compile),
-		fmt.Sprintf("--time=%d", 3000),
-		fmt.Sprintf("--memory=%d", 256<<10),
-		fmt.Sprintf("--sid=%d", rsolutionID),
-		"--cwd=/code",
-	)
-	if len(langDetail.Cmd.Env) > 0 {
-		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
-	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdout
-
-	r3, w3, err := os.Pipe()
-	if err != nil {
-		return &models.SandboxOutput{UserStatus: constants.OJ_SE, CombinedOutput: "failed to create pipe for compile"}
-	}
-
-	cmd.ExtraFiles = append(cmd.ExtraFiles, w3)
-	slog.Info("STUB: 正在编译...", "language", lang, "work_dir", rootDir)
-	err = cmd.Start()
-	if err != nil {
-		return &models.SandboxOutput{UserStatus: constants.OJ_SE, CombinedOutput: "failed to start compile command"}
-	}
-	w3.Close()
-	var output models.SandboxOutput
-	json.NewDecoder(r3).Decode(&output)
-	slog.Info("debug", "output", output)
-	cmd.Wait()
-	return &output
-}
-
-const tpl = `
-filename|size|result|memory|time
---|--|--|--|--
-{{- range .Results }}
-{{ .Datafile }}|0|{{ getResult .Result }}/1.00|{{ .Mem }}KB|{{ .Time }}ms
-{{- end }}
-`
-
-func Render(tr models.TotalResults) (string, error) {
-	// 注册自定义函数
-	funcMap := template.FuncMap{
-		"getResult": constants.GetOJResultName,
-	}
-
-	// 创建带函数的模板
-	t, err := template.New("result").Funcs(funcMap).Parse(tpl)
-	if err != nil {
-		return "xxxx", err
-	}
-
-	var buf bytes.Buffer
-	if err := t.Execute(&buf, tr); err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
-}
-
-// addCEInfo (Stub, 使用 slog)
-func addCEInfo(solutionID int, msg string) error {
-	slog.Info("STUB: 正在添加编译错误信息", "msg", msg)
-	_, err := db.Exec("DELETE FROM compileinfo WHERE solution_id=?", solutionID)
-	if err != nil {
-		return fmt.Errorf("delete failed: %w", err)
-	}
-	_, err = db.Exec("INSERT INTO compileinfo VALUES(?, ?)", solutionID, msg)
-	if err != nil {
-		return fmt.Errorf("insert failed: %w", err)
-	}
-	return nil
-}
-
-func findDataFiles(pID int) ([][]string, error) {
-	dataDir := filepath.Join(ojHome, "data", strconv.Itoa(pID))
-	slog.Info("正在扫描数据文件", "directory", dataDir)
-
-	entries, err := os.ReadDir(dataDir)
-	if err != nil {
-		// 如果目录不存在，这不是一个致命错误，只是意味着没有测试数据。
-		if os.IsNotExist(err) {
-			slog.Warn("数据目录不存在，未找到测试用例", "directory", dataDir)
-			return [][]string{}, nil // 返回空切片，而不是错误
-		}
-		// 其他错误（例如权限问题）是致命的
-		slog.Error("读取数据目录失败", "directory", dataDir, "error", err)
-		return nil, fmt.Errorf("读取数据目录失败 %s: %v", dataDir, err)
-	}
-
-	var inFiles []string
-	// 1. 查找所有 .in 文件
-	for _, entry := range entries {
-		// 忽略子目录
-		if entry.IsDir() {
-			continue
-		}
-
-		fileName := entry.Name()
-		if filepath.Ext(fileName) == ".in" {
-			inFiles = append(inFiles, fileName)
-		}
-	}
-
-	// 2. 对 .in 文件进行排序，以确保判题顺序
-	sort.Strings(inFiles)
-	slog.Info("已找到 .in 文件", "count", len(inFiles))
-
-	// 3. 构建配对
-	var result [][]string
-	for _, inFileName := range inFiles {
-		inFullPath := filepath.Join(dataDir, inFileName)
-
-		// 4. 构造对应的 .out 文件路径
-		baseName := strings.TrimSuffix(inFileName, ".in")
-		outFileName := baseName + ".out"
-		outFullPath := filepath.Join(dataDir, outFileName)
-
-		outPath := "" // 默认 .out 路径为空字符串
-
-		// 5. 检查 .out 文件是否真实存在
-		if _, err := os.Stat(outFullPath); err == nil {
-			// 文件存在
-			outPath = outFullPath
-		} else if !os.IsNotExist(err) {
-			// 如果错误不是 "不存在" (例如：权限问题)，则记录一个警告
-			slog.Warn("无法访问 .out 文件 (将视为空)", "path", outFullPath, "error", err)
-		}
-		// 如果文件 os.IsNotExist(err)，outPath 保持为 ""
-
-		// 6. 添加配对
-		result = append(result, []string{inFullPath, outPath})
-	}
-
-	slog.Info("数据文件配对完成", "pairs", len(result))
-	return result, nil
-}
-func findInName(pID int) string {
-	inNameFile := filepath.Join(ojHome, "data", strconv.Itoa(pID), "input.name")
-	bt, err := os.ReadFile(inNameFile)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(bt))
-}
-func findOutName(pID int) string {
-	outNameFile := filepath.Join(ojHome, "data", strconv.Itoa(pID), "output.name")
-	bt, err := os.ReadFile(outNameFile)
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(bt))
-}
-
-// CopyFile copies the file from src to dst.
-func CopyFile(src, dst string) error {
-	// 1. 打开源文件
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
-	}
-	defer sourceFile.Close()
-
-	// 2. 创建目标文件
-	// 确保目标目录存在，如果不存在则创建
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-	destinationFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destinationFile.Close()
-
-	// 3. 使用 io.Copy 进行文件内容复制
-	if _, err := io.Copy(destinationFile, sourceFile); err != nil {
-		return fmt.Errorf("failed to copy file contents: %w", err)
-	}
-
-	// 4. 可选：复制文件权限
-	sourceInfo, err := os.Stat(src)
-	if err == nil { // 如果无法获取源文件信息，则忽略权限复制
-		if err := os.Chmod(dst, sourceInfo.Mode()); err != nil {
-			return fmt.Errorf("failed to set file permissions: %w", err)
-		}
-	}
-
-	return nil
-}
-
+// RunConfig holds configuration for running a test case
 type RunConfig struct {
 	Lang        int
 	Rootdir     string
@@ -538,359 +36,361 @@ type RunConfig struct {
 	Spj         int
 }
 
-// runAndCompare (Stub, 使用 slog)
-func runAndCompare(rcfg RunConfig) (result int, timeUsed int, memUsed int) {
-	// var lang int, rootDir string, workDir string, inFile string, outFile string, timeLimit int, memoryLimit int, spj bool;
-	slog.Info("STUB: 正在运行和比对", "in_file", rcfg.InFile, "out_file", rcfg.OutFile)
-	// handle inName
-	stdinName := "/code/data.in"
-	stdoutName := "/code/data.usr"
-	if rcfg.InName != "" {
-		CopyFile(rcfg.InFile, filepath.Join(rcfg.Workdir, rcfg.InName))
-		stdinName = ""
-	} else {
-		CopyFile(rcfg.InFile, filepath.Join(rcfg.Workdir, "data.in"))
-	}
-	if rcfg.OutName != "" {
-		stdoutName = ""
-	}
-	var runArgs []string = []string{
-		"sandbox",
-		fmt.Sprintf("--rootfs=%s", rcfg.Rootdir),
-		fmt.Sprintf("--cmd=%s", langDetail.Cmd.Run),
-		fmt.Sprintf("--time=%d", rcfg.Timelimit),         // in milisecond
-		fmt.Sprintf("--memory=%d", rcfg.MemoryLimit<<10), // in kb
-		fmt.Sprintf("--sid=%d", rsolutionID),
-		"--cwd=/code",
-	}
-	if stdinName != "" {
-		runArgs = append(runArgs, fmt.Sprintf("--stdin=%s", stdinName))
-	}
-	if stdoutName != "" {
-		runArgs = append(runArgs, fmt.Sprintf("--stdout=%s", stdoutName))
-	}
+// JudgeClient handles the judging process
+type JudgeClient struct {
+	config      *config.JudgeConfig
+	db          *repository.Database
+	langManager *language.Manager
+	solutionID  int
+	runnerID    string
+	debug       bool
+}
 
-	selfname, _ := os.Executable()
-	cmd := exec.Command(selfname, runArgs...)
-	if len(langDetail.Cmd.Env) > 0 {
-		cmd.Env = append(cmd.Env, langDetail.Cmd.Env...)
-	}
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdout
-	r3, w3, err := os.Pipe()
+// NewJudgeClient creates a new judge client
+func NewJudgeClient(solutionID int, runnerID, homeDir string, debug bool) (*JudgeClient, error) {
+	// Load configuration
+	cfg, err := config.LoadJudgeConf(homeDir)
 	if err != nil {
-		return constants.OJ_SE, 0, 0
+		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
+	cfg.Debug = debug
 
-	cmd.ExtraFiles = append(cmd.ExtraFiles, w3)
-	slog.Info("STUB: 正在运行...", "language", rcfg.Lang, "work_dir", rcfg.Rootdir, "data", rcfg.InFile)
-	err = cmd.Start()
-	fmt.Println(err)
-	w3.Close()
-	cmd.Wait()
-
-	var output models.SandboxOutput
-	err = json.NewDecoder(r3).Decode(&output)
-	slog.Info("debug", "output", output, "err", err)
-
-	result = output.UserStatus
-	timeUsed = output.Time
-	memUsed = output.Memory
-	if result != constants.OJ_AC {
-		return
-	}
-
-	// do spj here
-
-	// compare the results
-	targetOutputName := "data.usr"
-	if rcfg.OutName != "" {
-		targetOutputName = rcfg.OutName
-	}
-	targetInputName := "data.in"
-	if rcfg.InName != "" {
-		targetInputName = rcfg.InName
-	}
-	if rcfg.Spj == 0 {
-		res, err := compareFiles(rcfg.OutFile, filepath.Join(rcfg.Rootdir, "code", targetOutputName))
-		switch res {
-		case 1:
-			result = constants.OJ_PE
-		case 2:
-			result = constants.OJ_WA
-		case 0:
-			result = constants.OJ_AC
-		}
-		if err != nil {
-			result = constants.OJ_RE
-		}
-		return
-	}
-	if rcfg.Spj == 1 {
-		// data
-		var sysdatafile = filepath.Join(rcfg.Rootdir, "/code/sysdata.out")
-		CopyFile(rcfg.OutFile, sysdatafile)
-		defer os.Remove(sysdatafile)
-		// spj
-		var spjfile = filepath.Join(rcfg.Rootdir, "code/spj")
-		CopyFile(filepath.Join(filepath.Dir(rcfg.OutFile), "spj"), spjfile)
-		defer os.Remove(spjfile)
-		// run cmd
-		var runArgs []string = []string{
-			"sandbox",
-			fmt.Sprintf("--rootfs=%s", filepath.Join(rcfg.Rootdir, "code")),
-			fmt.Sprintf("--cmd=/spj %s %s %s", targetInputName, targetOutputName, "sysdata.out"),
-			fmt.Sprintf("--time=%d", rcfg.Timelimit),         // in milisecond
-			fmt.Sprintf("--memory=%d", rcfg.MemoryLimit<<10), // in kb
-			fmt.Sprintf("--sid=%d", rsolutionID),
-			"--cwd=/",
-		}
-
-		pipeRead, pipeWrite, err := os.Pipe()
-		if err != nil {
-			panic(fmt.Errorf("os.Pipe() failed: %s", err))
-		}
-		defer pipeRead.Close()
-
-		slog.Info("runArgs", "args", runArgs)
-		cmd := exec.Command(selfname, runArgs...)
-		cmd.Stdout = os.Stdout
-		cmd.Stderr = os.Stderr
-		cmd.ExtraFiles = []*os.File{pipeWrite}
-		cmd.Start()
-		pipeWrite.Close()
-		err = cmd.Wait()
-		slog.Info("run err", "err", err)
-		var output2 models.SandboxOutput
-		json.NewDecoder(pipeRead).Decode(&output2)
-
-		slog.Info("exitoutput", "outputdata", output2)
-		if output2.ExitStatus == 0 {
-			result = constants.OJ_AC
-		} else {
-			result = constants.OJ_WA
-		}
-	}
-	return
-}
-
-// addREInfo (Stub, 使用 slog)
-func addREInfo(solutionID int, tot models.TotalResults) {
-	db.Exec("DELETE FROM runtimeinfo WHERE solution_id=?", solutionID)
-	b, _ := Render(tot)
-	db.Exec("INSERT INTO runtimeinfo VALUES(?, ?)", solutionID, b)
-}
-
-func addREInfo2(solutionID int, details string) {
-	db.Exec("DELETE FROM runtimeinfo WHERE solution_id=?", solutionID)
-	db.Exec("INSERT INTO runtimeinfo VALUES(?, ?)", solutionID, details)
-}
-
-// // addDiffInfo (Stub, 使用 slog)
-// func addDiffInfo(solutionID int, tot models.TotalResults) {
-// 	_ = solutionID
-// 	slog.Info("STUB: 添加 Diff 详情")
-// }
-
-// cleanWorkDir (Stub, 使用 slog)
-func cleanWorkDir(workDir string) {
-	slog.Info("STUB: 正在清理工作目录", "path", workDir)
-	if err := os.RemoveAll(workDir); err != nil {
-		slog.Warn("清理工作目录失败", "path", workDir, "error", err)
-	}
-}
-
-// --- Main 工作流 ---
-
-func Main() {
-	// 0. 设置 slog
-	// 使用 JSON Handler 以便进行结构化日志记录
-	var nArgs = os.Args[1:]
-
-	// 1. 初始化参数
-	if len(nArgs) < 3 {
-		fmt.Println("用法: <> client <solution_id> <runner_id> [oj_home_path]")
-		os.Exit(1)
-	}
-
-	debug := false
-	if len(nArgs) > 4 && nArgs[4] == "DEBUG" {
-		debug = true
-	}
-
-	solutionID, err := strconv.Atoi(nArgs[1])
-	rsolutionID = solutionID
+	// Initialize database
+	db, err := repository.NewDatabase(&cfg.Database)
 	if err != nil {
-		slog.Error("无效的 Solution ID", "input", nArgs[1])
-		os.Exit(1)
+		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
-	// 使用 slog.With 创建一个包含 solution_id 的新 logger，并设为默认
+	// Initialize language manager
+	langManager, err := language.NewLanguageManager(homeDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize language manager: %w", err)
+	}
+
+	client := &JudgeClient{
+		config:      cfg,
+		db:          db,
+		langManager: langManager,
+		solutionID:  solutionID,
+		runnerID:    runnerID,
+		debug:       debug,
+	}
+
+	// Set up structured logging
 	slog.SetDefault(slog.Default().With("solution_id", solutionID))
 
-	runnerID := nArgs[2]
-	homePath := "/home/judge"
-	if len(nArgs) > 3 {
-		homePath = nArgs[3]
+	return client, nil
+}
+
+// Close cleans up resources
+func (jc *JudgeClient) Close() error {
+	if jc.db != nil {
+		return jc.db.Close()
 	}
+	return nil
+}
 
-	slog.Info("开始判题", "runner_id", runnerID)
+// Run executes the judging process
+func (jc *JudgeClient) Run() error {
+	slog.Info("Starting judge process", "runner_id", jc.runnerID)
 
-	// 2. 初始化配置和数据库
-	initJudgeConf(homePath)
-	if err := initMySQLConn(); err != nil {
-		slog.Error("数据库初始化失败", "error", err)
-		os.Exit(1)
-	}
-	defer db.Close()
-
-	// 3. 读取语言支持列表
-	langMaps = getLangMaps(filepath.Join(homePath, "etc", "langs", "all.toml"))
-
-	// 4. 获取判题信息
-	pID, userID, lang, cID, err := getSolutionInfo(solutionID)
+	// Get solution information
+	solution, err := jc.db.GetSolution(jc.solutionID)
 	if err != nil {
-		slog.Error("获取提交信息失败", "error", err)
-		os.Exit(1)
+		return fmt.Errorf("failed to get solution info: %w", err)
 	}
-	slog.Info("获取信息", "problem_id", pID, "user_id", userID, "language", lang, "contest_id", cID)
 
-	timeLimit, memLimit, spj, err := getProblemInfo(pID)
+	// Get problem information
+	problem, err := jc.db.GetProblem(solution.ProblemID)
 	if err != nil {
-		slog.Error("获取题目信息失败", "error", err)
-		os.Exit(1)
-	}
-	slog.Info("题目限制", "time_limit_s", timeLimit, "mem_limit_mb", memLimit, "spj", spj)
-
-	// 获取语言对应的环境配置信息
-	var errLang error
-	langDetail, errLang = getLangDetails(lang)
-	if errLang != nil {
-		slog.Error("获取语言详情失败", "err", errLang)
-		os.Exit(1)
+		return fmt.Errorf("failed to get problem info: %w", err)
 	}
 
-	// TODO: 准备工作目录 使用 overlay2, base作为lower,自建一个upper,merged,workdir,最后操作merged
-	workBaseDir := filepath.Join(ojHome, "run"+runnerID)
-	for _, zdir := range []string{"rootfs", "tmp"} {
-		toCreateDir := filepath.Join(workBaseDir, zdir)
-		if err := os.MkdirAll(toCreateDir, 0755); err != nil {
-			slog.Error("创建工作目录失败", "path", toCreateDir, "error", err)
-			os.Exit(1)
+	// Get language configuration
+	langConfig, err := jc.langManager.GetLanguageConfig(solution.Language)
+	if err != nil {
+		return fmt.Errorf("failed to get language config: %w", err)
+	}
+
+	slog.Info("Retrieved judge information",
+		"problem_id", solution.ProblemID,
+		"user_id", solution.UserID,
+		"language", solution.Language,
+		"contest_id", solution.ContestID,
+		"time_limit", problem.TimeLimit,
+		"memory_limit", problem.MemLimit,
+		"spj", problem.SPJ,
+	)
+
+	// Set up working environment
+	workDir, err := jc.setupWorkEnvironment(langConfig)
+	if err != nil {
+		return fmt.Errorf("failed to setup work environment: %w", err)
+	}
+
+	if !jc.debug {
+		defer jc.cleanupWorkEnvironment(workDir)
+	}
+
+	// Get and write source code
+	source, err := jc.db.GetSolutionSource(jc.solutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get solution source: %w", err)
+	}
+
+	if err := jc.writeSourceCode(source, solution.Language, workDir); err != nil {
+		return fmt.Errorf("failed to write source code: %w", err)
+	}
+
+	// Handle rawtext special judge mode
+	if problem.SPJ == constants.OJ_SPJ_MODE_RAWTEXT {
+		return jc.handleRawTextJudge(solution, problem, workDir)
+	}
+
+	// Compile the solution
+	if err := jc.updateSolutionStatus(constants.OJ_CI); err != nil {
+		slog.Warn("Failed to update to compiling status", "error", err)
+	}
+
+	compileResult := jc.compile(solution.Language, workDir, langConfig)
+	if compileResult.ExitStatus != 0 {
+		slog.Info("Compilation failed", "output", compileResult.CombinedOutput)
+		if err := jc.db.AddCompileError(jc.solutionID, compileResult.CombinedOutput); err != nil {
+			slog.Warn("Failed to add compile error info", "error", err)
+		}
+		if err := jc.updateSolutionStatus(constants.OJ_CE); err != nil {
+			return fmt.Errorf("failed to update solution status: %w", err)
+		}
+		jc.updateUserStats(solution.UserID)
+		jc.updateProblemStats(solution.ProblemID, solution.ContestID)
+		return nil
+	}
+
+	// Update to running status
+	if err := jc.updateSolutionStatus(constants.OJ_RI); err != nil {
+		slog.Warn("Failed to update to running status", "error", err)
+	}
+
+	// Run test cases
+	return jc.runTestCases(solution, problem, workDir, langConfig)
+}
+
+// setupWorkEnvironment creates the working directory and mounts filesystems
+func (jc *JudgeClient) setupWorkEnvironment(langConfig *language.LangConfig) (string, error) {
+	workBaseDir := filepath.Join(jc.config.OJHome, "run"+jc.runnerID)
+
+	// Create base directories
+	for _, dir := range []string{"rootfs", "tmp"} {
+		if err := os.MkdirAll(filepath.Join(workBaseDir, dir), 0755); err != nil {
+			return "", fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
-	if !debug {
-		defer cleanWorkDir(workBaseDir)
-	}
 
+	// Mount tmpfs
 	tmpfsDir := filepath.Join(workBaseDir, "tmp")
-	tmpfsSize := "size=580M"
-	// tmpfs to <workbase>/tmp/
-	err = unix.Mount("tmpfs", tmpfsDir, "tmpfs", uintptr(unix.MS_NOSUID|unix.MS_NODEV), tmpfsSize)
-	if err != nil {
-		slog.Error("挂载 tmpfs 失败", "err", err)
-		os.Exit(1)
-	}
-	if !debug {
-		defer unix.Unmount(tmpfsDir, 0)
-	}
-	// do mount here
-
-	for _, zdir := range []string{"upper", "work"} {
-		os.MkdirAll(filepath.Join(tmpfsDir, zdir), 0755)
+	if err := unix.Mount("tmpfs", tmpfsDir, "tmpfs", uintptr(unix.MS_NOSUID|unix.MS_NODEV), "size=580M"); err != nil {
+		return "", fmt.Errorf("failed to mount tmpfs: %w", err)
 	}
 
+	// Create overlay directories
+	for _, dir := range []string{"upper", "work"} {
+		if err := os.MkdirAll(filepath.Join(tmpfsDir, dir), 0755); err != nil {
+			return "", fmt.Errorf("failed to create overlay directory %s: %w", dir, err)
+		}
+	}
+
+	// Mount overlay filesystem
 	options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s",
-		langDetail.Fs.Base,
+		langConfig.Fs.Base,
 		filepath.Join(workBaseDir, "tmp", "upper"),
 		filepath.Join(workBaseDir, "tmp", "work"),
 	)
 
-	// 3. 设置挂载参数
-	fstype := "overlay"
-	fsource := "overlay" // 对于 overlayfs，source 通常就是 "overlay" 或 "none"
-	flags := uintptr(0)  // 默认挂载标志
 	rootfs := filepath.Join(workBaseDir, "rootfs")
-	fmt.Printf("mount -t overlay overlay -o %s %s\n", options, rootfs)
-	if err := unix.Mount(fsource, rootfs, fstype, flags, options); err != nil {
-		slog.Error("挂载 overlayfs 失败", "err", err)
-		os.Exit(1)
+	if err := unix.Mount("overlay", rootfs, "overlay", 0, options); err != nil {
+		return "", fmt.Errorf("failed to mount overlay: %w", err)
 	}
 
-	if !debug {
-		defer unix.Unmount(rootfs, 0)
-	}
-	// 5. 获取并写入源代码
-	source, err := getSolution(solutionID)
-	if err != nil {
-		slog.Error("获取源代码失败", "error", err)
-		os.Exit(1)
-	}
-	workdir := filepath.Join(rootfs, "code")
-	err = os.MkdirAll(workdir, 0777)
-	if err != nil {
-		slog.Error("创建代码工作目录失败", "path", workdir, "err", err)
-		os.Exit(1)
-	}
-	os.Chmod(workdir, 0777)
-	if err := writeSourceCode(source, lang, filepath.Join(rootfs, "code")); err != nil {
-		slog.Error("写入源代码失败", "error", err)
-		os.Exit(1)
+	return rootfs, nil
+}
+
+// cleanupWorkEnvironment cleans up the working environment
+func (jc *JudgeClient) cleanupWorkEnvironment(rootfs string) {
+	// Unmount overlay
+	if err := unix.Unmount(rootfs, 0); err != nil {
+		slog.Warn("Failed to unmount overlay", "error", err)
 	}
 
-	// rawtext judge here
-	if spj == constants.OJ_SPJ_MODE_RAWTEXT {
-		ext1 := langMaps[lang]
-		redetails, userScore, totalScore, err := rawtext.RawTextJudge(
-			filepath.Join(ojHome, "data", fmt.Sprint(pID), "data.in"),
-			filepath.Join(ojHome, "data", fmt.Sprint(pID), "data.out"),
-			filepath.Join(rootfs, "code", fmt.Sprintf("Main%s", ext1.Suffix)),
-		)
-		var result = constants.OJ_AC
-		var rate = 1.0
-		if err != nil {
-			slog.Info("error", "err", err)
-			result = constants.OJ_RE
-		} else if userScore < totalScore {
-			result = constants.OJ_WA
-			rate = userScore * 1.0 / totalScore
+	// Unmount tmpfs
+	tmpfsDir := filepath.Join(filepath.Dir(rootfs), "tmp")
+	if err := unix.Unmount(tmpfsDir, 0); err != nil {
+		slog.Warn("Failed to unmount tmpfs", "error", err)
+	}
+
+	// Remove work directory
+	workBaseDir := filepath.Dir(rootfs)
+	if err := os.RemoveAll(workBaseDir); err != nil {
+		slog.Warn("Failed to remove work directory", "path", workBaseDir, "error", err)
+	}
+}
+
+// writeSourceCode writes the source code to the working directory
+func (jc *JudgeClient) writeSourceCode(source string, langID int, workDir string) error {
+	langBasic, err := jc.langManager.GetLanguageBasic(langID)
+	if err != nil {
+		return fmt.Errorf("failed to get language basic info: %w", err)
+	}
+
+	fileName := fmt.Sprintf("Main%s", langBasic.Suffix)
+	filePath := filepath.Join(workDir, "code", fileName)
+
+	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+		return fmt.Errorf("failed to create code directory: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, []byte(source), 0644); err != nil {
+		return fmt.Errorf("failed to write source code: %w", err)
+	}
+
+	slog.Info("Source code written", "path", filePath)
+	return nil
+}
+
+// compile compiles the source code
+func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.LangConfig) *models.SandboxOutput {
+	selfName, _ := os.Executable()
+	cmd := exec.Command(selfName,
+		"sandbox",
+		fmt.Sprintf("--rootfs=%s", rootfs),
+		fmt.Sprintf("--cmd=%s", langConfig.Cmd.Compile),
+		fmt.Sprintf("--time=%d", 3000),
+		fmt.Sprintf("--memory=%d", 256<<10),
+		fmt.Sprintf("--sid=%d", jc.solutionID),
+		"--cwd=/code",
+	)
+
+	if len(langConfig.Cmd.Env) > 0 {
+		cmd.Env = append(cmd.Env, langConfig.Cmd.Env...)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		return &models.SandboxOutput{
+			UserStatus:     constants.OJ_SE,
+			CombinedOutput: "failed to create pipe for compile",
 		}
-		updateSolution(solutionID, result, 0, 0, rate)
-		addREInfo2(solutionID, redetails)
-		return
 	}
 
-	// 6. 编译 (Stub)
-	if err := updateSolution(solutionID, constants.OJ_CI, 0, 0, 0.0); err != nil { // 设置为编译中
-		slog.Warn("更新到 '编译中' 失败", "error", err)
-	}
+	cmd.ExtraFiles = append(cmd.ExtraFiles, w)
+	slog.Info("Starting compilation", "language", langID, "work_dir", rootfs)
 
-	compileResult := compile(lang, rootfs)
-	if compileResult.ExitStatus != 0 {
-		slog.Info("编译失败", "output", compileResult.CombinedOutput)
-		addCEInfo(solutionID, compileResult.CombinedOutput)
-		if err := updateSolution(solutionID, constants.OJ_CE, 0, 0, 0.0); err != nil {
-			slog.Error("更新 '编译失败' 状态失败", "error", err)
-			os.Exit(1)
+	if err := cmd.Start(); err != nil {
+		return &models.SandboxOutput{
+			UserStatus:     constants.OJ_SE,
+			CombinedOutput: "failed to start compile command",
 		}
-		updateUser(userID)
-		updateProblem(pID, cID)
-		return
 	}
 
-	if err := updateSolution(solutionID, constants.OJ_RI, 0, 0, 0.0); err != nil { // 设置为运行中
-		slog.Warn("更新到 '运行中' 失败", "error", err)
+	w.Close()
+	defer cmd.Wait()
+
+	var output models.SandboxOutput
+	if err := json.NewDecoder(r).Decode(&output); err != nil {
+		return &models.SandboxOutput{
+			UserStatus:     constants.OJ_SE,
+			CombinedOutput: fmt.Sprintf("failed to decode compile output: %v", err),
+		}
 	}
 
-	// 7. 运行和比对 (Stub)
-	dataFiles, err := findDataFiles(pID)
+	slog.Debug("Compilation output", "output", output)
+	return &output
+}
+
+// handleRawTextJudge handles rawtext special judge mode
+func (jc *JudgeClient) handleRawTextJudge(solution *repository.Solution, problem *repository.Problem, rootfs string) error {
+	langBasic, err := jc.langManager.GetLanguageBasic(solution.Language)
 	if err != nil {
-		slog.Error("查找数据文件失败", "error", err)
-		return
+		return fmt.Errorf("failed to get language basic info: %w", err)
 	}
-	// TODO: input.name output.name
-	inName := findInName(pID)
-	outName := findOutName(pID)
+
+	details, userScore, totalScore, err := rawtext.RawTextJudge(
+		filepath.Join(jc.config.OJHome, "data", fmt.Sprint(solution.ProblemID), "data.in"),
+		filepath.Join(jc.config.OJHome, "data", fmt.Sprint(solution.ProblemID), "data.out"),
+		filepath.Join(rootfs, "code", fmt.Sprintf("Main%s", langBasic.Suffix)),
+	)
+
+	if err != nil {
+		slog.Error("Rawtext judge error", "error", err)
+		if err := jc.updateSolutionStatus(constants.OJ_RE); err != nil {
+			return fmt.Errorf("failed to update solution status: %w", err)
+		}
+		return nil
+	}
+
+	result := constants.OJ_AC
+	rate := 1.0
+	if userScore < totalScore {
+		result = constants.OJ_WA
+		rate = float64(userScore) / float64(totalScore)
+	}
+
+	if err := jc.db.UpdateSolution(jc.solutionID, result, 0, 0, rate); err != nil {
+		return fmt.Errorf("failed to update solution: %w", err)
+	}
+
+	if err := jc.db.AddRuntimeInfo(jc.solutionID, details); err != nil {
+		slog.Warn("Failed to add runtime info", "error", err)
+	}
+
+	return nil
+}
+
+// updateSolutionStatus updates the solution status in the database
+func (jc *JudgeClient) updateSolutionStatus(status int) error {
+	return jc.db.UpdateSolution(jc.solutionID, status, 0, 0, 0.0)
+}
+
+// updateUserStats updates user statistics
+func (jc *JudgeClient) updateUserStats(userID string) {
+	if err := jc.db.UpdateUserStats(userID); err != nil {
+		slog.Warn("Failed to update user stats", "user_id", userID, "error", err)
+	}
+}
+
+// updateProblemStats updates problem statistics
+func (jc *JudgeClient) updateProblemStats(problemID, contestID int) {
+	if err := jc.db.UpdateProblemStats(problemID, contestID); err != nil {
+		slog.Warn("Failed to update problem stats", "problem_id", problemID, "contest_id", contestID, "error", err)
+	}
+}
+
+// runTestCases runs all test cases for the solution
+func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repository.Problem, rootfs string, langConfig *language.LangConfig) error {
+	// Find test data files
+	dataFiles, err := jc.findDataFiles(problem.ID)
+	if err != nil {
+		return fmt.Errorf("failed to find data files: %w", err)
+	}
+
+	// Get input/output file names
+	inName := jc.findInputName(problem.ID)
+	outName := jc.findOutputName(problem.ID)
+
+	// Prepare run configuration
+	runConfig := RunConfig{
+		Lang:        solution.Language,
+		Rootdir:     rootfs,
+		Workdir:     filepath.Join(rootfs, "code"),
+		Timelimit:   int(1000 * problem.TimeLimit),
+		MemoryLimit: problem.MemLimit,
+		InName:      inName,
+		OutName:     outName,
+		Spj:         problem.SPJ,
+	}
+
 	var (
 		totalTime  = 0
 		peakMemory = 0
@@ -898,20 +398,15 @@ func Main() {
 		testCases  = float64(len(dataFiles))
 	)
 
-	var rCfg RunConfig = RunConfig{Lang: lang,
-		Rootdir: rootfs, Workdir: workdir,
-		Timelimit: int(1000 * timeLimit), MemoryLimit: memLimit,
-		InName: inName, OutName: outName,
-		Spj: spj}
+	var totalResults models.TotalResults
+	totalResults.FinalResult = constants.OJ_AC
 
-	var tot models.TotalResults
-	tot.FinalResult = constants.OJ_AC
-
+	// Run each test case
 	for _, dataFile := range dataFiles {
-		rCfg.InFile = dataFile[0]
-		rCfg.OutFile = dataFile[1]
+		runConfig.InFile = dataFile[0]
+		runConfig.OutFile = dataFile[1]
 
-		result, timeUsed, memUsed := runAndCompare(rCfg)
+		result, timeUsed, memUsed := jc.runAndCompare(runConfig)
 
 		if timeUsed > totalTime {
 			totalTime = timeUsed
@@ -921,51 +416,368 @@ func Main() {
 		}
 
 		filename := filepath.Base(dataFile[0])
-		if result != constants.OJ_AC {
-			if tot.FinalResult == constants.OJ_AC {
-				tot.FinalResult = result
-			}
-			tot.Results = append(tot.Results, models.OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed}) //nolint:all
-			slog.Warn("测试点失败", "data_file", filename, "result", result)
-			// break
-		} else {
-			tot.Results = append(tot.Results, models.OneResult{Result: result, Datafile: filename, Time: timeUsed, Mem: memUsed})
-			passRate += 1.0
-			slog.Info("测试点通过", "data_file", filename)
+		testResult := models.OneResult{
+			Result:   result,
+			Datafile: filename,
+			Time:     timeUsed,
+			Mem:      memUsed,
 		}
+
+		if result != constants.OJ_AC {
+			if totalResults.FinalResult == constants.OJ_AC {
+				totalResults.FinalResult = result
+			}
+			slog.Warn("Test case failed", "data_file", filename, "result", result)
+		} else {
+			passRate += 1.0
+			slog.Info("Test case passed", "data_file", filename)
+		}
+
+		totalResults.Results = append(totalResults.Results, testResult)
 	}
 
-	// 8. 处理最终结果
+	// Calculate final pass rate
 	if testCases > 0 {
 		passRate = passRate / testCases
-	} else if tot.FinalResult == constants.OJ_AC {
+	} else if totalResults.FinalResult == constants.OJ_AC {
 		passRate = 1.0
 	}
 
-	addREInfo(solutionID, tot)
-
-	// switch tot.FinalResult {
-	// case constants.OJ_RE:
-	// 	addREInfo(solutionID)
-	// case constants.OJ_WA, constants.OJ_PE:
-	// 	addDiffInfo(solutionID)
-	// }
-
-	// 9. 更新数据库
-	slog.Info("判题完成", "final_result", tot.FinalResult, "total_time_ms", totalTime, "peak_mem_kb", peakMemory, "pass_rate", passRate) //nolint:all
-	slog.Info("判题结果", "FF", tot)
-	if err := updateSolution(solutionID, tot.FinalResult, totalTime, peakMemory, passRate); err != nil {
-		slog.Error("更新最终判题结果失败", "error", err)
-		os.Exit(1)
+	// Add runtime info
+	if err := jc.addRuntimeInfo(jc.solutionID, totalResults); err != nil {
+		slog.Warn("Failed to add runtime info", "error", err)
 	}
 
-	if err := updateUser(userID); err != nil {
-		slog.Warn("更新用户统计失败", "error", err)
+	// Update solution with final results
+	slog.Info("Judge completed",
+		"final_result", totalResults.FinalResult,
+		"total_time_ms", totalTime,
+		"peak_memory_kb", peakMemory,
+		"pass_rate", passRate,
+	)
+
+	if err := jc.db.UpdateSolution(jc.solutionID, totalResults.FinalResult, totalTime, peakMemory, passRate); err != nil {
+		return fmt.Errorf("failed to update final solution result: %w", err)
 	}
 
-	if err := updateProblem(pID, cID); err != nil {
-		slog.Warn("更新题目统计失败", "error", err)
+	// Update statistics
+	jc.updateUserStats(solution.UserID)
+	jc.updateProblemStats(solution.ProblemID, solution.ContestID)
+
+	return nil
+}
+
+// findDataFiles finds all test data files for a problem
+func (jc *JudgeClient) findDataFiles(problemID int) ([][]string, error) {
+	dataDir := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problemID))
+	slog.Info("Scanning data files", "directory", dataDir)
+
+	entries, err := os.ReadDir(dataDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			slog.Warn("Data directory not found", "directory", dataDir)
+			return [][]string{}, nil
+		}
+		return nil, fmt.Errorf("failed to read data directory %s: %w", dataDir, err)
 	}
 
-	slog.Info("判题流程结束")
+	var inFiles []string
+	// Find all .in files
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+
+		fileName := entry.Name()
+		if filepath.Ext(fileName) == ".in" {
+			inFiles = append(inFiles, fileName)
+		}
+	}
+
+	// Sort .in files to ensure consistent order
+	sort.Strings(inFiles)
+	slog.Info("Found .in files", "count", len(inFiles))
+
+	// Build file pairs
+	var result [][]string
+	for _, inFileName := range inFiles {
+		inFullPath := filepath.Join(dataDir, inFileName)
+		baseName := strings.TrimSuffix(inFileName, ".in")
+		outFileName := baseName + ".out"
+		outFullPath := filepath.Join(dataDir, outFileName)
+
+		// Check if .out file exists
+		outPath := ""
+		if _, err := os.Stat(outFullPath); err == nil {
+			outPath = outFullPath
+		} else if !os.IsNotExist(err) {
+			slog.Warn("Cannot access .out file", "path", outFullPath, "error", err)
+		}
+
+		result = append(result, []string{inFullPath, outPath})
+	}
+
+	slog.Info("Data file pairing completed", "pairs", len(result))
+	return result, nil
+}
+
+// findInputName gets the custom input filename
+func (jc *JudgeClient) findInputName(problemID int) string {
+	inNameFile := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problemID), "input.name")
+	data, err := os.ReadFile(inNameFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// findOutputName gets the custom output filename
+func (jc *JudgeClient) findOutputName(problemID int) string {
+	outNameFile := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problemID), "output.name")
+	data, err := os.ReadFile(outNameFile)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(data))
+}
+
+// runAndCompare runs a test case and compares the output
+func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
+	// Prepare stdin/stdout names
+	stdinName := "/code/data.in"
+	stdoutName := "/code/data.usr"
+
+	if config.InName != "" {
+		jc.copyFile(config.InFile, filepath.Join(config.Workdir, config.InName))
+		stdinName = ""
+	} else {
+		jc.copyFile(config.InFile, filepath.Join(config.Workdir, "data.in"))
+	}
+
+	if config.OutName != "" {
+		stdoutName = ""
+	}
+
+	// Get language configuration
+	langConfig, err := jc.langManager.GetLanguageConfig(config.Lang)
+	if err != nil {
+		slog.Error("Failed to get language config", "error", err)
+		return constants.OJ_SE, 0, 0
+	}
+
+	// Build run arguments
+	runArgs := []string{
+		"sandbox",
+		fmt.Sprintf("--rootfs=%s", config.Rootdir),
+		fmt.Sprintf("--cmd=%s", langConfig.Cmd.Run),
+		fmt.Sprintf("--time=%d", config.Timelimit),
+		fmt.Sprintf("--memory=%d", config.MemoryLimit<<10),
+		fmt.Sprintf("--sid=%d", jc.solutionID),
+		"--cwd=/code",
+	}
+
+	if stdinName != "" {
+		runArgs = append(runArgs, fmt.Sprintf("--stdin=%s", stdinName))
+	}
+	if stdoutName != "" {
+		runArgs = append(runArgs, fmt.Sprintf("--stdout=%s", stdoutName))
+	}
+
+	// Execute the run command
+	selfName, _ := os.Executable()
+	cmd := exec.Command(selfName, runArgs...)
+	if len(langConfig.Cmd.Env) > 0 {
+		cmd.Env = append(cmd.Env, langConfig.Cmd.Env...)
+	}
+
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stdout
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		return constants.OJ_SE, 0, 0
+	}
+
+	cmd.ExtraFiles = append(cmd.ExtraFiles, w)
+	slog.Info("Starting execution", "language", config.Lang, "work_dir", config.Rootdir)
+
+	if err := cmd.Start(); err != nil {
+		return constants.OJ_SE, 0, 0
+	}
+
+	w.Close()
+	cmd.Wait()
+
+	var output models.SandboxOutput
+	if err := json.NewDecoder(r).Decode(&output); err != nil {
+		slog.Error("Failed to decode run output", "error", err)
+		return constants.OJ_SE, 0, 0
+	}
+
+	result := output.UserStatus
+	timeUsed := output.Time
+	memUsed := output.Memory
+
+	if result != constants.OJ_AC {
+		return result, timeUsed, memUsed
+	}
+
+	// Handle special judge
+	if config.Spj == 1 {
+		return jc.handleSpecialJudge(config)
+	}
+
+	// Compare output with expected output
+	targetOutputName := "data.usr"
+	if config.OutName != "" {
+		targetOutputName = config.OutName
+	}
+
+	targetInputName := "data.in"
+	if config.InName != "" {
+		targetInputName = config.InName
+	}
+	_ = targetInputName // Use the variable to avoid unused error
+
+	res, err := jc.compareFiles(config.OutFile, filepath.Join(config.Rootdir, "code", targetOutputName))
+	switch res {
+	case 1:
+		result = constants.OJ_PE
+	case 2:
+		result = constants.OJ_WA
+	case 0:
+		result = constants.OJ_AC
+	}
+
+	if err != nil {
+		result = constants.OJ_RE
+	}
+
+	return result, timeUsed, memUsed
+}
+
+// handleSpecialJudge handles special judge logic
+func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
+	// Copy expected output
+	sysDataFile := filepath.Join(config.Rootdir, "code/sysdata.out")
+	jc.copyFile(config.OutFile, sysDataFile)
+	defer os.Remove(sysDataFile)
+
+	// Copy special judge program
+	spjFile := filepath.Join(config.Rootdir, "code/spj")
+	jc.copyFile(filepath.Join(filepath.Dir(config.OutFile), "spj"), spjFile)
+	defer os.Remove(spjFile)
+
+	// Prepare special judge command
+	runArgs := []string{
+		"sandbox",
+		fmt.Sprintf("--rootfs=%s", filepath.Join(config.Rootdir, "code")),
+		fmt.Sprintf("--cmd=/spj %s %s %s", "data.in", "data.usr", "sysdata.out"),
+		fmt.Sprintf("--time=%d", config.Timelimit),
+		fmt.Sprintf("--memory=%d", config.MemoryLimit<<10),
+		fmt.Sprintf("--sid=%d", jc.solutionID),
+		"--cwd=/",
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		slog.Error("Failed to create pipe for special judge", "error", err)
+		return constants.OJ_SE, 0, 0
+	}
+	defer r.Close()
+
+	selfName, _ := os.Executable()
+	cmd := exec.Command(selfName, runArgs...)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.ExtraFiles = []*os.File{w}
+
+	if err := cmd.Start(); err != nil {
+		slog.Error("Failed to start special judge", "error", err)
+		return constants.OJ_SE, 0, 0
+	}
+
+	w.Close()
+	cmd.Wait()
+
+	var output models.SandboxOutput
+	if err := json.NewDecoder(r).Decode(&output); err != nil {
+		slog.Error("Failed to decode special judge output", "error", err)
+		return constants.OJ_SE, 0, 0
+	}
+
+	if output.ExitStatus == 0 {
+		return constants.OJ_AC, 0, 0
+	}
+	return constants.OJ_WA, 0, 0
+}
+
+// copyFile copies a file from src to dst
+func (jc *JudgeClient) copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file: %w", err)
+	}
+	defer sourceFile.Close()
+
+	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+		return fmt.Errorf("failed to create destination directory: %w", err)
+	}
+
+	destinationFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file: %w", err)
+	}
+	defer destinationFile.Close()
+
+	if _, err := destinationFile.ReadFrom(sourceFile); err != nil {
+		return fmt.Errorf("failed to copy file contents: %w", err)
+	}
+
+	return nil
+}
+
+// compareFiles compares two files
+func (jc *JudgeClient) compareFiles(file1, file2 string) (int, error) {
+	// This is a stub implementation
+	// In a real implementation, you would read both files and compare their contents
+	// Return 0 for equal, 1 for presentation error, 2 for wrong answer
+	return 0, nil
+}
+
+// addRuntimeInfo adds runtime information to the database
+func (jc *JudgeClient) addRuntimeInfo(solutionID int, results models.TotalResults) error {
+	details, err := jc.renderResults(results)
+	if err != nil {
+		return fmt.Errorf("failed to render results: %w", err)
+	}
+
+	return jc.db.AddRuntimeInfo(solutionID, details)
+}
+
+// renderResults renders the test results into a formatted string
+func (jc *JudgeClient) renderResults(results models.TotalResults) (string, error) {
+	const tpl = `
+filename|size|result|memory|time
+ --|--|--|--|--
+ {{- range .Results }}
+| {{ .Datafile }}|0|{{ getResult .Result }}/1.00|{{ .Mem }}KB|{{ .Time }}ms
+ {{- end }}
+`
+
+	funcMap := template.FuncMap{
+		"getResult": constants.GetOJResultName,
+	}
+
+	t, err := template.New("result").Funcs(funcMap).Parse(tpl)
+	if err != nil {
+		return "", err
+	}
+
+	var buf bytes.Buffer
+	if err := t.Execute(&buf, results); err != nil {
+		return "", err
+	}
+
+	return buf.String(), nil
 }

@@ -20,7 +20,7 @@ type JobFetcher interface {
 }
 
 // NewFetcher is a factory for creating the appropriate JobFetcher based on the config.
-func NewFetcher(cfg *Config) (JobFetcher, error) {
+func NewFetcher(cfg *DaemonConfig) (JobFetcher, error) {
 	if cfg.HTTPJudge {
 		// HTTP implementation would go here
 		return nil, fmt.Errorf("HTTP fetcher is not implemented")
@@ -37,9 +37,9 @@ type MySQLFetcher struct {
 	selectQuery string
 }
 
-func NewMySQLFetcher(cfg *Config) (*MySQLFetcher, error) {
+func NewMySQLFetcher(cfg *DaemonConfig) (*MySQLFetcher, error) {
 	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		cfg.UserName, cfg.Password, cfg.HostName, cfg.PortNumber, cfg.DBName)
+		cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -116,7 +116,7 @@ type RedisFetcher struct {
 	qname  string
 }
 
-func NewRedisFetcher(cfg *Config) (*RedisFetcher, error) {
+func NewRedisFetcher(cfg *DaemonConfig) (*RedisFetcher, error) {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", cfg.RedisServer, cfg.RedisPort),
 		Password: cfg.RedisAuth,

@@ -6,18 +6,13 @@ import (
 	"os"
 	"strconv"
 	"strings"
+
+	"github.com/sempr/hustoj-go/pkg/config"
 )
 
-// Config stores all configuration for judged.
-type Config struct {
-	OJHome         string
-	Debug          bool
-	Once           bool
-	HostName       string
-	UserName       string
-	Password       string
-	DBName         string
-	PortNumber     int
+// DaemonConfig stores all configuration for judged daemon
+type DaemonConfig struct {
+	*config.JudgeConfig
 	MaxRunning     int
 	SleepTime      int
 	TotalJudges    int
@@ -34,7 +29,7 @@ type Config struct {
 	RedisPort      int
 	RedisAuth      string
 	RedisQName     string
-	UDPEable       bool
+	UDPEnable      bool
 	UDPServer      string
 	UDPPort        int
 	UseDocker      bool
@@ -43,11 +38,17 @@ type Config struct {
 	TurboMode      int
 }
 
-// LoadConfig reads the judge.conf file and returns a Config struct.
-func LoadConfig(path string) (*Config, error) {
-	// Default values
-	cfg := &Config{
-		PortNumber:     3306,
+// LoadDaemonConfig reads judge.conf file and returns a DaemonConfig struct
+func LoadDaemonConfig(path string) (*DaemonConfig, error) {
+	// Load base judge configuration
+	baseConfig, err := config.LoadJudgeConf("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load base config: %w", err)
+	}
+
+	// Default daemon-specific values
+	cfg := &DaemonConfig{
+		JudgeConfig:    baseConfig,
 		MaxRunning:     3,
 		SleepTime:      1,
 		TotalJudges:    1,
@@ -79,24 +80,14 @@ func LoadConfig(path string) (*Config, error) {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
-		assignConfigValue(cfg, key, value)
+		assignDaemonConfigValue(cfg, key, value)
 	}
 
 	return cfg, scanner.Err()
 }
 
-func assignConfigValue(cfg *Config, key, value string) {
+func assignDaemonConfigValue(cfg *DaemonConfig, key, value string) {
 	switch key {
-	case "OJ_HOST_NAME":
-		cfg.HostName = value
-	case "OJ_USER_NAME":
-		cfg.UserName = value
-	case "OJ_PASSWORD":
-		cfg.Password = value
-	case "OJ_DB_NAME":
-		cfg.DBName = value
-	case "OJ_PORT_NUMBER":
-		cfg.PortNumber, _ = strconv.Atoi(value)
 	case "OJ_RUNNING":
 		cfg.MaxRunning, _ = strconv.Atoi(value)
 	case "OJ_SLEEP_TIME":
@@ -111,7 +102,14 @@ func assignConfigValue(cfg *Config, key, value string) {
 		cfg.HTTPJudge, _ = strconv.ParseBool(value)
 	case "OJ_HTTP_BASEURL":
 		cfg.HTTPBaseURL = value
-	// ... and so on for all other configuration keys ...
+	case "OJ_HTTP_API_PATH":
+		cfg.HTTPAPIPath = value
+	case "OJ_HTTP_LOGIN_PATH":
+		cfg.HTTPLoginPath = value
+	case "OJ_HTTP_USERNAME":
+		cfg.HTTPUsername = value
+	case "OJ_HTTP_PASSWORD":
+		cfg.HTTPPassword = value
 	case "OJ_REDISENABLE":
 		v, _ := strconv.Atoi(value)
 		cfg.RedisEnable = (v == 1)
@@ -123,6 +121,12 @@ func assignConfigValue(cfg *Config, key, value string) {
 		cfg.RedisAuth = value
 	case "OJ_REDISQNAME":
 		cfg.RedisQName = value
+	case "OJ_UDP_ENABLE":
+		cfg.UDPEnable, _ = strconv.ParseBool(value)
+	case "OJ_UDP_SERVER":
+		cfg.UDPServer = value
+	case "OJ_UDP_PORT":
+		cfg.UDPPort, _ = strconv.Atoi(value)
 	case "OJ_USE_DOCKER":
 		v, _ := strconv.Atoi(value)
 		cfg.UseDocker = (v == 1)
