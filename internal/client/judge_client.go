@@ -258,6 +258,7 @@ func (jc *JudgeClient) writeSourceCode(source string, langID int, workDir string
 
 // compile compiles the source code
 func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.LangConfig) *models.SandboxOutput {
+  os.Chmod(filepath.Join(rootfs, "code"),0777)
 	selfName, _ := os.Executable()
 	cmd := exec.Command(selfName,
 		"sandbox",
