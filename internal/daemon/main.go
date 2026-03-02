@@ -23,7 +23,7 @@ func Main(ccfg *models.DaemonArgs) {
 	}
 
 	// Load configuration
-	cfg, err := LoadConfig("etc/judge.conf")
+	cfg, err := LoadDaemonConfig("etc/judge.conf")
 	if err != nil {
 		slog.Error("FATAL: Error loading judge.conf", "err", err)
 		os.Exit(1)

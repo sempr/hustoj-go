@@ -10,7 +10,7 @@ import (
 )
 
 // This is the Linux-specific implementation of setResourceLimits.
-func setResourceLimits(cmd *exec.Cmd, cfg *Config) error {
+func setResourceLimits(cmd *exec.Cmd, cfg *DaemonConfig) error {
 	// Pdeathsig ensures the child process is killed if the parent (judged) dies.
 	cmd.SysProcAttr = &unix.SysProcAttr{
 		Pdeathsig: unix.SIGKILL,

@@ -12,13 +12,13 @@ const (
 
 // Worker manages the cycle of fetching and running jobs.
 type Worker struct {
-	cfg     *Config
+	cfg     *DaemonConfig
 	fetcher JobFetcher
 	done    chan int    // Channel to receive client IDs of finished jobs
 	running map[int]int // Maps clientID to solutionID
 }
 
-func NewWorker(cfg *Config, fetcher JobFetcher) *Worker {
+func NewWorker(cfg *DaemonConfig, fetcher JobFetcher) *Worker {
 	return &Worker{
 		cfg:     cfg,
 		fetcher: fetcher,

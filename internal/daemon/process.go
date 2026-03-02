@@ -12,7 +12,7 @@ const STD_MB = 1048576
 
 // RunClient executes the judge_client or a Docker container.
 // It calls a platform-specific setResourceLimits function.
-func RunClient(cfg *Config, solutionID, clientID int, done chan<- int) {
+func RunClient(cfg *DaemonConfig, solutionID, clientID int, done chan<- int) {
 	defer func() {
 		done <- clientID // Notify that the job has finished
 	}()

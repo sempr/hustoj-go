@@ -1,23 +1,147 @@
-# 如何替换原有判题内核
+# HUSTOJ-Go
 
-## 工作准备
+A high-performance online judge system written in Go, compatible with HUSTOJ database schema.
 
-1. 假设你已经使用脚本安装好了 https://github.com/zhblue/hustoj 这个项目
-2. 假设你的机器上有安装好docker并且可以正常使用
-3. 目前仅支持ubuntu24.04 其它系统没有做过测试
+## Features
 
-## 安装流程
+- **High Performance**: Concurrent execution of submissions with configurable limits
+- **Isolated Execution**: Sandboxed environments for safe code execution
+- **Multiple Language Support**: Configurable language environments via TOML files
+- **Database Backends**: MySQL and Redis support for job queuing
+- **Cross-Platform**: Linux-specific optimizations with fallback for other platforms
+- **Special Judges**: Support for custom judges and raw text comparison
+- **Docker Support**: Optional containerized execution environments
 
-1. clone 本项目到服务器任意目录
-2. 安装golang `sudo apt-get install golang`
-3. 在本项目的根目录下执行 `make` 编译
-4. 把编译出来的 `hustoj-go` 复制到 `/usr/bin` 目录
-5. 把 `./extra/judged-go.service` 文件复制到 `/etc/systemd/system/` 目录
-6. 去 `./extra` 目录 开始准备rootfs 执行 `bash build_rootfs.sh <id>` 可以打包相应语言的rootfs，建议初始时编译 0(C) 1(C++) 2(Pascal) 3(Java) 四种语言 其它语言的打包方法类似
-7. 把 `./extra/etc/langs/` 目录复制到 `/home/judge/etc/` 下面 如果rootfs调整了 需要更新相应的文件 比如C语言是 0.langs.toml
-8. rootfs准备好 /home/judge/etc/langs 都准备好之后 就可以停掉原有的 judged 使用 `systemctl enable --now judged-go` 来启动新的内核来使用了
+## Quick Start
 
-## 其它
+### Prerequisites
 
-使用过程中如果有疑问 请提Issue
+- Go 1.24 or later
+- MySQL database (compatible with HUSTOJ schema)
+- Redis (optional, for distributed judging)
+- Docker (optional, for containerized execution)
+- Linux system with overlay filesystem support (recommended)
 
+### Building
+
+```bash
+make
+```
+
+### Installation
+
+1. Copy `hustoj-go` binary to `/usr/bin/`
+2. Copy `extra/judged-go.service` to `/etc/systemd/system/`
+3. Set up language rootfs: `cd extra && bash build_rootfs.sh <lang_id>`
+4. Copy language configs: `cp -r extra/etc/langs /home/judge/etc/`
+5. Start service: `systemctl enable --now judged-go`
+
+## Usage
+
+### Daemon Service
+
+```bash
+# Start judge daemon (systemd recommended)
+sudo systemctl start judged-go
+
+# Or run directly
+hustoj-go daemon --ojhome=/home/judge --debug
+```
+
+### Client
+
+```bash
+# Judge a single submission
+hustoj-go client <solution_id> <runner_id> [oj_home] [DEBUG]
+```
+
+### Sandbox
+
+```bash
+# Execute command in sandbox environment
+hustoj-go sandbox --rootfs=<path> --cmd="<command>" --cwd=<working_dir>
+```
+
+## Configuration
+
+### Database Configuration
+
+Edit `/home/judge/etc/judge.conf`:
+
+```ini
+OJ_HOST_NAME=localhost
+OJ_USER_NAME=root
+OJ_PASSWORD=password
+OJ_DB_NAME=hustoj
+OJ_PORT_NUMBER=3306
+```
+
+### Language Configuration
+
+Language environments are defined in `/home/judge/etc/langs/*.lang.toml`:
+
+```toml
+name = "C++"
+[fs]
+base = "/home/judge/runtime/cpp"
+workdir = "/code"
+
+[cmd]
+compile = "g++ -Wall -O2 -fno-asm -DONLINE_JUDGE -std=c++11 Main.cpp -o Main"
+run = "./Main"
+ver = "g++ --version"
+env = ["LANG=en_US.UTF-8"]
+```
+
+## Architecture
+
+```
+├── cmd/              # CLI commands
+├── internal/
+│   ├── client/        # Judge client implementation
+│   ├── daemon/        # Daemon service
+│   └── sandbox/       # Sandboxed execution
+├── pkg/
+│   ├── config/        # Configuration management
+│   ├── constants/     # Judge status codes
+│   ├── interfaces/    # Core interfaces
+│   ├── language/      # Language configuration
+│   ├── models/        # Data models
+│   └── repository/    # Database operations
+└── extra/            # Runtime environments
+```
+
+## Development
+
+### Project Structure
+
+- **pkg/**: Reusable packages and interfaces
+- **internal/**: Application-specific code
+- **cmd/**: Command-line interface
+- **extra/**: Runtime configurations and build scripts
+
+### Building from Source
+
+```bash
+# Development build
+go build -o hustoj-go
+
+# Production build
+go build -ldflags="-s -w" -o hustoj-go
+
+# Run tests
+go test ./...
+```
+
+### Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Follow Go conventions and add tests
+4. Submit a pull request
+
+## License
+
+Copyright © 2025 HUSTOJ-Go Contributors
+
+See LICENSE file for details.
