@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"text/template"
 
 	"github.com/sempr/hustoj-go/pkg/constants"
@@ -132,14 +133,30 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 	jc.copyFile(config.OutFile, sysDataFile)
 	defer os.Remove(sysDataFile)
 
-	spjFile := filepath.Join(config.Rootdir, "code/spj")
-	jc.copyFile(filepath.Join(filepath.Dir(config.OutFile), "spj"), spjFile)
-	defer os.Remove(spjFile)
+	spjName := "spj"
+	spjCmds := []string{"spj", "data.in", "sysdata.out", "data.usr"}
+	switch config.SpjProgram {
+	case constants.OJ_SPJ_PROGRAM_TPJ:
+		spjName = "tpj"
+		spjCmds = []string{"tpj", "data.in", "data.usr", "sysdata.out"}
+	case constants.OJ_SPJ_PROGRAM_UPJ:
+		spjName = "upj"
+		spjCmds = []string{"upj", "data.in", "sysdata.out", "data.usr"}
+	default:
+		spjName = "spj"
+	}
+
+	destSpjFile := filepath.Join(config.Rootdir, "code", spjName)
+	srcSpjFile := filepath.Join(filepath.Dir(config.OutFile), spjName)
+
+	jc.copyFile(srcSpjFile, destSpjFile)
+	os.Chmod(destSpjFile, 0755)
+	defer os.ReadDir(destSpjFile)
 
 	runArgs := []string{
 		"sandbox",
 		fmt.Sprintf("--rootfs=%s", filepath.Join(config.Rootdir, "code")),
-		fmt.Sprintf("--cmd=/spj %s %s %s", "data.in", "data.usr", "sysdata.out"),
+		fmt.Sprintf("--cmd=/%s", strings.Join(spjCmds, " ")),
 		fmt.Sprintf("--time=%d", config.Timelimit),
 		fmt.Sprintf("--memory=%d", config.MemoryLimit<<10),
 		fmt.Sprintf("--sid=%d", jc.solutionID),
@@ -173,7 +190,20 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 		return constants.OJ_SE, 0, 0
 	}
 
-	if output.ExitStatus == 0 {
+	exitStatus := output.ExitStatus
+
+	slog.Info("spj result", "status", exitStatus, "program", spjName)
+
+	if config.SpjProgram == constants.OJ_SPJ_PROGRAM_UPJ {
+		score := float64(exitStatus) / 100.0
+		slog.Info("UPJ score", "score", score)
+		if exitStatus == 100 {
+			return constants.OJ_AC, 0, 0
+		}
+		return constants.OJ_WA, 0, 0
+	}
+
+	if exitStatus == 0 {
 		return constants.OJ_AC, 0, 0
 	}
 	return constants.OJ_WA, 0, 0

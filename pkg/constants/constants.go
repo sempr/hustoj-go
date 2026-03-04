@@ -38,3 +38,10 @@ const (
 	OJ_SPJ_MODE_SPJ     = 1 // Special judge program
 	OJ_SPJ_MODE_RAWTEXT = 2 // Raw text comparison judge
 )
+
+// Special judge program variants (used when OJ_SPJ_MODE_SPJ is set)
+const (
+	OJ_SPJ_PROGRAM_SPJ = 1 // hustoj style: infile outfile userfile
+	OJ_SPJ_PROGRAM_TPJ = 2 // testlib style: infile userfile outfile
+	OJ_SPJ_PROGRAM_UPJ = 3 // hustoj style with score: infile outfile userfile, return 0-100
+)

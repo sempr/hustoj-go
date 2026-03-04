@@ -24,6 +24,7 @@ type RunConfig struct {
 	Timelimit   int
 	MemoryLimit int
 	Spj         int
+	SpjProgram  int
 }
 
 type JudgeClient struct {

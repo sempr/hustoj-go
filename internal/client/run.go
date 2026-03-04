@@ -29,6 +29,8 @@ func (jc *JudgeClient) Run() error {
 		return fmt.Errorf("failed to get problem info: %w", err)
 	}
 
+	spjProgram := jc.detectSpjType(problem)
+
 	langConfig, err := jc.langManager.GetLanguageConfig(solution.Language)
 	if err != nil {
 		return fmt.Errorf("failed to get language config: %w", err)
@@ -100,7 +102,35 @@ func (jc *JudgeClient) Run() error {
 		slog.Warn("Failed to update to running status", "error", err)
 	}
 
-	return jc.runTestCases(solution, problem, workDir, langConfig)
+	return jc.runTestCases(solution, problem, workDir, langConfig, spjProgram)
+}
+
+func (jc *JudgeClient) detectSpjType(problem *repository.Problem) int {
+	if problem.SPJ != constants.OJ_SPJ_MODE_SPJ {
+		return 0
+	}
+
+	dataDir := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problem.ID))
+	tpjPath := filepath.Join(dataDir, "tpj")
+	upjPath := filepath.Join(dataDir, "upj")
+	spjPath := filepath.Join(dataDir, "spj")
+
+	if _, err := os.Stat(upjPath); err == nil {
+		slog.Info("Detected UPJ special judge", "problem_id", problem.ID)
+		return constants.OJ_SPJ_PROGRAM_UPJ
+	}
+
+	if _, err := os.Stat(tpjPath); err == nil {
+		slog.Info("Detected TPJ special judge", "problem_id", problem.ID)
+		return constants.OJ_SPJ_PROGRAM_TPJ
+	}
+
+	if _, err := os.Stat(spjPath); err == nil {
+		slog.Info("Detected SPJ special judge", "problem_id", problem.ID)
+		return constants.OJ_SPJ_PROGRAM_SPJ
+	}
+
+	return 0
 }
 
 func (jc *JudgeClient) findDataFiles(problemID int) ([][]string, error) {
@@ -212,7 +242,7 @@ func (jc *JudgeClient) handleRawTextJudge(solution *repository.Solution, problem
 	return nil
 }
 
-func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repository.Problem, rootfs string, langConfig *language.LangConfig) error {
+func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repository.Problem, rootfs string, langConfig *language.LangConfig, spjProgram int) error {
 	_ = langConfig
 	dataFiles, err := jc.findDataFiles(problem.ID)
 	if err != nil {
@@ -231,6 +261,7 @@ func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repo
 		InName:      inName,
 		OutName:     outName,
 		Spj:         problem.SPJ,
+		SpjProgram:  spjProgram,
 	}
 
 	var (
