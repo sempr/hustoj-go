@@ -45,6 +45,11 @@ func (jc *JudgeClient) setupWorkEnvironment(langConfig *language.LangConfig) (st
 }
 
 func (jc *JudgeClient) cleanupWorkEnvironment(rootfs string) {
+	if jc.debug {
+		slog.Info("Keeping rootfs due to debug option", "rootfs", rootfs)
+		return
+	}
+
 	if err := unix.Unmount(rootfs, 0); err != nil {
 		slog.Warn("Failed to unmount overlay", "error", err)
 	}

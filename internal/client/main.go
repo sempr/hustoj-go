@@ -5,13 +5,14 @@ import (
 	"log/slog"
 	"os"
 	"strconv"
+	"strings"
 )
 
 func Main() {
 	args := os.Args[1:]
 
 	if len(args) < 3 {
-		fmt.Fprintf(os.Stderr, "Usage: %s client <solution_id> <runner_id> [oj_home_path] [DEBUG]\n", os.Args[0])
+		fmt.Fprintf(os.Stderr, "Usage: %s client <solution_id> <runner_id> [oj_home_path] [-debug]\n", os.Args[0])
 		os.Exit(1)
 	}
 
@@ -23,13 +24,14 @@ func Main() {
 
 	runnerID := args[2]
 	homePath := "/home/judge"
-	if len(args) > 3 {
-		homePath = args[3]
-	}
-
 	debug := false
-	if len(args) > 4 && args[4] == "DEBUG" {
-		debug = true
+
+	for _, arg := range args[3:] {
+		if arg == "-debug" || arg == "DEBUG" {
+			debug = true
+		} else if !strings.HasPrefix(arg, "-") {
+			homePath = arg
+		}
 	}
 
 	client, err := NewJudgeClient(solutionID, runnerID, homePath, debug)

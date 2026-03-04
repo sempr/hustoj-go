@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -40,8 +41,11 @@ type DaemonConfig struct {
 
 // LoadDaemonConfig reads judge.conf file and returns a DaemonConfig struct
 func LoadDaemonConfig(path string) (*DaemonConfig, error) {
+	// Determine home directory from config file path
+	homePath := filepath.Dir(filepath.Dir(path))
+
 	// Load base judge configuration
-	baseConfig, err := config.LoadJudgeConf("")
+	baseConfig, err := config.LoadJudgeConf(homePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load base config: %w", err)
 	}

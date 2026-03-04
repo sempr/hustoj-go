@@ -17,6 +17,8 @@ type SandboxOutput struct {
 	ProcessCnt int `json:"process_cnt"`
 	// ExitSignal 是导致程序终止的信号（如果有）。
 	ExitSignal string `json:"exit_signal"`
+	// SystemError 表示是否发生了系统级错误（如 exec 失败）
+	SystemError bool `json:"system_error"`
 }
 
 // OneResult 存储单个测试点的判题结果。

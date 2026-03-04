@@ -82,6 +82,11 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 		return constants.OJ_SE, 0, 0
 	}
 
+	if output.SystemError {
+		slog.Error("Execution system error", "output", output.CombinedOutput)
+		return constants.OJ_SE, 0, 0
+	}
+
 	result := output.UserStatus
 	timeUsed := output.Time
 	memUsed := output.Memory

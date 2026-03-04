@@ -71,6 +71,18 @@ func (jc *JudgeClient) Run() error {
 	}
 
 	compileResult := jc.compile(solution.Language, workDir, langConfig)
+	if compileResult.SystemError {
+		slog.Error("Compilation system error", "output", compileResult.CombinedOutput)
+		if err := jc.db.AddCompileError(jc.solutionID, compileResult.CombinedOutput); err != nil {
+			slog.Warn("Failed to add compile error info", "error", err)
+		}
+		if err := jc.updateSolutionStatus(constants.OJ_SE); err != nil {
+			return fmt.Errorf("failed to update solution status: %w", err)
+		}
+		jc.updateUserStats(solution.UserID)
+		jc.updateProblemStats(solution.ProblemID, solution.ContestID)
+		return fmt.Errorf("system error during compilation: %s", compileResult.CombinedOutput)
+	}
 	if compileResult.ExitStatus != 0 {
 		slog.Info("Compilation failed", "output", compileResult.CombinedOutput)
 		if err := jc.db.AddCompileError(jc.solutionID, compileResult.CombinedOutput); err != nil {

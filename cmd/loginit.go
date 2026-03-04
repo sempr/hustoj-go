@@ -24,9 +24,9 @@ func Init() *slog.Logger {
 		})
 
 		if isSystemd {
-			// 去掉时间字段
+			// 去掉时间字段，但保留源信息
 			handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-				AddSource:   false,
+				AddSource:   true,
 				ReplaceAttr: removeTimeAttr,
 				Level:       slog.LevelDebug,
 			})

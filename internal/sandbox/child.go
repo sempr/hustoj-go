@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"encoding/json"
 	"log/slog"
 	"os"
 	"runtime"
@@ -17,7 +18,9 @@ func ChildMain(cfg *models.SandboxArgs) {
 	config = cfg
 	runtime.LockOSThread()
 	file3 := os.NewFile(uintptr(3), "fd3")
-	logger = slog.New(slog.NewJSONHandler(file3, nil)).With("P", "child")
+	logger = slog.New(slog.NewJSONHandler(file3, &slog.HandlerOptions{
+		AddSource: true,
+	})).With("P", "child")
 	chRoot()
 
 	logger.Info("change to workdir")
@@ -45,6 +48,12 @@ func ChildMain(cfg *models.SandboxArgs) {
 	logger.Info("starting Exec", "cmds", cmds)
 	if err := unix.Exec(cmds[0], cmds, os.Environ()); err != nil {
 		logger.Error("exec error", "err", err)
+		out := models.SandboxOutput{
+			SystemError:    true,
+			CombinedOutput: err.Error(),
+		}
+		json.NewEncoder(file3).Encode(out)
+		os.Exit(1)
 	}
 	logger.Info("maybe not used here")
 }
