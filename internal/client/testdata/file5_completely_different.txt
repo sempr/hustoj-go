@@ -1,0 +1,3 @@
+completely different content
+this file is not similar at all
+to the test files used for rule0 or rule1
