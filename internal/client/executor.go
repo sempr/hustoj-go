@@ -13,6 +13,7 @@ import (
 
 	"github.com/sempr/hustoj-go/pkg/constants"
 	"github.com/sempr/hustoj-go/pkg/models"
+	"github.com/sempr/hustoj-go/pkg/subtask"
 )
 
 func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
@@ -220,6 +221,18 @@ func (jc *JudgeClient) addRuntimeInfo(solutionID int, results models.TotalResult
 	}
 
 	return jc.db.AddRuntimeInfo(solutionID, details)
+}
+
+func (jc *JudgeClient) addRuntimeInfo2(solutionID int, testResults []subtask.TestResult, score subtask.SubtaskScore, problemTitle string) error {
+	// 生成详细的 Markdown 报告
+	report := subtask.GenerateMarkdownReport(problemTitle, testResults, score)
+
+	// 保存到数据库
+	if err := jc.db.AddRuntimeInfo(solutionID, report); err != nil {
+		return fmt.Errorf("failed to add runtime info: %w", err)
+	}
+
+	return nil
 }
 
 func (jc *JudgeClient) renderResults(results models.TotalResults) (string, error) {

@@ -14,6 +14,7 @@ import (
 	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/sempr/hustoj-go/pkg/rawtext"
 	"github.com/sempr/hustoj-go/pkg/repository"
+	"github.com/sempr/hustoj-go/pkg/subtask"
 )
 
 func (jc *JudgeClient) Run() error {
@@ -103,6 +104,14 @@ func (jc *JudgeClient) Run() error {
 	}
 
 	return jc.runTestCases(solution, problem, workDir, langConfig, spjProgram)
+}
+
+// determineOIMode determines whether to use OI scoring mode
+// OI mode is used when there are multiple test files that might be grouped into subtasks
+func (jc *JudgeClient) determineOIMode(dataFiles [][]string) bool {
+	// If there are multiple test files, use OI mode
+	// This allows subtask-based scoring where all tests in a subtask must pass
+	return len(dataFiles) > 1
 }
 
 func (jc *JudgeClient) detectSpjType(problem *repository.Problem) int {
@@ -267,12 +276,13 @@ func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repo
 	var (
 		totalTime  = 0
 		peakMemory = 0
-		passRate   = 0.0
-		testCases  = float64(len(dataFiles))
 	)
 
+	// Use subtask scoring system
+	oiMode := jc.determineOIMode(dataFiles)
+	var testResults []subtask.TestResult
+
 	var totalResults models.TotalResults
-	totalResults.FinalResult = constants.OJ_AC
 
 	for _, dataFile := range dataFiles {
 		runConfig.InFile = dataFile[0]
@@ -288,31 +298,53 @@ func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repo
 		}
 
 		filename := filepath.Base(dataFile[0])
-		testResult := models.OneResult{
+
+		// Create subtask TestResult
+		testResult := subtask.TestResult{
+			Filename: filename,
+			Score:    subtask.ExtractScoreFromFilename(filename),
+			Result:   result,
+			SpjMark:  0.0, // Will be updated below if SPJ returns partial score
+			Time:     timeUsed,
+			Mem:      memUsed,
+		}
+
+		// For SPJ problems that return scores, extract the score from result
+		if problem.SPJ != constants.OJ_SPJ_MODE_NONE && spjProgram == constants.OJ_SPJ_PROGRAM_UPJ {
+			// UPJ style SPJ can return 0-100 score, convert to 0-1 ratio
+			// This is a simplified implementation - in real system SPJ would return actual scores
+			switch result {
+			case constants.OJ_AC, constants.OJ_PE:
+				testResult.SpjMark = 1.0
+			case constants.OJ_WA:
+				testResult.SpjMark = 0.0
+			}
+		}
+
+		// Add to models.TotalResults for backward compatibility
+		oneResult := models.OneResult{
 			Result:   result,
 			Datafile: filename,
 			Time:     timeUsed,
 			Mem:      memUsed,
 		}
+		totalResults.Results = append(totalResults.Results, oneResult)
 
 		if result != constants.OJ_AC {
-			if totalResults.FinalResult == constants.OJ_AC {
-				totalResults.FinalResult = result
-			}
 			slog.Warn("Test case failed", "data_file", filename, "result", result)
 		} else {
-			passRate += 1.0
 			slog.Info("Test case passed", "data_file", filename)
 		}
 
-		totalResults.Results = append(totalResults.Results, testResult)
+		testResults = append(testResults, testResult)
 	}
 
-	if testCases > 0 {
-		passRate = passRate / testCases
-	} else if totalResults.FinalResult == constants.OJ_AC {
-		passRate = 1.0
-	}
+	// Use subtask scoring system to calculate final score
+	subtaskScore := subtask.Judge(testResults, oiMode)
+
+	// Update final result and pass rate from subtask calculation
+	totalResults.FinalResult = subtaskScore.FinalResult
+	passRate := subtaskScore.PassRate
 
 	if err := jc.addRuntimeInfo(jc.solutionID, totalResults); err != nil {
 		slog.Warn("Failed to add runtime info", "error", err)
