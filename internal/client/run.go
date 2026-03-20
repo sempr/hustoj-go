@@ -20,21 +20,58 @@ import (
 func (jc *JudgeClient) Run() error {
 	slog.Info("Starting judge process", "runner_id", jc.runnerID)
 
+	ctx, err := jc.prepareJudgeContext()
+	if err != nil {
+		return err
+	}
+
+	workDir, cleanupFunc, err := jc.setupEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+	if cleanupFunc != nil {
+		defer cleanupFunc()
+	}
+
+	if ctx.Problem.SPJ == constants.OJ_SPJ_MODE_RAWTEXT {
+		return jc.handleRawTextJudge(ctx.Solution, ctx.Problem, workDir)
+	}
+
+	if err := jc.handleCompilation(ctx, workDir); err != nil {
+		return err
+	}
+
+	if err := jc.handleExecution(ctx, workDir); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// JudgeContext holds all necessary context for judge execution
+type JudgeContext struct {
+	Solution   *repository.Solution
+	Problem    *repository.Problem
+	LangConfig *language.LangConfig
+	SpjProgram int
+}
+
+func (jc *JudgeClient) prepareJudgeContext() (*JudgeContext, error) {
 	solution, err := jc.db.GetSolution(jc.solutionID)
 	if err != nil {
-		return fmt.Errorf("failed to get solution info: %w", err)
+		return nil, fmt.Errorf("failed to get solution info: %w", err)
 	}
 
 	problem, err := jc.db.GetProblem(solution.ProblemID)
 	if err != nil {
-		return fmt.Errorf("failed to get problem info: %w", err)
+		return nil, fmt.Errorf("failed to get problem info: %w", err)
 	}
 
 	spjProgram := jc.detectSpjType(problem)
 
 	langConfig, err := jc.langManager.GetLanguageConfig(solution.Language)
 	if err != nil {
-		return fmt.Errorf("failed to get language config: %w", err)
+		return nil, fmt.Errorf("failed to get language config: %w", err)
 	}
 
 	slog.Info("Retrieved judge information",
@@ -47,63 +84,92 @@ func (jc *JudgeClient) Run() error {
 		"spj", problem.SPJ,
 	)
 
-	workDir, err := jc.setupWorkEnvironment(langConfig)
-	if err != nil {
-		return fmt.Errorf("failed to setup work environment: %w", err)
-	}
+	return &JudgeContext{
+		Solution:   solution,
+		Problem:    problem,
+		LangConfig: langConfig,
+		SpjProgram: spjProgram,
+	}, nil
+}
 
-	if !jc.debug {
-		defer jc.cleanupWorkEnvironment(workDir)
+func (jc *JudgeClient) setupEnvironment(ctx *JudgeContext) (string, func(), error) {
+	workDir, err := jc.setupWorkEnvironment(ctx.LangConfig)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to setup work environment: %w", err)
 	}
 
 	source, err := jc.db.GetSolutionSource(jc.solutionID)
 	if err != nil {
-		return fmt.Errorf("failed to get solution source: %w", err)
+		jc.cleanupWorkEnvironment(workDir)
+		return "", nil, fmt.Errorf("failed to get solution source: %w", err)
 	}
 
-	if err := jc.writeSourceCode(source, solution.Language, workDir); err != nil {
-		return fmt.Errorf("failed to write source code: %w", err)
+	if err := jc.writeSourceCode(source, ctx.Solution.Language, workDir); err != nil {
+		jc.cleanupWorkEnvironment(workDir)
+		return "", nil, fmt.Errorf("failed to write source code: %w", err)
 	}
 
-	if problem.SPJ == constants.OJ_SPJ_MODE_RAWTEXT {
-		return jc.handleRawTextJudge(solution, problem, workDir)
+	cleanupFunc := func() {
+		if !jc.debug {
+			jc.cleanupWorkEnvironment(workDir)
+		}
 	}
 
+	return workDir, cleanupFunc, nil
+}
+
+func (jc *JudgeClient) handleCompilation(ctx *JudgeContext, workDir string) error {
 	if err := jc.updateSolutionStatus(constants.OJ_CI); err != nil {
 		slog.Warn("Failed to update to compiling status", "error", err)
 	}
 
-	compileResult := jc.compile(solution.Language, workDir, langConfig)
+	compileResult := jc.compile(ctx.Solution.Language, workDir, ctx.LangConfig)
 	if compileResult.SystemError {
-		slog.Error("Compilation system error", "output", compileResult.CombinedOutput)
-		if err := jc.db.AddCompileError(jc.solutionID, compileResult.CombinedOutput); err != nil {
-			slog.Warn("Failed to add compile error info", "error", err)
-		}
-		if err := jc.updateSolutionStatus(constants.OJ_SE); err != nil {
-			return fmt.Errorf("failed to update solution status: %w", err)
-		}
-		jc.updateUserStats(solution.UserID)
-		jc.updateProblemStats(solution.ProblemID, solution.ContestID)
-		return fmt.Errorf("system error during compilation: %s", compileResult.CombinedOutput)
+		return jc.handleCompilationSystemError(ctx, compileResult)
 	}
 	if compileResult.ExitStatus != 0 {
-		slog.Info("Compilation failed", "output", compileResult.CombinedOutput)
-		if err := jc.db.AddCompileError(jc.solutionID, compileResult.CombinedOutput); err != nil {
-			slog.Warn("Failed to add compile error info", "error", err)
-		}
-		if err := jc.updateSolutionStatus(constants.OJ_CE); err != nil {
-			return fmt.Errorf("failed to update solution status: %w", err)
-		}
-		jc.updateUserStats(solution.UserID)
-		jc.updateProblemStats(solution.ProblemID, solution.ContestID)
-		return nil
+		return jc.handleCompilationFailure(ctx, compileResult)
 	}
 
+	return nil
+}
+
+func (jc *JudgeClient) handleCompilationSystemError(ctx *JudgeContext, compileResult *models.SandboxOutput) error {
+	slog.Error("Compilation system error", "output", compileResult.CombinedOutput)
+
+	if err := jc.db.AddCompileError(jc.solutionID, compileResult.CombinedOutput); err != nil {
+		slog.Warn("Failed to add compile error info", "error", err)
+	}
+	if err := jc.updateSolutionStatus(constants.OJ_SE); err != nil {
+		return fmt.Errorf("failed to update solution status: %w", err)
+	}
+	jc.updateUserStats(ctx.Solution.UserID)
+	jc.updateProblemStats(ctx.Solution.ProblemID, ctx.Solution.ContestID)
+
+	return fmt.Errorf("system error during compilation: %s", compileResult.CombinedOutput)
+}
+
+func (jc *JudgeClient) handleCompilationFailure(ctx *JudgeContext, compileResult *models.SandboxOutput) error {
+	slog.Info("Compilation failed", "output", compileResult.CombinedOutput)
+
+	if err := jc.db.AddCompileError(jc.solutionID, compileResult.CombinedOutput); err != nil {
+		slog.Warn("Failed to add compile error info", "error", err)
+	}
+	if err := jc.updateSolutionStatus(constants.OJ_CE); err != nil {
+		return fmt.Errorf("failed to update solution status: %w", err)
+	}
+	jc.updateUserStats(ctx.Solution.UserID)
+	jc.updateProblemStats(ctx.Solution.ProblemID, ctx.Solution.ContestID)
+
+	return nil
+}
+
+func (jc *JudgeClient) handleExecution(ctx *JudgeContext, workDir string) error {
 	if err := jc.updateSolutionStatus(constants.OJ_RI); err != nil {
 		slog.Warn("Failed to update to running status", "error", err)
 	}
 
-	return jc.runTestCases(solution, problem, workDir, langConfig, spjProgram)
+	return jc.runTestCases(ctx.Solution, ctx.Problem, workDir, ctx.LangConfig, ctx.SpjProgram)
 }
 
 // determineOIMode determines whether to use OI scoring mode
@@ -253,9 +319,42 @@ func (jc *JudgeClient) handleRawTextJudge(solution *repository.Solution, problem
 
 func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repository.Problem, rootfs string, langConfig *language.LangConfig, spjProgram int) error {
 	_ = langConfig
+
+	ctx, err := jc.prepareTestContext(solution, problem, rootfs, spjProgram)
+	if err != nil {
+		return err
+	}
+
+	testResults, totalResults, stats, err := jc.executeAllTestCases(ctx)
+	if err != nil {
+		return err
+	}
+
+	return jc.processTestResults(solution, testResults, totalResults, stats)
+}
+
+// TestContext holds all necessary data for test case execution
+type TestContext struct {
+	Solution   *repository.Solution
+	Problem    *repository.Problem
+	RunConfig  RunConfig
+	DataFiles  [][]string
+	OIMode     bool
+	SpjProgram int
+	InName     string
+	OutName    string
+}
+
+// ExecutionStats holds statistics from test execution
+type ExecutionStats struct {
+	PeakMemory int
+	TotalTime  int
+}
+
+func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem *repository.Problem, rootfs string, spjProgram int) (*TestContext, error) {
 	dataFiles, err := jc.findDataFiles(problem.ID)
 	if err != nil {
-		return fmt.Errorf("failed to find data files: %w", err)
+		return nil, fmt.Errorf("failed to find data files: %w", err)
 	}
 
 	inName := jc.findInputName(problem.ID)
@@ -273,76 +372,98 @@ func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repo
 		SpjProgram:  spjProgram,
 	}
 
+	return &TestContext{
+		Solution:   solution,
+		Problem:    problem,
+		RunConfig:  runConfig,
+		DataFiles:  dataFiles,
+		OIMode:     jc.determineOIMode(dataFiles),
+		SpjProgram: spjProgram,
+		InName:     inName,
+		OutName:    outName,
+	}, nil
+}
+
+func (jc *JudgeClient) executeAllTestCases(ctx *TestContext) ([]subtask.TestResult, models.TotalResults, ExecutionStats, error) {
 	var (
-		totalTime  = 0
-		peakMemory = 0
+		testResults  []subtask.TestResult
+		totalResults models.TotalResults
+		stats        ExecutionStats
 	)
 
-	// Use subtask scoring system
-	oiMode := jc.determineOIMode(dataFiles)
-	var testResults []subtask.TestResult
-
-	var totalResults models.TotalResults
-
-	for _, dataFile := range dataFiles {
-		runConfig.InFile = dataFile[0]
-		runConfig.OutFile = dataFile[1]
-
-		result, timeUsed, memUsed := jc.runAndCompare(runConfig)
-
-		if timeUsed > totalTime {
-			totalTime = timeUsed
-		}
-		if memUsed > peakMemory {
-			peakMemory = memUsed
+	for _, dataFile := range ctx.DataFiles {
+		testResult, oneResult, err := jc.executeSingleTestCase(ctx, dataFile)
+		if err != nil {
+			return nil, models.TotalResults{}, ExecutionStats{}, err
 		}
 
-		filename := filepath.Base(dataFile[0])
-
-		// Create subtask TestResult
-		testResult := subtask.TestResult{
-			Filename: filename,
-			Score:    subtask.ExtractScoreFromFilename(filename),
-			Result:   result,
-			SpjMark:  0.0, // Will be updated below if SPJ returns partial score
-			Time:     timeUsed,
-			Mem:      memUsed,
+		// Update statistics
+		if testResult.Time > stats.TotalTime {
+			stats.TotalTime = testResult.Time
 		}
-
-		// For SPJ problems that return scores, extract the score from result
-		if problem.SPJ != constants.OJ_SPJ_MODE_NONE && spjProgram == constants.OJ_SPJ_PROGRAM_UPJ {
-			// UPJ style SPJ can return 0-100 score, convert to 0-1 ratio
-			// This is a simplified implementation - in real system SPJ would return actual scores
-			switch result {
-			case constants.OJ_AC, constants.OJ_PE:
-				testResult.SpjMark = 1.0
-			case constants.OJ_WA:
-				testResult.SpjMark = 0.0
-			}
-		}
-
-		// Add to models.TotalResults for backward compatibility
-		oneResult := models.OneResult{
-			Result:   result,
-			Datafile: filename,
-			Time:     timeUsed,
-			Mem:      memUsed,
-		}
-		totalResults.Results = append(totalResults.Results, oneResult)
-
-		if result != constants.OJ_AC {
-			slog.Warn("Test case failed", "data_file", filename, "result", result)
-		} else {
-			slog.Info("Test case passed", "data_file", filename)
+		if testResult.Mem > stats.PeakMemory {
+			stats.PeakMemory = testResult.Mem
 		}
 
 		testResults = append(testResults, testResult)
+		totalResults.Results = append(totalResults.Results, oneResult)
 	}
 
-	// Use subtask scoring system to calculate final score
-	subtaskScore := subtask.Judge(testResults, oiMode)
+	return testResults, totalResults, stats, nil
+}
 
-	// Update final result and pass rate from subtask calculation
+func (jc *JudgeClient) executeSingleTestCase(ctx *TestContext, dataFile []string) (subtask.TestResult, models.OneResult, error) {
+	ctx.RunConfig.InFile = dataFile[0]
+	ctx.RunConfig.OutFile = dataFile[1]
+
+	result, timeUsed, memUsed := jc.runAndCompare(ctx.RunConfig)
+
+	filename := filepath.Base(dataFile[0])
+
+	testResult := subtask.TestResult{
+		Filename: filename,
+		Score:    subtask.ExtractScoreFromFilename(filename),
+		Result:   result,
+		SpjMark:  jc.calculateSpjMark(result, ctx),
+		Time:     timeUsed,
+		Mem:      memUsed,
+	}
+
+	oneResult := models.OneResult{
+		Result:   result,
+		Datafile: filename,
+		Time:     timeUsed,
+		Mem:      memUsed,
+	}
+
+	jc.logTestResult(filename, result)
+
+	return testResult, oneResult, nil
+}
+
+func (jc *JudgeClient) calculateSpjMark(result int, ctx *TestContext) float64 {
+	if ctx.Problem.SPJ != constants.OJ_SPJ_MODE_NONE && ctx.SpjProgram == constants.OJ_SPJ_PROGRAM_UPJ {
+		switch result {
+		case constants.OJ_AC, constants.OJ_PE:
+			return 1.0
+		case constants.OJ_WA:
+			return 0.0
+		}
+	}
+	return 0.0
+}
+
+func (jc *JudgeClient) logTestResult(filename string, result int) {
+	if result != constants.OJ_AC {
+		slog.Warn("Test case failed", "data_file", filename, "result", result)
+	} else {
+		slog.Info("Test case passed", "data_file", filename)
+	}
+}
+
+func (jc *JudgeClient) processTestResults(solution *repository.Solution, testResults []subtask.TestResult, totalResults models.TotalResults, stats ExecutionStats) error {
+	subtaskScore := subtask.Judge(testResults, jc.determineOIModeFromFiles(testResults))
+
 	totalResults.FinalResult = subtaskScore.FinalResult
 	passRate := subtaskScore.PassRate
 
@@ -352,12 +473,12 @@ func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repo
 
 	slog.Info("Judge completed",
 		"final_result", totalResults.FinalResult,
-		"total_time_ms", totalTime,
-		"peak_memory_kb", peakMemory,
+		"total_time_ms", stats.TotalTime,
+		"peak_memory_kb", stats.PeakMemory,
 		"pass_rate", passRate,
 	)
 
-	if err := jc.db.UpdateSolution(jc.solutionID, totalResults.FinalResult, totalTime, peakMemory, passRate); err != nil {
+	if err := jc.db.UpdateSolution(jc.solutionID, totalResults.FinalResult, stats.TotalTime, stats.PeakMemory, passRate); err != nil {
 		return fmt.Errorf("failed to update final solution result: %w", err)
 	}
 
@@ -365,4 +486,8 @@ func (jc *JudgeClient) runTestCases(solution *repository.Solution, problem *repo
 	jc.updateProblemStats(solution.ProblemID, solution.ContestID)
 
 	return nil
+}
+
+func (jc *JudgeClient) determineOIModeFromFiles(testResults []subtask.TestResult) bool {
+	return len(testResults) > 1
 }
