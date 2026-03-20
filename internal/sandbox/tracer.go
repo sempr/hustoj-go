@@ -9,7 +9,6 @@ import (
 	"runtime"
 	"strings"
 	"syscall"
-	"unsafe"
 
 	"github.com/sempr/hustoj-go/pkg/models"
 	"golang.org/x/sys/unix"
@@ -47,7 +46,7 @@ func newTracerRunner(cfg *models.SandboxArgs, b *bytes.Buffer, childMainPid *int
 		cmd.ExtraFiles = append(cmd.ExtraFiles, os.Stderr)
 
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC,
+			Cloneflags: syscall.CLONE_NEWNS | syscall.CLONE_NEWNET | syscall.CLONE_NEWUTS | syscall.CLONE_NEWIPC | unix.CLONE_NEWPID,
 			Setpgid:    true,
 		}
 
@@ -129,33 +128,13 @@ func newTracerRunner(cfg *models.SandboxArgs, b *bytes.Buffer, childMainPid *int
 				return TraceResult{ErrRuntimeError, ws.Signal(), 0}
 			}
 			if ws.Stopped() {
-				slog.Debug("process stopped", "pid", pidTmp, "signal", ws.StopSignal(), "signal", ws.StopSignal()&0x7f)
 				stopsig := ws.StopSignal()
-				if stopsig == unix.SIGSEGV {
-					type PtracePeekSigInfoArgs struct {
-						Off   uint64
-						Flags uint64
-						Nr    uint64
-					}
-					args := PtracePeekSigInfoArgs{
-						Off:   0,
-						Flags: 0,
-						Nr:    1,
-					}
-					var siginfo unix.Siginfo
+				slog.Info("process stopped", "pid", pidTmp, "signal1", stopsig, "signal2", ws.StopSignal()&0x7f)
 
-					ret, _, errno := unix.Syscall6(
-						unix.SYS_PTRACE,
-						uintptr(unix.PTRACE_PEEKSIGINFO),
-						uintptr(pidTmp),
-						uintptr(unsafe.Pointer(&args)),
-						uintptr(unsafe.Pointer(&siginfo)),
-						0, 0,
-					)
-					slog.Info("siginfo peeked", "sig", ret, "errno", errno)
-					if ret == 0 || errno != 0 {
-						slog.Debug("ptrace peek failed, skipping siginfo", "ret", ret, "errno", errno)
-					}
+				if pidTmp == *childMainPid && (stopsig == unix.SIGSEGV || stopsig == unix.SIGFPE || stopsig == unix.SIGILL) {
+					slog.Info("childMain Process got SIGSEGV, just break", "pidTmp", pidTmp, "childMainPid", *childMainPid)
+					unix.Kill(pidTmp, syscall.SIGKILL)
+					return TraceResult{ErrRuntimeError, 0, 0}
 				}
 
 				if stopsig == (unix.SIGTRAP | 0x80) {
