@@ -34,7 +34,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 	}
 	defer file3.Close()
 
-	out, err := runParent(cfg, file3)
+	out, err := runParent(cfg)
 	if err != nil {
 		slog.Error("runParent failed", "err", err)
 	}
@@ -43,7 +43,7 @@ func ParentMain(cfg *models.SandboxArgs) {
 
 var config *models.SandboxArgs
 
-func runParent(cfg *models.SandboxArgs, file3 *os.File) (*models.SandboxOutput, error) {
+func runParent(cfg *models.SandboxArgs) (*models.SandboxOutput, error) {
 	var ru unix.Rusage
 	var cgroupPath string
 	var b bytes.Buffer
