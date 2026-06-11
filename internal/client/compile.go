@@ -32,7 +32,7 @@ func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.L
 	}
 
 	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stdout
+	cmd.Stderr = os.Stderr
 
 	r, w, err := os.Pipe()
 	if err != nil {

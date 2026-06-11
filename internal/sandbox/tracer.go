@@ -67,7 +67,7 @@ func newTracerRunner(cfg *models.SandboxArgs, b *bytes.Buffer, childMainPid *int
 		*childMainPid = cmd.Process.Pid
 		slog.Info("start wait for the stop")
 		pidTmp, err := unix.Wait4(-*childMainPid, ws, 0, nil)
-		slog.Info("before to stop signal", "pidTmp", pidTmp, "ws", fmt.Sprintf("%0X", *ws))
+		slog.Info("before to stop signal", "pidTmp", pidTmp, "pidMain", *childMainPid, "ws", fmt.Sprintf("%0X", *ws), "sig1", ws.StopSignal(), "is_stopped", ws.Stopped())
 		if err != nil {
 			panic(err)
 		}

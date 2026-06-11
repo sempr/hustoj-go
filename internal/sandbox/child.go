@@ -23,7 +23,7 @@ func ChildMain(cfg *models.SandboxArgs) {
 	})).With("P", "child")
 	chRoot()
 
-	logger.Info("change to workdir")
+	logger.Info("change to workdir", "cfg", config)
 	syscall.Chdir(config.Workdir)
 
 	prepareMounts()
@@ -44,6 +44,7 @@ func ChildMain(cfg *models.SandboxArgs) {
 	logger.Info("traceme msg", "a", a, "b", b, "err", err)
 	logger.Info("before stop myself")
 	unix.Kill(os.Getpid(), unix.SIGSTOP)
+	logger.Info("after stop myself")
 	cmds := strings.Split(config.Command, " ")
 	logger.Info("starting Exec", "cmds", cmds)
 	if err := unix.Exec(cmds[0], cmds, os.Environ()); err != nil {

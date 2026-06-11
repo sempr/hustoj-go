@@ -3,6 +3,7 @@ package cmd
 import (
 	"log/slog"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -12,15 +13,31 @@ var (
 	once         sync.Once
 )
 
+func parseLogLevel(s string) slog.Level {
+	switch strings.ToUpper(strings.TrimSpace(s)) {
+	case "DEBUG":
+		return slog.LevelDebug
+	case "INFO":
+		return slog.LevelInfo
+	case "WARN", "WARNING":
+		return slog.LevelWarn
+	case "ERROR":
+		return slog.LevelError
+	default:
+		return slog.LevelDebug
+	}
+}
+
 // Init 初始化全局 slog Logger
 // 文本格式输出，如果在 systemd 下自动去掉时间戳
 func Init() *slog.Logger {
 	once.Do(func() {
 		isSystemd := isRunningUnderSystemd()
-
+		level := parseLogLevel(os.Getenv("LOG_LEVEL"))
 		handler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 			AddSource:   true,
 			ReplaceAttr: nil,
+			Level:       level,
 		})
 
 		if isSystemd {
@@ -28,7 +45,7 @@ func Init() *slog.Logger {
 			handler = slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
 				AddSource:   true,
 				ReplaceAttr: removeTimeAttr,
-				Level:       slog.LevelDebug,
+				Level:       level,
 			})
 		}
 

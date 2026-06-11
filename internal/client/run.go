@@ -1,6 +1,7 @@
 package client
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -130,7 +131,7 @@ func (jc *JudgeClient) handleCompilation(ctx *JudgeContext, workDir string) erro
 	if compileResult.ExitStatus != 0 {
 		return jc.handleCompilationFailure(ctx, compileResult)
 	}
-
+	slog.Info("compile ok result", "result", compileResult)
 	return nil
 }
 
@@ -161,7 +162,7 @@ func (jc *JudgeClient) handleCompilationFailure(ctx *JudgeContext, compileResult
 	jc.updateUserStats(ctx.Solution.UserID)
 	jc.updateProblemStats(ctx.Solution.ProblemID, ctx.Solution.ContestID)
 
-	return nil
+	return errors.New("compile error")
 }
 
 func (jc *JudgeClient) handleExecution(ctx *JudgeContext, workDir string) error {
