@@ -12,7 +12,7 @@ import (
 // 限制常量
 const (
 	MaxFileSize   = 128 * 1024 * 1024 // 128MB
-	MaxLineLength = 128 * 1024        // 128KB 单行最大长度
+	MaxLineLength = 32 * 1024 * 1024  // 32MB 单行最大长度
 )
 
 func compareFiles(file1Path, file2Path string) (int, error) {

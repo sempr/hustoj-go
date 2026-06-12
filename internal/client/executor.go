@@ -122,6 +122,7 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 	}
 
 	if err != nil {
+		slog.Info("re result? ", "err", err)
 		result = constants.OJ_RE
 	}
 
