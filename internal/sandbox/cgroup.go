@@ -126,7 +126,7 @@ func cleanupCgroup(cgroupPath string) {
 		procs := filepath.Join(cgroupPath, "cgroup.procs")
 		pprocs := "/sys/fs/cgroup/cgroup.procs"
 		if data, err := os.ReadFile(procs); err == nil {
-			for _, pidstr := range strings.Fields(string(data)) {
+			for pidstr := range strings.FieldsSeq(string(data)) {
 				err := os.WriteFile(pprocs, []byte(pidstr), 0o644)
 				slog.Info("remove pid", "pid", pidstr, "err", err, "pprocs", pprocs)
 			}
