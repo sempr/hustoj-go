@@ -151,7 +151,7 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 	srcSpjFile := filepath.Join(filepath.Dir(config.OutFile), spjName)
 
 	jc.copyFile(srcSpjFile, destSpjFile)
-	os.Chmod(destSpjFile, 0755)
+	os.Chmod(destSpjFile, 0o755)
 	defer os.ReadDir(destSpjFile)
 
 	runArgs := []string{

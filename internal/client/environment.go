@@ -14,7 +14,7 @@ func (jc *JudgeClient) setupWorkEnvironment(langConfig *language.LangConfig) (st
 	workBaseDir := filepath.Join(jc.config.OJHome, "run"+jc.runnerID)
 
 	for _, dir := range []string{"rootfs", "tmp"} {
-		if err := os.MkdirAll(filepath.Join(workBaseDir, dir), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(workBaseDir, dir), 0o755); err != nil {
 			return "", fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
@@ -25,12 +25,13 @@ func (jc *JudgeClient) setupWorkEnvironment(langConfig *language.LangConfig) (st
 	}
 
 	for _, dir := range []string{"upper", "work"} {
-		if err := os.MkdirAll(filepath.Join(tmpfsDir, dir), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(tmpfsDir, dir), 0o755); err != nil {
 			return "", fmt.Errorf("failed to create overlay directory %s: %w", dir, err)
 		}
 	}
 
-	options := fmt.Sprintf("lowerdir=%s,upperdir=%s,workdir=%s",
+	options := fmt.Sprintf(
+		"lowerdir=%s,upperdir=%s,workdir=%s",
 		langConfig.Fs.Base,
 		filepath.Join(workBaseDir, "tmp", "upper"),
 		filepath.Join(workBaseDir, "tmp", "work"),

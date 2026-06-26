@@ -56,7 +56,7 @@ func TestSameSubtask(t *testing.T) {
 		{"1.in", "1.1.in", true},         // 主编号 1 == 1
 		{"1.in", "2.in", false},          // 主编号 1 != 2
 		{"10.in", "10.in", true},         // 主编号 10 == 10
-		 {"10.in", "10.1.in", true},       // 主编号 10 == 10
+		{"10.in", "10.1.in", true},       // 主编号 10 == 10
 		{"1.1.in", "1.2.in", true},       // 主编号 1 == 1
 		{"1.1.in", "1.3.in", true},       // 主编号 1 == 1
 		{"1.1.in", "2.1.in", false},      // 主编号 1 != 2
@@ -115,7 +115,7 @@ func TestCalculateOIScoreSubtaskFail(t *testing.T) {
 	results := []TestResult{
 		{Filename: "1.in[10]", Score: 10, Result: constants.OJ_AC, SpjMark: 0},
 		{Filename: "1.1.in[10]", Score: 10, Result: constants.OJ_WA, SpjMark: 0}, // 同一子任务，导致子任务1失败
-		{Filename: "2.in[10]", Score: 10, Result: constants.OJ_AC, SpjMark: 0},  // 子任务2通过
+		{Filename: "2.in[10]", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 子任务2通过
 	}
 
 	score := CalculateOIScore(results)
@@ -150,15 +150,15 @@ func TestCalculateOIScoreMixedMarking(t *testing.T) {
 	// 场景：9个测试点，4个标注了10分，5个未标注（默认10分），通过了7个
 	// 验证了混合分数标记场景的处理
 	results := []TestResult{
-		{Filename: "test1[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 标注，通过
-		{Filename: "test2[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 标注，通过
-		{Filename: "test3[10].in", Score: 10, Result: constants.OJ_WA, SpjMark: 0},   // 标注，失败
-		{Filename: "test4[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 标注，通过
-		{Filename: "test5.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
-		{Filename: "test6.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
-		{Filename: "test7.in", Score: 10, Result: constants.OJ_WA, SpjMark: 0},       // 未标注，失败
-		{Filename: "test8.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
-		{Filename: "test9.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
+		{Filename: "test1[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0}, // 标注，通过
+		{Filename: "test2[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0}, // 标注，通过
+		{Filename: "test3[10].in", Score: 10, Result: constants.OJ_WA, SpjMark: 0}, // 标注，失败
+		{Filename: "test4[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0}, // 标注，通过
+		{Filename: "test5.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
+		{Filename: "test6.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
+		{Filename: "test7.in", Score: 10, Result: constants.OJ_WA, SpjMark: 0},     // 未标注，失败
+		{Filename: "test8.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
+		{Filename: "test9.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
 	}
 
 	score := CalculateOIScore(results)
@@ -188,15 +188,15 @@ func TestCalculateOIScoreMixedMarkingAllPass(t *testing.T) {
 	// 场景：9个测试点，4个标注了10分，5个未标注，全部通过
 	// 验证了混合标注但全部通过的场景
 	results := []TestResult{
-		{Filename: "test1[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 标注，通过
-		{Filename: "test2[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 标注，通过
-		{Filename: "test3[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 标注，通过
-		{Filename: "test4[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},   // 标注，通过
-		{Filename: "test5.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
-		{Filename: "test6.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
-		{Filename: "test7.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
-		{Filename: "test8.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
-		{Filename: "test9.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},       // 未标注，通过
+		{Filename: "test1[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0}, // 标注，通过
+		{Filename: "test2[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0}, // 标注，通过
+		{Filename: "test3[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0}, // 标注，通过
+		{Filename: "test4[10].in", Score: 10, Result: constants.OJ_AC, SpjMark: 0}, // 标注，通过
+		{Filename: "test5.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
+		{Filename: "test6.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
+		{Filename: "test7.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
+		{Filename: "test8.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
+		{Filename: "test9.in", Score: 10, Result: constants.OJ_AC, SpjMark: 0},     // 未标注，通过
 	}
 
 	score := CalculateOIScore(results)
@@ -226,17 +226,17 @@ func TestCalculateOIScoreTotalMarkExceeds100(t *testing.T) {
 	// 场景：11个测试点，每个标注20分，总分220分（>100），通过了8个
 	// 验证了当总分超过MaxPoints（100）时的处理
 	results := []TestResult{
-		{Filename: "test1[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},   // 通过
-		{Filename: "test2[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},   // 通过
-		{Filename: "test3[20].in", Score: 20, Result: constants.OJ_WA, SpjMark: 0},   // 失败
-		{Filename: "test4[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},   // 通过
-		{Filename: "test5[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},   // 通过
-		{Filename: "test6[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},   // 通过
-		{Filename: "test7[20].in", Score: 20, Result: constants.OJ_WA, SpjMark: 0},   // 失败
-		{Filename: "test8[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},   // 通过
-		{Filename: "test9[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},   // 通过
-		{Filename: "test10[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
-		{Filename: "test11[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test1[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test2[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test3[20].in", Score: 20, Result: constants.OJ_WA, SpjMark: 0},  // 失败
+		{Filename: "test4[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test5[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test6[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test7[20].in", Score: 20, Result: constants.OJ_WA, SpjMark: 0},  // 失败
+		{Filename: "test8[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test9[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0},  // 通过
+		{Filename: "test10[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0}, // 通过
+		{Filename: "test11[20].in", Score: 20, Result: constants.OJ_AC, SpjMark: 0}, // 通过
 	}
 
 	score := CalculateOIScore(results)
@@ -353,7 +353,7 @@ func TestGenerateMarkdownReport(t *testing.T) {
 			{Filename: "3.in[30]", Score: 30, Result: constants.OJ_WA, Time: 50, Mem: 2048},
 			{Filename: "3.1.in[10]", Score: 10, Result: constants.OJ_AC, Time: 20, Mem: 1024, SpjMark: 0.5},
 		}
-		score := SubtaskScore{GetMark: 35, TotalMark: 105, PassRate: 35.0/105.0, FinalResult: constants.OJ_WA}
+		score := SubtaskScore{GetMark: 35, TotalMark: 105, PassRate: 35.0 / 105.0, FinalResult: constants.OJ_WA}
 
 		report := GenerateMarkdownReport("OI-Mode", testResults, score)
 
@@ -371,7 +371,7 @@ func TestGenerateMarkdownReport(t *testing.T) {
 			{Filename: "b.in[10]", Score: 10, Result: constants.OJ_WA, Time: 32, Mem: 512, SpjMark: 0.3},
 			{Filename: "c.in[10]", Score: 10, Result: constants.OJ_WA, Time: 50, Mem: 2048, SpjMark: 0.6},
 		}
-		score := SubtaskScore{GetMark: 19, TotalMark: 30, PassRate: 19.0/30.0, FinalResult: constants.OJ_WA}
+		score := SubtaskScore{GetMark: 19, TotalMark: 30, PassRate: 19.0 / 30.0, FinalResult: constants.OJ_WA}
 
 		report := GenerateMarkdownReport("SPJ-Mode", testResults, score)
 
@@ -388,7 +388,7 @@ func TestGenerateMarkdownReport(t *testing.T) {
 			{Filename: "task2.1.in[15]", Score: 15, Result: constants.OJ_AC, Time: 50, Mem: 2048},
 			{Filename: "task2.2.in[15]", Score: 15, Result: constants.OJ_AC, Time: 48, Mem: 2048},
 		}
-		score := SubtaskScore{GetMark: 50, TotalMark: 60, PassRate: 50.0/60.0, FinalResult: constants.OJ_AC}
+		score := SubtaskScore{GetMark: 50, TotalMark: 60, PassRate: 50.0 / 60.0, FinalResult: constants.OJ_AC}
 
 		report := GenerateMarkdownReport("多组子任务", testResults, score)
 

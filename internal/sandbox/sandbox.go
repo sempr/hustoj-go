@@ -71,7 +71,6 @@ type SandboxInit struct {
 	TracerReady   chan bool
 }
 
-
 func (c *SandboxController) init() (*SandboxInit, error) {
 	cgroupLimit := time.Millisecond * time.Duration(c.cfg.TimeLimit)
 	realTimeLimit := cgroupLimit * 3

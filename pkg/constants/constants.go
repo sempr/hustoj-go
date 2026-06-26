@@ -22,7 +22,7 @@ const (
 
 // GetOJResultName returns the string representation of judge status
 func GetOJResultName(status int) string {
-	var names = []string{"WT0", "WT1", "CI", "RI", "AC", "PE", "WA", "TL", "ML", "OL", "RE", "CE", "CO", "TR", "MC"}
+	names := []string{"WT0", "WT1", "CI", "RI", "AC", "PE", "WA", "TL", "ML", "OL", "RE", "CE", "CO", "TR", "MC"}
 	if status == OJ_SE {
 		return "SE"
 	}

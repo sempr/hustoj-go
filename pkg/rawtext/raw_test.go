@@ -74,7 +74,6 @@ func TestCalculateScore(t *testing.T) {
 			details = strings.Trim(details, " \n\t")
 			if details != tt.wantDetails {
 				t.Errorf("got [%s], want [%s]", details, tt.wantDetails)
-
 			}
 		})
 	}
@@ -124,8 +123,8 @@ func TestRawTextJudge_File_Normal(t *testing.T) {
 			dir := t.TempDir()
 			answerFile := filepath.Join(dir, "answer.txt")
 			userFile := filepath.Join(dir, "user.txt")
-			os.WriteFile(answerFile, []byte(tt.answerTxt), 0644)
-			os.WriteFile(userFile, []byte(tt.userTxt), 0644)
+			os.WriteFile(answerFile, []byte(tt.answerTxt), 0o644)
+			os.WriteFile(userFile, []byte(tt.userTxt), 0o644)
 
 			ss, gotScore, gotTotal, err := RawTextJudge("", answerFile, userFile)
 			if err != nil {
@@ -185,10 +184,10 @@ func TestRawTextJudge_File_Error(t *testing.T) {
 			userFile := filepath.Join(dir, "user.txt")
 
 			if tt.answerTxt != "" {
-				os.WriteFile(answerFile, []byte(tt.answerTxt), 0644)
+				os.WriteFile(answerFile, []byte(tt.answerTxt), 0o644)
 			}
 			if tt.userTxt != "" {
-				os.WriteFile(userFile, []byte(tt.userTxt), 0644)
+				os.WriteFile(userFile, []byte(tt.userTxt), 0o644)
 			}
 
 			_, _, _, err := RawTextJudge("", answerFile, userFile)
@@ -237,8 +236,8 @@ func TestRawTextJudge_File_CommentsEmpty(t *testing.T) {
 			answerFile := filepath.Join(dir, "answer.txt")
 			userFile := filepath.Join(dir, "user.txt")
 
-			os.WriteFile(answerFile, []byte(tt.answerTxt), 0644)
-			os.WriteFile(userFile, []byte(tt.userTxt), 0644)
+			os.WriteFile(answerFile, []byte(tt.answerTxt), 0o644)
+			os.WriteFile(userFile, []byte(tt.userTxt), 0o644)
 
 			_, gotScore, gotTotal, err := RawTextJudge("", answerFile, userFile)
 			if err != nil {

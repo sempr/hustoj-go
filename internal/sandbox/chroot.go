@@ -19,7 +19,7 @@ func chRoot() {
 		os.Exit(1)
 	}
 	putOldPath := filepath.Join(newRootPath, ".old_root")
-	if err := os.MkdirAll(putOldPath, 0700); err != nil {
+	if err := os.MkdirAll(putOldPath, 0o700); err != nil {
 		logger.Error("Shim 错误: 创建 失败", "putOldPath", putOldPath, "err", err)
 		os.Exit(1)
 	}
@@ -52,28 +52,28 @@ func prepareMounts() {
 
 	logger.Info("prepare /dev/null")
 	os.Remove(os.DevNull)
-	unix.Mknod("/dev/null", syscall.S_IFCHR|0666, int(unix.Mkdev(1, 3)))
-	unix.Chmod("/dev/null", 0666)
+	unix.Mknod("/dev/null", syscall.S_IFCHR|0o666, int(unix.Mkdev(1, 3)))
+	unix.Chmod("/dev/null", 0o666)
 }
 
 func changeFiles() {
 	logger.Info("redirect files")
 	if config.Stdin != "" {
-		fi, err := os.OpenFile(config.Stdin, os.O_RDONLY, 0644)
+		fi, err := os.OpenFile(config.Stdin, os.O_RDONLY, 0o644)
 		if err != nil {
 			logger.Error("redir-stdin", "err", err)
 		}
 		unix.Dup2(int(fi.Fd()), int(os.Stdin.Fd()))
 	}
 	if config.Stdout != "" {
-		fo, err := os.OpenFile(config.Stdout, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		fo, err := os.OpenFile(config.Stdout, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
 			logger.Error("redir-stdout", "err", err)
 		}
 		unix.Dup2(int(fo.Fd()), int(os.Stdout.Fd()))
 	}
 	if config.Stderr != "" {
-		fe, err := os.OpenFile(config.Stderr, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+		fe, err := os.OpenFile(config.Stderr, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o644)
 		if err != nil {
 			logger.Error("redir-stderr", "err", err)
 		}

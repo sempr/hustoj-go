@@ -63,11 +63,13 @@ func NewMySQLFetcher(cfg *DaemonConfig) (*MySQLFetcher, error) {
 	if cfg.TotalJudges <= 1 {
 		query = fmt.Sprintf(
 			"SELECT solution_id FROM solution WHERE language in (%s) and result<2 ORDER BY result, solution_id limit %d",
-			cfg.LangSet, prefetchLimit)
+			cfg.LangSet, prefetchLimit,
+		)
 	} else {
 		query = fmt.Sprintf(
 			"SELECT solution_id FROM solution WHERE language in (%s) and result<2 and MOD(solution_id,%d)=%d ORDER BY result, solution_id ASC limit %d",
-			cfg.LangSet, cfg.TotalJudges, cfg.JudgeMod, prefetchLimit)
+			cfg.LangSet, cfg.TotalJudges, cfg.JudgeMod, prefetchLimit,
+		)
 	}
 
 	return &MySQLFetcher{db: db, selectQuery: query}, nil

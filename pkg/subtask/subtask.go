@@ -11,9 +11,9 @@ import (
 )
 
 const (
-	DefaultPoints = 10.0 // 默认每个测试点的分数
-	MaxPoints = 100.0 // 满分
-	NoPenaltyMark = -1.0 // 无扣分标记
+	DefaultPoints = 10.0  // 默认每个测试点的分数
+	MaxPoints     = 100.0 // 满分
+	NoPenaltyMark = -1.0  // 无扣分标记
 )
 
 // TestResult 表示单个测试文件的结果
@@ -109,7 +109,7 @@ func CalculateOIScore(results []TestResult) SubtaskScore {
 		totalMark   float64
 		getMark     float64
 		passRate    float64
-		minusMark   = NoPenaltyMark // 当前子任务的扣分标记
+		minusMark   = NoPenaltyMark   // 当前子任务的扣分标记
 		finalResult = constants.OJ_AC // 初始化为AC
 		lastName    string
 	)

@@ -75,7 +75,8 @@ func (jc *JudgeClient) prepareJudgeContext() (*JudgeContext, error) {
 		return nil, fmt.Errorf("failed to get language config: %w", err)
 	}
 
-	slog.Info("Retrieved judge information",
+	slog.Info(
+		"Retrieved judge information",
 		"problem_id", solution.ProblemID,
 		"user_id", solution.UserID,
 		"language", solution.Language,
@@ -267,11 +268,11 @@ func (jc *JudgeClient) writeSourceCode(source string, langID int, workDir string
 	fileName := fmt.Sprintf("Main%s", langBasic.Suffix)
 	filePath := filepath.Join(workDir, "code", fileName)
 
-	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o755); err != nil {
 		return fmt.Errorf("failed to create code directory: %w", err)
 	}
 
-	if err := os.WriteFile(filePath, []byte(source), 0644); err != nil {
+	if err := os.WriteFile(filePath, []byte(source), 0o644); err != nil {
 		return fmt.Errorf("failed to write source code: %w", err)
 	}
 
@@ -291,7 +292,6 @@ func (jc *JudgeClient) handleRawTextJudge(solution *repository.Solution, problem
 		filepath.Join(jc.config.OJHome, "data", fmt.Sprint(solution.ProblemID), "data.out"),
 		filepath.Join(rootfs, "code", fmt.Sprintf("Main%s", langBasic.Suffix)),
 	)
-
 	if err != nil {
 		slog.Error("Rawtext judge error", "error", err)
 		if err := jc.updateSolutionStatus(constants.OJ_RE); err != nil {
@@ -472,7 +472,8 @@ func (jc *JudgeClient) processTestResults(solution *repository.Solution, testRes
 		slog.Warn("Failed to add runtime info", "error", err)
 	}
 
-	slog.Info("Judge completed",
+	slog.Info(
+		"Judge completed",
 		"final_result", totalResults.FinalResult,
 		"total_time_ms", stats.TotalTime,
 		"peak_memory_kb", stats.PeakMemory,

@@ -97,7 +97,7 @@ func (jc *JudgeClient) copyFile(src, dst string) error {
 	}
 	defer sourceFile.Close()
 
-	if err := os.MkdirAll(filepath.Dir(dst), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return fmt.Errorf("failed to create destination directory: %w", err)
 	}
 

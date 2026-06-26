@@ -24,7 +24,7 @@ type TraceResult struct {
 var processCnt int = 1
 
 func newTracerRunner(cfg *models.SandboxArgs, b *bytes.Buffer, childMainPid *int, ws *unix.WaitStatus, ru *unix.Rusage, tracerReady chan<- bool, cgroupPathPtr *string) func() TraceResult {
-	var runTracer = func() TraceResult {
+	runTracer := func() TraceResult {
 		runtime.LockOSThread()
 		defer runtime.UnlockOSThread()
 		slog.Info("runTracer")
@@ -78,7 +78,8 @@ func newTracerRunner(cfg *models.SandboxArgs, b *bytes.Buffer, childMainPid *int
 			panic(err)
 		}
 
-		unix.PtraceSetOptions(*childMainPid,
+		unix.PtraceSetOptions(
+			*childMainPid,
 			unix.PTRACE_O_EXITKILL|
 				unix.PTRACE_O_TRACECLONE|
 				unix.PTRACE_O_TRACEFORK|

@@ -40,11 +40,11 @@ func Main(ccfg *models.DaemonArgs) {
 
 		cntxt := &daemon.Context{
 			PidFileName: pidFilePath,
-			PidFilePerm: 0644,
+			PidFilePerm: 0o644,
 			LogFileName: logFilePath,
-			LogFilePerm: 0640,
+			LogFilePerm: 0o640,
 			WorkDir:     cfg.OJHome,
-			Umask:       027,
+			Umask:       0o27,
 		}
 
 		d, err := cntxt.Reborn()

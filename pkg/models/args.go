@@ -7,6 +7,7 @@ type SandboxArgs struct {
 	Stdin       string
 	Stdout      string
 	Stderr      string
+	Stage       string
 	TimeLimit   int
 	MemoryLimit int
 	SolutionId  int

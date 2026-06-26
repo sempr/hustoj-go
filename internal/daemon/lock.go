@@ -12,7 +12,7 @@ var lockFile *os.File
 
 // Lock creates and locks a PID file.
 func Lock(path string) error {
-	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
+	f, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0o644)
 	if err != nil {
 		return err
 	}

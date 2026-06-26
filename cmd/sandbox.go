@@ -47,5 +47,5 @@ func init() {
 	sandboxCmd.Flags().IntVar(&sandboxCfg.TimeLimit, "time", 1000, "time limit in ms")
 	sandboxCmd.Flags().IntVar(&sandboxCfg.MemoryLimit, "memory", 256<<10, "memory limit in KB")
 	sandboxCmd.Flags().IntVar(&sandboxCfg.SolutionId, "sid", 0, "solution ID")
-
+	sandboxCmd.Flags().StringVar(&sandboxCfg.Stage, "stage", "run", "running stage [compile, run0/run1, validate0, validate1...]")
 }

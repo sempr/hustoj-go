@@ -14,10 +14,11 @@ import (
 )
 
 func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.LangConfig) *models.SandboxOutput {
-	os.Chmod(filepath.Join(rootfs, "code"), 0777)
-	defer os.Chmod(filepath.Join(rootfs, "code"), 0755)
+	os.Chmod(filepath.Join(rootfs, "code"), 0o777)
+	defer os.Chmod(filepath.Join(rootfs, "code"), 0o755)
 	selfName, _ := os.Executable()
-	cmd := exec.Command(selfName,
+	cmd := exec.Command(
+		selfName,
 		"sandbox",
 		fmt.Sprintf("--rootfs=%s", rootfs),
 		fmt.Sprintf("--cmd=%s", langConfig.Cmd.Compile),

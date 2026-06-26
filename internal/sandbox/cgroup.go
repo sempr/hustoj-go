@@ -12,10 +12,12 @@ import (
 	"time"
 )
 
-var ErrCgroupLimitExceeded = fmt.Errorf("cgroup CPU time limit exceeded")
-var ErrRealTimeTimeout = fmt.Errorf("real-time execution timeout")
-var ErrRuntimeError = fmt.Errorf("runtime error")
-var ErrOutputLimitExceeded = fmt.Errorf("output limit exceed")
+var (
+	ErrCgroupLimitExceeded = fmt.Errorf("cgroup CPU time limit exceeded")
+	ErrRealTimeTimeout     = fmt.Errorf("real-time execution timeout")
+	ErrRuntimeError        = fmt.Errorf("runtime error")
+	ErrOutputLimitExceeded = fmt.Errorf("output limit exceed")
+)
 
 func runCPUChecker(
 	ctx context.Context,
@@ -89,33 +91,33 @@ func readCgroupCPUTime(statFile string) (time.Duration, error) {
 
 func setupCgroup(solutionId int, childPid int, memoryLimit int) (string, error) {
 	cgroupPath := filepath.Join("/sys/fs/cgroup", "hustoj", fmt.Sprintf("run-%d-%d", solutionId, childPid))
-	err := os.MkdirAll(cgroupPath, 0644)
+	err := os.MkdirAll(cgroupPath, 0o644)
 	if err != nil {
 		return "", err
 	}
 
-	err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0644)
+	err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0o644)
 	if err != nil {
 		return "", err
 	}
-	err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "hustoj", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0644)
+	err = os.WriteFile(filepath.Join("/sys/fs/cgroup", "hustoj", "cgroup.subtree_control"), []byte("+cpu +memory +pids"), 0o644)
 	if err != nil {
 		return "", err
 	}
 
-	if err = os.WriteFile(filepath.Join(cgroupPath, "memory.max"), fmt.Appendf(nil, "%d", memoryLimit+4096), 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(cgroupPath, "memory.max"), fmt.Appendf(nil, "%d", memoryLimit+4096), 0o644); err != nil {
 		return "", err
 	}
 
-	if err = os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), fmt.Appendf(nil, "120000 100000"), 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(cgroupPath, "cpu.max"), fmt.Appendf(nil, "120000 100000"), 0o644); err != nil {
 		return "", err
 	}
 
-	if err = os.WriteFile(filepath.Join(cgroupPath, "pids.max"), fmt.Appendf(nil, "64"), 0644); err != nil {
+	if err = os.WriteFile(filepath.Join(cgroupPath, "pids.max"), fmt.Appendf(nil, "64"), 0o644); err != nil {
 		return "", err
 	}
 
-	err = os.WriteFile(filepath.Join(cgroupPath, "cgroup.procs"), fmt.Append(nil, childPid), 0644)
+	err = os.WriteFile(filepath.Join(cgroupPath, "cgroup.procs"), fmt.Append(nil, childPid), 0o644)
 	return cgroupPath, err
 }
 
@@ -125,7 +127,7 @@ func cleanupCgroup(cgroupPath string) {
 		pprocs := "/sys/fs/cgroup/cgroup.procs"
 		if data, err := os.ReadFile(procs); err == nil {
 			for _, pidstr := range strings.Fields(string(data)) {
-				err := os.WriteFile(pprocs, []byte(pidstr), 0644)
+				err := os.WriteFile(pprocs, []byte(pidstr), 0o644)
 				slog.Info("remove pid", "pid", pidstr, "err", err, "pprocs", pprocs)
 			}
 		}
