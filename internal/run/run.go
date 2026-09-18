@@ -3,6 +3,7 @@ package run
 import (
 	"context"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"os"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/sempr/hustoj-go/internal/shared"
+	"github.com/sempr/hustoj-go/pkg/constants"
 	"github.com/sempr/hustoj-go/pkg/models"
 	"golang.org/x/sys/unix"
 )
@@ -22,6 +24,13 @@ import (
 func RunMain(cfg *models.SandboxArgs) {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
+
+	file3 := os.NewFile(uintptr(3), "fd3")
+	if file3 == nil {
+		slog.Warn("fd3 is nil, cannot write output")
+	}
+	defer file3.Close()
+
 	outerWorkdir := path.Join(cfg.Rootfs, cfg.Workdir)
 	inputfile := path.Join(outerWorkdir, "data.in")
 	outputfile := path.Join(outerWorkdir, "data.usr")
@@ -130,7 +139,6 @@ func RunMain(cfg *models.SandboxArgs) {
 	}
 
 	for {
-		var ws unix.WaitStatus
 		var ru unix.Rusage
 		pidTmp, err := unix.Wait4(-mainPid, &ws, 0, &ru)
 		if err != nil {
@@ -224,6 +232,60 @@ func RunMain(cfg *models.SandboxArgs) {
 	fmt.Printf("ccerr = %v\n", ccerr)
 	// showPtree(mainPid, 0)
 	tt, err1 := cg.ReadCPUtime()
-	cg.ReadMemory()
+	mem, _ := cg.ReadMemoryPeak()
 	slog.Error("CPU: ", "time", tt, "error", err1, "walltime", time.Since(startTime))
+
+	out := buildOutput(ccerr, tt, mem, cfg, len(ptree), outerWorkdir, ws)
+	json.NewEncoder(file3).Encode(out)
+}
+
+func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs, processCnt int, outerWorkdir string, ws unix.WaitStatus) *models.SandboxOutput {
+	out := &models.SandboxOutput{
+		ExitStatus:     ws.ExitStatus(),
+		CombinedOutput: truncateBytes(readCombinedOutput(outerWorkdir), 1024),
+		Memory:         mem / 1024,
+		Time:           int(tt) / int(time.Millisecond),
+		UserStatus:     constants.OJ_AC,
+		ProcessCnt:     processCnt,
+	}
+
+	if ws.ExitStatus() != 0 && ccerr != nil {
+		switch ccerr {
+		case shared.ErrCgroupLimitExceeded:
+			out.UserStatus = constants.OJ_TL
+		case shared.ErrRealTimeTimeout:
+			out.UserStatus = constants.OJ_TL
+			out.Time = 3*cfg.TimeLimit + 233
+		case shared.ErrRuntimeError:
+			if out.Memory > cfg.MemoryLimit/1024 {
+				out.UserStatus = constants.OJ_ML
+			} else {
+				out.UserStatus = constants.OJ_RE
+				out.ExitSignal = ws.StopSignal().String()
+			}
+		case shared.ErrOutputLimitExceeded:
+			out.UserStatus = constants.OJ_OL
+		}
+	}
+
+	return out
+}
+
+func truncateBytes(s string, max int) string {
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
+}
+
+func readCombinedOutput(outerWorkdir string) string {
+	output, err := os.ReadFile(path.Join(outerWorkdir, "data.usr"))
+	if err != nil {
+		slog.Warn("read data.usr failed", "err", err)
+	}
+	perr, err := os.ReadFile(path.Join(outerWorkdir, "data.err"))
+	if err != nil {
+		slog.Warn("read data.err failed", "err", err)
+	}
+	return string(output) + string(perr)
 }
