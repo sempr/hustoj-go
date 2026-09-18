@@ -22,6 +22,7 @@ import (
 )
 
 func RunMain(cfg *models.SandboxArgs) {
+	slog.Info("The ENV: ", "envs", os.Environ())
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -66,7 +67,20 @@ func RunMain(cfg *models.SandboxArgs) {
 		cmds...,
 	)
 	cmd.ExtraFiles = append(cmd.ExtraFiles, pr, fi, fo, fe)
+	devNull := path.Join(cfg.Rootfs, "dev", "null")
+	if err := os.MkdirAll(path.Dir(devNull), 0o755); err != nil {
+		slog.Error("create dev dir failed", "err", err)
+		return
+	}
+	if _, err := os.Lstat(devNull); err != nil {
+		if err := unix.Mknod(devNull, unix.S_IFCHR|0o666, int(unix.Mkdev(1, 3))); err != nil {
+			slog.Error("mknod /dev/null failed", "err", err)
+			return
+		}
+	}
+
 	cmd.Env = append(cmd.Env, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin")
+	cmd.Env = append(cmd.Env, os.Environ()...)
 	cmd.SysProcAttr = &unix.SysProcAttr{
 		Cloneflags: unix.CLONE_NEWNS | unix.CLONE_NEWNET | unix.CLONE_NEWUTS | unix.CLONE_NEWIPC | unix.CLONE_NEWPID,
 		Setpgid:    true,
