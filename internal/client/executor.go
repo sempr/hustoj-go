@@ -37,7 +37,7 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 	}
 
 	runArgs := []string{
-		"sandbox",
+		"run",
 		fmt.Sprintf("--rootfs=%s", config.Rootdir),
 		fmt.Sprintf("--cmd=%s", langConfig.Cmd.Run),
 		fmt.Sprintf("--time=%d", config.Timelimit),
@@ -155,7 +155,7 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 	defer os.ReadDir(destSpjFile)
 
 	runArgs := []string{
-		"sandbox",
+		"run",
 		fmt.Sprintf("--rootfs=%s", filepath.Join(config.Rootdir, "code")),
 		fmt.Sprintf("--cmd=/%s", strings.Join(spjCmds, " ")),
 		fmt.Sprintf("--time=%d", config.Timelimit),

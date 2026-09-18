@@ -103,6 +103,15 @@ func (c *Cgroup) ReadCPUtime() (time.Duration, error) {
 	return readCgroupCPUTime(filepath.Join(c.path, "cpu.stat"))
 }
 
+func (c *Cgroup) ReadMemoryPeak() (int, error) {
+	bt, err := os.ReadFile(filepath.Join(c.path, "memory.peak"))
+	if err != nil {
+		return 0, err
+	}
+	v, err := strconv.Atoi(strings.Trim(string(bt), "\n\t "))
+	return v, err
+}
+
 func (c *Cgroup) ReadMemory() {
 	statFile := filepath.Join(c.path, "memory.peak")
 	bt, err := os.ReadFile(statFile)

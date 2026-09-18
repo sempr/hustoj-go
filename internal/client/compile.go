@@ -19,7 +19,7 @@ func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.L
 	selfName, _ := os.Executable()
 	cmd := exec.Command(
 		selfName,
-		"sandbox",
+		"run",
 		fmt.Sprintf("--rootfs=%s", rootfs),
 		fmt.Sprintf("--cmd=%s", langConfig.Cmd.Compile),
 		fmt.Sprintf("--time=%d", 3000),
