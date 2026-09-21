@@ -19,6 +19,9 @@ build:
 langs:
 	cd extra && bash prepare_langs.sh
 
+check-versions:
+	cd extra && bash check_versions.sh
+
 disable-old-judged:
 	cd extra && bash disable_old_judged.sh
 
