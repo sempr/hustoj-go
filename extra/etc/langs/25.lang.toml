@@ -1,11 +1,11 @@
 name = "Rust"
 
 [fs]
-base = "/var/lib/docker/overlay2/pa7dzgmcx2y15pdnd2jw5e227/diff:/var/lib/docker/overlay2/8487c007c019d431ef476330a49448327630d743a74201c2adae4ce7771628e6/diff:/var/lib/docker/overlay2/c053d6e00c5a2c5fef336e4b95448df888e2ff6b9ade7400cddc19b1d5fc807c/diff:/var/lib/docker/overlay2/fdaa95e8b852bee301041bd08d16c6a09efa13b93679aff994ca9e921b9491c2/diff"
+base = "/var/lib/docker/overlay2/3mw9q04x3s2qpmfx61et9lmr9/diff:/var/lib/docker/overlay2/a259204bac8f4ded8bb82ce71735cbb9972744c8c475f01475b4dcbe11edfcf8/diff:/var/lib/docker/overlay2/030f8e8084c8dfa85024ee45ab59bc78dc749a0dc47311f7574b36fd0cb7db39/diff"
 workdir = "/code"
 
 [cmd]
 compile = "/usr/local/bin/rustc -o Main Main.rs"
 run  = "/code/Main"
 ver = "/usr/local/bin/rustc --version"
-env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin"]
+env = ["PATH=/usr/local/cargo/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","RUSTUP_HOME=/usr/local/rustup","CARGO_HOME=/usr/local/cargo","RUST_VERSION=1.98.1","LD_LIBRARY_PATH=/usr/local/rustup/toolchains/1.98.1-x86_64-unknown-linux-gnu/lib/"]
