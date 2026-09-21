@@ -46,9 +46,6 @@ static void setup_rootfs(const char *rootfs) {
     /* ensure rootfs is a mount point */
     mount(NULL, "/", NULL, MS_REC | MS_PRIVATE, NULL);
 
-    /* must be inside mount namespace */
-    mount("proc", "/proc", "proc", 0, NULL);
-
     if (chdir(rootfs) < 0) {
         perror("chdir rootfs");
         exit(1);
@@ -66,6 +63,13 @@ static void setup_rootfs(const char *rootfs) {
     }
 
     chdir("/");
+
+    /* must be inside mount namespace */
+    if (mount("proc", "/proc", "proc", 0, NULL) < 0){
+	perror("mount proc");
+	exit(1);
+    }
+
 
     umount2("/.old", MNT_DETACH);
     rmdir("/.old");
