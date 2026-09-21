@@ -11,3 +11,6 @@ static: tini-static
 clean:
 	rm -f tini tini-static
 
+install: tini
+	cp tini /usr/local/bin/tini
+
