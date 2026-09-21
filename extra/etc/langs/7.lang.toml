@@ -1,0 +1,10 @@
+name = "PHP"
+
+[fs]
+base = "/var/lib/docker/overlay2/77qram9gm6c6zabkws954378x/diff:/var/lib/docker/overlay2/uwir3z7mrx4vx108sparv1m0s/diff:/var/lib/docker/overlay2/a467928a9d31383830f4483cab85fed9b58e06799ae1d3f203b0d9af3d9baaac/diff"
+workdir = "/code"
+
+[cmd]
+compile = "/usr/bin/php -l /code/Main.php"
+run = "/usr/bin/php /code/Main.php"
+ver = "/usr/bin/php -v"
