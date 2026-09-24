@@ -363,6 +363,10 @@ func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem
 	if err != nil {
 		return nil, fmt.Errorf("failed to find data files: %w", err)
 	}
+	// 交互评测（spj=16）：每个 .in 文件一个交互会话；没有 .in 时注入合成用例。
+	if problem.SPJ == constants.OJ_SPJ_MODE_INTERACTIVE {
+		dataFiles = jc.interactiveDataFiles(dataDir, dataFiles)
+	}
 
 	inName := jc.findInputName(dataDir)
 	outName := jc.findOutputName(dataDir)
@@ -377,6 +381,15 @@ func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem
 		OutName:     outName,
 		Spj:         problem.SPJ,
 		SpjProgram:  spjProgram,
+	}
+
+	// 交互评测：准备 interactor 二进制与 FIFO 通道。
+	if problem.SPJ == constants.OJ_SPJ_MODE_INTERACTIVE {
+		info, err := jc.prepareInteractor(rootfs, dataDir)
+		if err != nil {
+			return nil, fmt.Errorf("failed to prepare interactor: %w", err)
+		}
+		runConfig.Interactive = info
 	}
 
 	return &TestContext{

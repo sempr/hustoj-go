@@ -126,7 +126,7 @@ func init() {
 	judgeCmd.Flags().StringVar(&judgeTask.DataDir, "data", "", "test data directory")
 	judgeCmd.Flags().IntVar(&judgeTask.TimeLimit, "time", 1000, "time limit in ms per test case")
 	judgeCmd.Flags().IntVar(&judgeTask.MemLimitKB, "memory", 262144, "memory limit in KB")
-	judgeCmd.Flags().IntVar(&judgeTask.Spj, "spj", 0, "problem type: 0=normal, 1=special judge, 2=raw text")
+	judgeCmd.Flags().IntVar(&judgeTask.Spj, "spj", 0, "problem type: 0=normal, 1=special judge, 2=raw text, 16=interactive")
 	judgeCmd.Flags().StringVar(&judgeTask.OJHome, "ojhome", "/home/judge", "judge home for etc/langs configs")
 	judgeCmd.Flags().StringVar(&judgeTask.WorkBase, "workbase", "/tmp", "base directory for overlay mount workdir")
 }

@@ -84,19 +84,35 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 
 	// rawtext 模式：直接以源码文本评分
 	if task.Spj == constants.OJ_SPJ_MODE_RAWTEXT {
-		return jc.runRawTextStandalone(solution, workDir, result)
+		result, err := jc.runRawTextStandalone(solution, workDir, result)
+		if err != nil {
+			return nil, err
+		}
+		if err := jc.notifyFinished(result); err != nil {
+			return nil, err
+		}
+		return result, nil
 	}
 
 	// 编译
+	if err := jc.notifyPhase(constants.OJ_CI); err != nil {
+		return nil, err
+	}
 	compileResult := jc.compile(solution.Language, workDir, langConfig)
 	if compileResult.SystemError {
 		result.FinalResult = constants.OJ_SE
 		result.SysError = compileResult.CombinedOutput
+		if err := jc.notifyCompileError(result); err != nil {
+			return nil, err
+		}
 		return result, nil
 	}
 	if compileResult.ExitStatus != 0 {
 		result.FinalResult = constants.OJ_CE
 		result.CompileError = compileResult.CombinedOutput
+		if err := jc.notifyCompileError(result); err != nil {
+			return nil, err
+		}
 		return result, nil
 	}
 	slog.Info("compile ok result", "result", compileResult)
@@ -110,6 +126,10 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 	// 执行测试用例
 	ctx, err := jc.prepareTestContext(solution, problem, workDir, spjProgram)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := jc.notifyPhase(constants.OJ_RI); err != nil {
 		return nil, err
 	}
 
@@ -148,6 +168,10 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 		"peak_memory_kb", stats.PeakMemory,
 		"pass_rate", passRate,
 	)
+
+	if err := jc.notifyFinished(result); err != nil {
+		return nil, err
+	}
 
 	return result, nil
 }

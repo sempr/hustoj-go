@@ -16,17 +16,31 @@ import (
 )
 
 func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
+	// 交互评测（spj=16）：玩家与 interactor 通过 FIFO 双向通信，
+	// verdict 以 interactor 退出码为准，任何一侧沙箱超限/崩溃优先。
+	if config.Interactive != nil {
+		return jc.runInteractiveCase(config)
+	}
+
 	stdinName := "/code/data.in"
 	stdoutName := "/code/data.usr"
 
 	if config.InName != "" {
-		jc.copyFile(config.InFile, filepath.Join(config.Workdir, config.InName))
+		inPath := filepath.Join(config.Workdir, config.InName)
+		jc.copyFile(config.InFile, inPath)
+		os.Chmod(inPath, 0o666)
 		stdinName = ""
 	} else {
 		jc.copyFile(config.InFile, filepath.Join(config.Workdir, "data.in"))
 	}
 
 	if config.OutName != "" {
+		// File-I/O 模式（freopen 固定文件名读写）：
+		// 编译后 /code 目录被恢复为 0755，nobody 用户无法自行创建输出文件，
+		// 故预创建输出文件并以 0666 放开写权限，供程序 freopen("..."， "w") 直接写。
+		outPath := filepath.Join(config.Workdir, config.OutName)
+		os.Create(outPath)
+		os.Chmod(outPath, 0o666)
 		stdoutName = ""
 	}
 

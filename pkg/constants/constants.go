@@ -34,9 +34,10 @@ func GetOJResultName(status int) string {
 
 // Special judge modes
 const (
-	OJ_SPJ_MODE_NONE    = 0 // No special judge
-	OJ_SPJ_MODE_SPJ     = 1 // Special judge program
-	OJ_SPJ_MODE_RAWTEXT = 2 // Raw text comparison judge
+	OJ_SPJ_MODE_NONE        = 0  // No special judge
+	OJ_SPJ_MODE_SPJ         = 1  // Special judge program
+	OJ_SPJ_MODE_RAWTEXT     = 2  // Raw text comparison judge
+	OJ_SPJ_MODE_INTERACTIVE = 16 // Interactive judge (interactor + player via FIFO pipes)
 )
 
 // Special judge program variants (used when OJ_SPJ_MODE_SPJ is set)

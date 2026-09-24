@@ -37,15 +37,30 @@ func RunMain(cfg *models.SandboxArgs) {
 	outputfile := path.Join(outerWorkdir, "data.usr")
 	errorfile := path.Join(outerWorkdir, "data.err")
 
+	// --stdin/--stdout/--stderr 为沙箱内绝对路径（如 /code/xxx），
+	// 供交互评测等场景把输入/输出指向 rootfs 内的 FIFO；为空则用默认文件。
+	if cfg.Stdin != "" {
+		inputfile = path.Join(cfg.Rootfs, path.Clean(cfg.Stdin))
+	}
+	if cfg.Stdout != "" {
+		outputfile = path.Join(cfg.Rootfs, path.Clean(cfg.Stdout))
+	}
+	if cfg.Stderr != "" {
+		errorfile = path.Join(cfg.Rootfs, path.Clean(cfg.Stderr))
+	}
+
 	pr, pw, err := os.Pipe()
 	if err != nil {
 		panic(err)
 	}
 	defer pr.Close()
 	defer pw.Close()
-	fi, err := os.Open(inputfile)
+	// 先开输出/错误、后开输入：FIFO 场景下 os.Open(O_RDONLY) 会阻塞等待写端，
+	// 若输入在前会造成两侧 run 互相阻塞的循环死锁；output 用 os.Create(O_RDWR)
+	// 打开 FIFO 不阻塞，能先向对侧提供写端。普通文件场景顺序无关。
 	fo, err := os.Create(outputfile)
 	fe, err := os.Create(errorfile)
+	fi, err := os.Open(inputfile)
 
 	cmdline := strings.Split(cfg.Command, " ")
 

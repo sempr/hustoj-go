@@ -25,6 +25,7 @@ type RunConfig struct {
 	MemoryLimit int
 	Spj         int
 	SpjProgram  int
+	Interactive *InteractorInfo
 }
 
 type JudgeClient struct {
@@ -36,6 +37,7 @@ type JudgeClient struct {
 	debug       bool
 	task        *models.JudgeTask
 	workBase    string
+	reporter    JudgeReporter
 }
 
 func NewJudgeClient(solutionID int, runnerID, homeDir string, debug bool) (*JudgeClient, error) {

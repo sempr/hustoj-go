@@ -16,7 +16,8 @@ type JudgeTask struct {
 	TimeLimit int
 	// MemLimitKB 是内存限制（KB）。
 	MemLimitKB int
-	// Spj 是题目类型，取值 OJ_SPJ_MODE_NONE(0)/OJ_SPJ_MODE_SPJ(1)/OJ_SPJ_MODE_RAWTEXT(2)。
+	// Spj 是题目类型，取值 OJ_SPJ_MODE_NONE(0)/OJ_SPJ_MODE_SPJ(1)/
+	// OJ_SPJ_MODE_RAWTEXT(2)/OJ_SPJ_MODE_INTERACTIVE(16)。
 	Spj int
 	// OJHome 是 judge 家目录，用于加载 etc/langs 语言配置。默认 /home/judge。
 	OJHome string
