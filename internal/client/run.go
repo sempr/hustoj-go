@@ -68,7 +68,10 @@ func (jc *JudgeClient) prepareJudgeContext() (*JudgeContext, error) {
 		return nil, fmt.Errorf("failed to get problem info: %w", err)
 	}
 
-	spjProgram := jc.detectSpjType(problem)
+	spjProgram := 0
+	if problem.SPJ == constants.OJ_SPJ_MODE_SPJ {
+		spjProgram = jc.detectSpjType(jc.problemDataDir(problem))
+	}
 
 	langConfig, err := jc.langManager.GetLanguageConfig(solution.Language)
 	if err != nil {
@@ -182,36 +185,37 @@ func (jc *JudgeClient) determineOIMode(dataFiles [][]string) bool {
 	return len(dataFiles) > 1
 }
 
-func (jc *JudgeClient) detectSpjType(problem *repository.Problem) int {
-	if problem.SPJ != constants.OJ_SPJ_MODE_SPJ {
-		return 0
+func (jc *JudgeClient) problemDataDir(problem *repository.Problem) string {
+	if jc.task != nil {
+		return jc.task.DataDir
 	}
+	return filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problem.ID))
+}
 
-	dataDir := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problem.ID))
+func (jc *JudgeClient) detectSpjType(dataDir string) int {
 	tpjPath := filepath.Join(dataDir, "tpj")
 	upjPath := filepath.Join(dataDir, "upj")
 	spjPath := filepath.Join(dataDir, "spj")
 
 	if _, err := os.Stat(upjPath); err == nil {
-		slog.Info("Detected UPJ special judge", "problem_id", problem.ID)
+		slog.Info("Detected UPJ special judge", "data_dir", dataDir)
 		return constants.OJ_SPJ_PROGRAM_UPJ
 	}
 
 	if _, err := os.Stat(tpjPath); err == nil {
-		slog.Info("Detected TPJ special judge", "problem_id", problem.ID)
+		slog.Info("Detected TPJ special judge", "data_dir", dataDir)
 		return constants.OJ_SPJ_PROGRAM_TPJ
 	}
 
 	if _, err := os.Stat(spjPath); err == nil {
-		slog.Info("Detected SPJ special judge", "problem_id", problem.ID)
+		slog.Info("Detected SPJ special judge", "data_dir", dataDir)
 		return constants.OJ_SPJ_PROGRAM_SPJ
 	}
 
 	return 0
 }
 
-func (jc *JudgeClient) findDataFiles(problemID int) ([][]string, error) {
-	dataDir := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problemID))
+func (jc *JudgeClient) findDataFiles(dataDir string) ([][]string, error) {
 	slog.Info("Scanning data files", "directory", dataDir)
 
 	entries, err := os.ReadDir(dataDir)
@@ -353,13 +357,15 @@ type ExecutionStats struct {
 }
 
 func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem *repository.Problem, rootfs string, spjProgram int) (*TestContext, error) {
-	dataFiles, err := jc.findDataFiles(problem.ID)
+	dataDir := jc.problemDataDir(problem)
+
+	dataFiles, err := jc.findDataFiles(dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find data files: %w", err)
 	}
 
-	inName := jc.findInputName(problem.ID)
-	outName := jc.findOutputName(problem.ID)
+	inName := jc.findInputName(dataDir)
+	outName := jc.findOutputName(dataDir)
 
 	runConfig := RunConfig{
 		Lang:        solution.Language,

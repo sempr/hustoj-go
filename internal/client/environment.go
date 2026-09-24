@@ -10,8 +10,15 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+func (jc *JudgeClient) workBaseDir() string {
+	if jc.task != nil {
+		return filepath.Join(jc.workBase, fmt.Sprintf("judge-%d", jc.solutionID))
+	}
+	return filepath.Join(jc.config.OJHome, "run"+jc.runnerID)
+}
+
 func (jc *JudgeClient) setupWorkEnvironment(langConfig *language.LangConfig) (string, error) {
-	workBaseDir := filepath.Join(jc.config.OJHome, "run"+jc.runnerID)
+	workBaseDir := jc.workBaseDir()
 
 	for _, dir := range []string{"rootfs", "tmp"} {
 		if err := os.MkdirAll(filepath.Join(workBaseDir, dir), 0o755); err != nil {

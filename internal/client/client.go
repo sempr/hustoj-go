@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/sempr/hustoj-go/pkg/config"
 	"github.com/sempr/hustoj-go/pkg/language"
+	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/sempr/hustoj-go/pkg/repository"
 )
 
@@ -34,6 +34,8 @@ type JudgeClient struct {
 	solutionID  int
 	runnerID    string
 	debug       bool
+	task        *models.JudgeTask
+	workBase    string
 }
 
 func NewJudgeClient(solutionID int, runnerID, homeDir string, debug bool) (*JudgeClient, error) {
@@ -63,6 +65,45 @@ func NewJudgeClient(solutionID int, runnerID, homeDir string, debug bool) (*Judg
 	}
 
 	slog.SetDefault(slog.Default().With("solution_id", solutionID))
+
+	return client, nil
+}
+
+// NewStandaloneClient 创建一个不依赖数据库的评测客户端。
+// 所有评测参数通过 task 传入，结果由调用方（RunStandalone）输出到 stdout。
+func NewStandaloneClient(task *models.JudgeTask) (*JudgeClient, error) {
+	homeDir := task.OJHome
+	if homeDir == "" {
+		homeDir = "/home/judge"
+	}
+
+	cfg, err := config.LoadJudgeConf(homeDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	langManager, err := language.NewLanguageManager(homeDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize language manager: %w", err)
+	}
+
+	workBase := task.WorkBase
+	if workBase == "" {
+		workBase = "/tmp"
+	}
+
+	client := &JudgeClient{
+		config:      cfg,
+		db:          nil,
+		langManager: langManager,
+		solutionID:  os.Getpid(),
+		runnerID:    "standalone",
+		debug:       false,
+		task:        task,
+		workBase:    workBase,
+	}
+
+	slog.SetDefault(slog.Default().With("standalone", true))
 
 	return client, nil
 }
@@ -114,8 +155,8 @@ func (jc *JudgeClient) copyFile(src, dst string) error {
 	return nil
 }
 
-func (jc *JudgeClient) findInputName(problemID int) string {
-	inNameFile := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problemID), "input.name")
+func (jc *JudgeClient) findInputName(dataDir string) string {
+	inNameFile := filepath.Join(dataDir, "input.name")
 	data, err := os.ReadFile(inNameFile)
 	if err != nil {
 		return ""
@@ -123,8 +164,8 @@ func (jc *JudgeClient) findInputName(problemID int) string {
 	return strings.TrimSpace(string(data))
 }
 
-func (jc *JudgeClient) findOutputName(problemID int) string {
-	outNameFile := filepath.Join(jc.config.OJHome, "data", strconv.Itoa(problemID), "output.name")
+func (jc *JudgeClient) findOutputName(dataDir string) string {
+	outNameFile := filepath.Join(dataDir, "output.name")
 	data, err := os.ReadFile(outNameFile)
 	if err != nil {
 		return ""
