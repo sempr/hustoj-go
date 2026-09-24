@@ -120,6 +120,16 @@ func RunMain(cfg *models.SandboxArgs) {
 			return fmt.Errorf("control‑fd 写入了 %d 字节，期望 4", n)
 		}
 		slog.Info("已写入 control‑fd，命令 3 (SIGTERM)")
+		// 部分进程（如 node）可能捕获/忽略 SIGTERM，宽限期后强制 SIGKILL，
+		// 避免 PID 命名空间残留进程占用 overlay/tmpfs 导致无法 umount。
+		go func() {
+			time.Sleep(500 * time.Millisecond)
+			b := make([]byte, 4)
+			binary.LittleEndian.PutUint32(b, 1)
+			if _, err := pw.Write(b); err != nil {
+				slog.Warn("写 control‑fd（SIGKILL）失败", "err", err)
+			}
+		}()
 		return nil
 	}
 
@@ -134,7 +144,7 @@ func RunMain(cfg *models.SandboxArgs) {
 
 	// first wait here
 	var ws unix.WaitStatus
-	pidTmp, err := unix.Wait4(-mainPid, &ws, 0, nil)
+	pidTmp, err := unix.Wait4(-1, &ws, 0, nil)
 	slog.Debug("tracing(first wait)", "pid", pidTmp, "ws", fmt.Appendf(nil, "%X", ws))
 	err = unix.PtraceSetOptions(mainPid, unix.PTRACE_O_EXITKILL|unix.PTRACE_O_TRACECLONE|unix.PTRACE_O_TRACEFORK|unix.PTRACE_O_TRACEVFORK|unix.PTRACE_O_TRACEVFORKDONE|unix.PTRACE_O_TRACEEXIT|unix.PTRACE_O_TRACESYSGOOD|unix.PTRACE_O_TRACESECCOMP|unix.PTRACE_O_TRACEEXEC)
 	if err != nil {
@@ -169,7 +179,7 @@ func RunMain(cfg *models.SandboxArgs) {
 
 	for {
 		var ru unix.Rusage
-		pidTmp, err := unix.Wait4(-mainPid, &ws, 0, &ru)
+		pidTmp, err := unix.Wait4(-1, &ws, 0, &ru)
 		if err != nil {
 			slog.Error("wait4 error", "pid", pidTmp, "err", err)
 			break
@@ -191,9 +201,13 @@ func RunMain(cfg *models.SandboxArgs) {
 		if ws.Signaled() {
 			slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal(), "status", ws.ExitStatus(), "exit", ws.Exited())
 			if ws.Signal()&0x7f == unix.SIGXFSZ {
+				unix.Kill(-mainPid, unix.SIGKILL)
+				continue
+			}
+			if pidTmp == mainPid {
 				break
 			}
-			break
+			continue
 		}
 		if ws.Stopped() {
 			slog.Debug("process stopped", "pid", pidTmp, "signal", ws.StopSignal(), "signal", ws.StopSignal()&0x7f)
@@ -259,6 +273,8 @@ func RunMain(cfg *models.SandboxArgs) {
 		}
 	}
 	fmt.Printf("ccerr = %v\n", ccerr)
+	// 循环结束后兜底清理：确保 PID 命名空间内无残留进程占用 rootfs。
+	unix.Kill(-mainPid, unix.SIGKILL)
 	// showPtree(mainPid, 0)
 	tt, err1 := cg.ReadCPUtime()
 	mem, _ := cg.ReadMemoryPeak()
@@ -278,6 +294,11 @@ func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs
 		ProcessCnt:     processCnt,
 	}
 
+	if out.Memory > cfg.MemoryLimit {
+		out.UserStatus = constants.OJ_ML
+		return out
+	}
+
 	if ws.ExitStatus() != 0 && ccerr != nil {
 		switch ccerr {
 		case shared.ErrCgroupLimitExceeded:
@@ -286,12 +307,8 @@ func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs
 			out.UserStatus = constants.OJ_TL
 			out.Time = 3*cfg.TimeLimit + 233
 		case shared.ErrRuntimeError:
-			if out.Memory > cfg.MemoryLimit/1024 {
-				out.UserStatus = constants.OJ_ML
-			} else {
-				out.UserStatus = constants.OJ_RE
-				out.ExitSignal = ws.StopSignal().String()
-			}
+			out.UserStatus = constants.OJ_RE
+			out.ExitSignal = ws.StopSignal().String()
 		case shared.ErrOutputLimitExceeded:
 			out.UserStatus = constants.OJ_OL
 		}
