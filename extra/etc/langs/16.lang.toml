@@ -8,4 +8,4 @@ workdir = "/code"
 compile = "/usr/local/bin/esbuild Main.ts --outfile=Main.js"
 run  = "/usr/local/bin/node Main.js"
 ver = "/usr/local/bin/tsc -v"
-env = ["ONLINE_JUDGE=1", "HOME=/tmp", "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]
+env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","NODE_VERSION=24.11.0","YARN_VERSION=1.22.22","ONLINE_JUDGE=1","HOME=/tmp"]

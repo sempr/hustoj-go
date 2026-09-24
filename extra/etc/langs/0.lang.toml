@@ -8,4 +8,5 @@ workdir = "/code"
 compile = "/usr/bin/gcc -o /code/Main /code/Main.c -fno-asm -Wall -lm --static -O2 -std=c99 -DONLINE_JUDGE"
 run  = "/code/Main"
 ver = "/usr/bin/gcc --version"
+env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","DEBIAN_FRONTEND=noninteractive"]
 

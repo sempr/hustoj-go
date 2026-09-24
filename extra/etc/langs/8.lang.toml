@@ -8,3 +8,4 @@ workdir = "/code"
 compile = "/usr/bin/perl -c /code/Main.pl"
 run = "/usr/bin/perl /code/Main.pl"
 ver = "/usr/bin/perl -v"
+env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","DEBIAN_FRONTEND=noninteractive"]

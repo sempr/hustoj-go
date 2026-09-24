@@ -8,4 +8,4 @@ workdir = "/code"
 compile = "/usr/local/go/bin/go build -o Main Main.go"
 run  = "/code/Main"
 ver = "/usr/local/go/bin/go version"
-env = ["ONLINE_JUDGE=1", "GOROOT=/usr/local/go", "HOME=/tmp", "GOCACHE=/go-cache", "GOTELEMETRY=off"]
+env = ["PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","DEBIAN_FRONTEND=noninteractive","GOCACHE=/go-cache","HOME=/tmp","ONLINE_JUDGE=1","GOROOT=/usr/local/go","GOTELEMETRY=off"]

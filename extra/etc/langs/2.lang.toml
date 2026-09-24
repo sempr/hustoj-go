@@ -8,4 +8,5 @@ workdir = "/code"
 compile = "/usr/bin/fpc Main.pas -oMain -O1 -Co -Cr -Ct -Ci"
 run  = "/code/Main"
 ver = "/usr/bin/fpc -v"
+env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","DEBIAN_FRONTEND=noninteractive"]
 

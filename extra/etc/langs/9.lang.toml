@@ -8,3 +8,4 @@ workdir = "/code"
 compile = "/usr/bin/mcs -optimize+ -out:/code/Main.exe /code/Main.cs"
 run = "/usr/bin/mono /code/Main.exe"
 ver = "/usr/bin/mcs --version"
+env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","DEBIAN_FRONTEND=noninteractive"]

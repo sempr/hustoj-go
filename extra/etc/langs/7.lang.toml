@@ -8,3 +8,4 @@ workdir = "/code"
 compile = "/usr/bin/php -l /code/Main.php"
 run = "/usr/bin/php /code/Main.php"
 ver = "/usr/bin/php -v"
+env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin","DEBIAN_FRONTEND=noninteractive"]
