@@ -1,0 +1,29 @@
+# hustoj web 运行配置
+#
+# 安装位置：/home/judge/etc/web.toml（建议 root:www-data 0640）
+#
+# 本文件【不含任何凭据】。数据库凭据只来自 judge.conf，由 systemd 的
+# EnvironmentFile= 以 PID 1（root）身份读取后注入进程环境，因此
+# judge.conf 保持 root:root 0600 即可，无需放宽权限。
+#
+# 优先级：环境变量 > 本文件。
+# web.toml 中出现未知键会直接报错（严格解码），避免拼写错误被静默忽略。
+
+# HTTP 监听地址。默认只绑回环，由 nginx 反代对外，
+# 避免 Web 端口绕过 TLS、限流与访问日志直接对外暴露。
+listen = "127.0.0.1:8080"
+
+# 默认皮肤。需与 /home/judge/data 下的判题配置保持一致。
+template = "syzoj"
+
+# 可信反向代理。仅这些来源的 X-Forwarded-For / Proto 会被采信；
+# 其余来源一律按直连处理，防止伪造来源 IP 绕过限流与审计。
+trusted_proxies = ["127.0.0.1/32", "::1/128"]
+
+# 迁移期只读 PHP session 桥：读取 PHP 写入的会话文件以复用登录态，
+# 之后改用 Go 会话。PHP 下线后把 session_bridge 置 false 并移除相关代码。
+session_bridge = true
+session_dir = "/var/lib/php/sessions"
+
+# 调试模式会输出路由命中与请求细节，生产必须为 false。
+debug = false

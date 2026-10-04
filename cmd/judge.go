@@ -29,10 +29,10 @@ problem type) are provided via command line flags, and the result is written
 to stdout as JSON.
 
 Example:
-  hustoj-go judge --source Main.c --lang 0 --data /home/judge/data/1000 \
+  hustoj judge --source Main.c --lang 0 --data /home/judge/data/1000 \
       --time 1000 --memory 262144 --spj 0
 
-  cat Main.cpp | hustoj-go judge --source=- --lang 1 --data ./data \
+  cat Main.cpp | hustoj judge --source=- --lang 1 --data ./data \
       --time 1000 --memory 262144 --spj 1`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// 评测过程中大量日志（本进程 slog 及沙箱子进程输出）默认写入 stdout，

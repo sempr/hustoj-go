@@ -1,0 +1,46 @@
+version: "2"
+sql:
+  - engine: "mysql"
+    schema: "schema/schema.sql"
+    queries: "schema/queries"
+
+    gen:
+      go:
+        package: "dbgen"
+        out: "pkg/dbgen"
+        sql_package: "database/sql"
+
+        # 与仓库其余代码风格一致：字段带 json tag，便于直接渲染模板/输出 API。
+        emit_json_tags: true
+        json_tags_case_style: "snake"
+
+        # 迁移期会与 PHP 共库，禁用 prepared 复用：Go 的 *sql.DB 池会长期持有
+        # statement，而 MyISAM 表结构在维护窗口会被改动，显式 Disable
+        # 语句缓存在这里反而更安全（每条查询现编现发）。
+        emit_prepared_queries: false
+
+        # 额外生成 Querier 接口，路由层据此收窄依赖，便于单测替换。
+        emit_interface: true
+
+        # MySQL 专有：把 tinyint(1) 之类的布尔语义列（problem.defunct 不是，
+        # 但 privilege.right、online 逻辑位会用到）保留为原始整数，
+        # 不擅自改成 bool，避免 NULL/越界被静默吞掉。
+        emit_exact_table_names: false
+
+        overrides:
+          # problem.time_limit / pass_rate 等 decimal，驱动默认返回字符串。
+          # HustOJ 里 time_limit 直接参与展示与比较，转成 float64 更顺手，
+          # 且这两列不存在 NULL（NOT NULL DEFAULT 0.000）。
+          - db_type: "decimal"
+            go_type: "float64"
+          # 显式指定列类型覆盖
+          - column: "problem.time_limit"
+            go_type: "float64"
+          - column: "solution.pass_rate"
+            go_type: "float64"
+          # user_id 在 users 表是 varchar(48)、在 solution 表是 char(48)，
+          # 两者都表示同一个标识符，统一成 string 以便跨表比较。
+          - column: "users.user_id"
+            go_type: "string"
+          - column: "solution.user_id"
+            go_type: "string"

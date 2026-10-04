@@ -1,0 +1,6 @@
+hustoj-go
+work/
+judge.err
+out*.json
+data/spj
+data/*.in

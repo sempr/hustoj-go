@@ -59,8 +59,20 @@ func RunMain(cfg *models.SandboxArgs) {
 	// 若输入在前会造成两侧 run 互相阻塞的循环死锁；output 用 os.Create(O_RDWR)
 	// 打开 FIFO 不阻塞，能先向对侧提供写端。普通文件场景顺序无关。
 	fo, err := os.Create(outputfile)
+	if err != nil {
+		panic(fmt.Errorf("create output file %s: %w", outputfile, err))
+	}
+	defer fo.Close()
 	fe, err := os.Create(errorfile)
+	if err != nil {
+		panic(fmt.Errorf("create error file %s: %w", errorfile, err))
+	}
+	defer fe.Close()
 	fi, err := os.Open(inputfile)
+	if err != nil {
+		panic(fmt.Errorf("open input file %s: %w", inputfile, err))
+	}
+	defer fi.Close()
 
 	cmdline := strings.Split(cfg.Command, " ")
 
@@ -146,6 +158,9 @@ func RunMain(cfg *models.SandboxArgs) {
 	var ws unix.WaitStatus
 	pidTmp, err := unix.Wait4(-1, &ws, 0, nil)
 	slog.Debug("tracing(first wait)", "pid", pidTmp, "ws", fmt.Appendf(nil, "%X", ws))
+	if err != nil {
+		panic(fmt.Errorf("wait4 first tracee: pid=%d: %w", pidTmp, err))
+	}
 	err = unix.PtraceSetOptions(mainPid, unix.PTRACE_O_EXITKILL|unix.PTRACE_O_TRACECLONE|unix.PTRACE_O_TRACEFORK|unix.PTRACE_O_TRACEVFORK|unix.PTRACE_O_TRACEVFORKDONE|unix.PTRACE_O_TRACEEXIT|unix.PTRACE_O_TRACESYSGOOD|unix.PTRACE_O_TRACESECCOMP|unix.PTRACE_O_TRACEEXEC)
 	if err != nil {
 		slog.Error("ptrace setoptions failed", "mainPid", mainPid, "pidTmp", pidTmp)

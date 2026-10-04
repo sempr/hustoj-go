@@ -26,7 +26,7 @@ disable-old-judged:
 	cd extra && bash disable_old_judged.sh
 
 install: build
-	install -m 0755 hustoj-go $(PREFIX)/hustoj-go
+	install -m 0755 hustoj $(PREFIX)/hustoj
 	install -m 0644 extra/judged-go.service $(SYSDIR)/judged-go.service
 	$(MAKE) langs
 	install -d $(JUDGEHOME)/etc

@@ -1,5 +1,36 @@
 cversion/**
 old/**
+
+# 构建产物（Phase 0 起主二进制更名为 hustoj，hustoj-go 为过渡期名称）
+hustoj
 hustoj-go
+tini/tini
+tini/tini-static
+
+# 本地调试日志（manual judge / cgroup 调试产生）
+*.log
+
+# make check-versions 输出
+versions.txt
 
 internal/sandbox/zz_test.go
+
+# 凭据文件：部署副本 /home/judge/src/web/include/db_info.inc.php 含真实 DB 账密，
+# 仓库内只保留 .example 模板。Phase 0 三方合并时以部署版为基底，故必须排除。
+phpweb/include/db_info.inc.php
+
+# Go Web 本地配置（含运营参数，站点身份不入库）
+*.local.toml
+web.toml
+
+# 独立仓库（自带 .git，remote github.com/sempr/hustoj-go-interactive.git）。
+# 若提交进本仓库只会变成 gitlink，clone 后目录为空导致构建失败；
+# 它是参照用的外部项目，不是本仓库源码。
+hustoj-go-interactive/
+
+# 一次性排查 CSRF 时的临时探针；check_all.sh 引用的是 test_csrf.php
+extra/_csrf_probe.php
+
+# tests/ 下的判题程序编译产物（源码 *.rs / *.py / spj 源码均入库，
+# 需按 Makefile 重新编译；11MB 且带 debug_info，不应进版本库）
+tests/rs/1

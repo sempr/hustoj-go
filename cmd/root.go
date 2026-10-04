@@ -11,7 +11,7 @@ import (
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "hustoj-go",
+	Use:   "hustoj",
 	Short: "HUST Online Judge implementation in Go",
 	Long: `HUSTOJ-Go is a high-performance online judge system written in Go.
 It provides daemon services for judging submissions and client tools

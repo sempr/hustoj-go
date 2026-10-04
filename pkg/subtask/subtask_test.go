@@ -28,14 +28,20 @@ func TestExtractScoreFromFilename(t *testing.T) {
 }
 
 func TestGetSubtaskPrefix(t *testing.T) {
+	// 取"第一个点号前"的部分，与函数注释一致。
+	// 同组测试的判定（SameSubtask）依赖这一点：1.1.in / 1.2.in 必须归入同一子任务 1，
+	// 若按最后一个点号切分，两者会被判成不同子任务，OI 模式"子任务内全过才得分"就失效了。
 	tests := []struct {
 		filename string
 		expected string
 	}{
 		{"1.in", "1"},
-		{"1.1.in", "1.1"},
+		{"1.1.in", "1"}, // 子任务 1 的第 1 个点，不是子任务 1.1
 		{"10.in", "10"},
 		{"test", "test"},
+		{"test.1.in", "test"},
+		{"1_1.in", "1_1"}, // 下划线风格不走点号，整段保留，由 SameSubtask 再切下划线
+		{"noext", "noext"},
 	}
 
 	for _, tt := range tests {
@@ -61,6 +67,10 @@ func TestSameSubtask(t *testing.T) {
 		{"1.1.in", "1.3.in", true},       // 主编号 1 == 1
 		{"1.1.in", "2.1.in", false},      // 主编号 1 != 2
 		{"test.1.in", "test.2.in", true}, // 主编号 test == test
+		// 下划线风格：同一子任务的不同测试点
+		{"1_1.in", "1_2.in", true},
+		{"1_2.in", "2_1.in", false},
+		{"2_1.in", "2_1.in", true},
 	}
 
 	for _, tt := range tests {

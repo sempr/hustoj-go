@@ -1,0 +1,147 @@
+<?php
+ini_set("display_errors", "Off");  //set this to "On" for debugging  ,especially when no reason blank shows up.
+require_once("../include/db_info.inc.php");
+if(!(isset($_SESSION[$OJ_NAME.'_administrator'])||isset($_SESSION[$OJ_NAME.'_problem_editor'])||isset($_SESSION[$OJ_NAME.'_contest_creator'])||isset($_SESSION[$OJ_NAME.'_tag_adder']))){
+  exit(1);  
+}
+function try_ajax($tb,$fd,$pr){
+	global $OJ_NAME,$_SESSION,$_POST;
+	if(!isset($_POST["m"])) return;
+	$m=$_POST["m"];	
+	if($m==$tb."_update_".$fd  && ( isset($_SESSION[$OJ_NAME.'_'.$pr]) )){
+                $new_value=$_POST[$fd];
+				if($tb=="user"){ 
+					$tb_name="users";
+					$data_id=$_POST[$tb.'_id'];
+				}else{
+					$tb_name=$tb;
+					$data_id=intval($_POST[$tb.'_id']);
+				}
+                $sql="update `".$tb_name."` set `".$fd."`=? where `".$tb."_id`=?";
+                echo pdo_query($sql,$new_value,$data_id);
+        }
+}
+function uniqueSource($str) {
+    // 用正则分割字符串，支持多个连续空格
+    $arr = preg_split('/\s+/', trim($str));
+
+    // 去除数组中的重复项
+    $uniqueArr = array_unique($arr);
+
+    // 重新拼接为空格分割的字符串
+    $result = implode(' ', $uniqueArr);
+
+    return $result;
+}
+if($_SERVER['REQUEST_METHOD']=="POST"){
+	$m=$_POST["m"];	
+
+	// 本文件原先完全没有 CSRF 防护：它不走 admin-header.php，
+	// 因此连那里的 Referer 白名单也一并绕过了。
+	// 而它能改动的字段包含 coin_bonus / coin_spent / problem.coin /
+	// expiry_date / group_name —— 一次跨站 POST 就能替管理员改账期与权限。
+	//
+	// 只放行只读查询（下面显式列举），其余一律要求 token。
+	// 采用不消费 token 的校验：user_list.php / news_list.php / problem_list.php
+	// 的表格内联编辑会在单页内连续发起多次请求，消费式校验会让第二次编辑直接 403。
+	$__ajax_readonly = array("problem_get_title", "get_user_list_of_contest");
+	if(!in_array($m, $__ajax_readonly, true)){
+		require_once("../include/csrf_check_ajax.php");
+	}
+	unset($__ajax_readonly);
+
+	if($m=="problem_set_source" && ( isset($_SESSION[$OJ_NAME.'_administrator']) || isset($_SESSION[$OJ_NAME.'_problem_editor']) || isset($_SESSION[$OJ_NAME.'_tag_adder']) ) ){
+		$pid=intval($_POST['pid']);
+		$new_source=uniqueSource($_POST['ns']);	
+		$sql= "update problem set source=? where problem_id=?";		
+		echo pdo_query($sql,$new_source,$pid);
+		//echo $sql." [".$new_source."]";
+	}
+	if($m=="problem_add_source" && ( isset($_SESSION[$OJ_NAME.'_administrator']) || isset($_SESSION[$OJ_NAME.'_problem_editor']) || isset($_SESSION[$OJ_NAME.'_tag_adder']) ) ){
+		$pid=intval($_POST['pid']);
+		$new_source=($_POST['ns']);	
+		$old_source=pdo_query("select source from problem where problem_id=?",$pid)[0][0];
+		$new_source=uniqueSource($new_source." ".$old_source);
+		$sql= "update problem set source=? where problem_id=?";		
+		echo pdo_query($sql,$new_source,$pid);
+		//echo $sql;
+	}
+	if($m=="problem_update_time" && ( isset($_SESSION[$OJ_NAME.'_administrator']) || isset($_SESSION[$OJ_NAME.'_problem_editor']) ) ){
+		$pid=intval($_POST['pid']);
+		$time=intval($_POST['t']);	
+		$sql= "update problem set time_limit=? where problem_id=?";		
+		echo pdo_query($sql,$time,$pid);
+	}
+	if($m=="problem_get_title"  && ( isset($_SESSION[$OJ_NAME.'_administrator']) || isset($_SESSION[$OJ_NAME.'_problem_editor']) )){
+                $pid=intval($_POST['pid']);
+                $sql= "select title,source from problem where problem_id=?";
+                $row=mysql_query_cache($sql,$pid)[0];
+                echo $row['title']."&nbsp;&nbsp;<span class='label label-success'>".$row['source']."</span>";
+	}
+	
+        if($m=="user_update_nick"  && ( isset($_SESSION[$OJ_NAME.'_administrator']) )){
+                $user_id=$_POST['user_id'];
+                $nick=$_POST['nick'];
+                $sql= "update users set nick=? where user_id=?";
+                echo pdo_query($sql,$nick,$user_id);
+		$sql= "update solution set nick=? where user_id=?";
+                pdo_query($sql,$nick,$user_id);
+        }
+	/*
+        if($m=="user_update_expiry_date"  && ( isset($_SESSION[$OJ_NAME.'_administrator']) )){
+                $user_id=$_POST['user_id'];
+                $expiry_date=$_POST['expiry_date'];
+                $sql= "update users set expiry_date=? where user_id=?";
+                echo pdo_query($sql,$expiry_date,$user_id);
+        }
+	if($m=="user_update_school"  && ( isset($_SESSION[$OJ_NAME.'_administrator']) )){
+                $user_id=$_POST['user_id'];
+                $school=$_POST['school'];
+                $sql= "update users set school=? where user_id=?";
+                echo pdo_query($sql,$school,$user_id);
+        }
+	if($m=="user_update_group_name"  && ( isset($_SESSION[$OJ_NAME.'_administrator']) )){
+                $user_id=$_POST['user_id'];
+                $group_name=$_POST['group_name'];
+                $sql="update users set group_name=? where user_id=?";
+                echo pdo_query($sql,$group_name,$user_id);
+	}
+	if($m=="user_update_parent_phone"  && ( isset($_SESSION[$OJ_NAME.'_administrator']) )){
+                $user_id=$_POST['user_id'];
+                $parent_phone=trim($_POST['parent_phone']);
+                // 兜底：服务端也校验手机号格式
+                if($parent_phone!=='' && !preg_match('/^1[3-9][0-9]{9}$/', $parent_phone)){
+                        echo "ERR: invalid phone";
+                        return;
+                }
+                $sql="update users set parent_phone=? where user_id=?";
+                echo pdo_query($sql,$parent_phone,$user_id);
+	}
+	 */
+	// try_ajax("user","nick","administrator");
+	try_ajax("user","expiry_date","administrator");
+	try_ajax("user","school","administrator");
+	try_ajax("user","group_name","administrator");
+	try_ajax("user","parent_phone","administrator");
+	try_ajax("user","coin_bonus","administrator");
+	try_ajax("problem","coin","administrator");
+	try_ajax("problem","coin","problem_editor");
+	try_ajax("user","coin_spent","administrator");
+	try_ajax("news","importance","administrator");
+	try_ajax("problem","time_limit","administrator");
+        try_ajax("problem","memory_limit","administrator");
+
+	if($m=="get_user_list_of_contest"  && ( isset($_SESSION[$OJ_NAME.'_administrator'])||isset($_SESSION[$OJ_NAME.'_contest_creator']) )){
+			$contest_id=intval($_POST['contest_id']);
+			$sql= "select distinct user_id from privilege where rightstr=? ";
+			$users=pdo_query($sql,"c".$contest_id);
+			foreach($users as $user){
+					echo $user['user_id']."\r\n";
+			}
+	}
+
+}
+
+
+
+

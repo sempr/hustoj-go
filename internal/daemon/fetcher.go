@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/sempr/hustoj-go/pkg/repository"
 )
 
 const prefetchMultiplier = 80
@@ -38,8 +39,8 @@ type MySQLFetcher struct {
 }
 
 func NewMySQLFetcher(cfg *DaemonConfig) (*MySQLFetcher, error) {
-	dsn := fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?parseTime=true",
-		cfg.Database.User, cfg.Database.Password, cfg.Database.Host, cfg.Database.Port, cfg.Database.Name)
+	// DSN 构造集中于 repository.DSN，确保判题机与 Web 服务字符集/排序规则一致。
+	dsn := repository.DSN(cfg.Database)
 
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
@@ -50,11 +51,7 @@ func NewMySQLFetcher(cfg *DaemonConfig) (*MySQLFetcher, error) {
 	db.SetMaxIdleConns(10)
 
 	if err := db.Ping(); err != nil {
-		return nil, err
-	}
-
-	_, err = db.Exec("SET NAMES utf8")
-	if err != nil {
+		db.Close()
 		return nil, err
 	}
 

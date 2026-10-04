@@ -143,7 +143,7 @@ func NewClient2Client(solutionID int, runnerID, homeDir string, debug bool) (*Ju
 
 // Client2Main 是 client2 子命令的入口，参数格式与 client（Main）保持一致：
 //
-//	hustoj-go client2 <solution_id> <runner_id> [oj_home_path] [-debug]
+//	hustoj client2 <solution_id> <runner_id> [oj_home_path] [-debug]
 //
 // 评测本体复用 judge 的 RunStandalone 流水线，进度与结果上报到数据库。
 // 退出码与 client 一致：编译/系统错误时退出 1，其余情况退出 0。

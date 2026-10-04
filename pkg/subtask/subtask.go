@@ -279,9 +279,7 @@ func GenerateMarkdownReport(problemTitle string, testResults []TestResult, score
 		filename := result.Filename
 
 		// 移除 .in 扩展名
-		if strings.HasSuffix(filename, ".in") {
-			filename = filename[:len(filename)-3]
-		}
+		filename = strings.TrimSuffix(filename, ".in")
 
 		// 提取主编号（第一个点号前的部分）
 		if idx := strings.Index(filename, "."); idx != -1 {
@@ -312,8 +310,8 @@ func GenerateMarkdownReport(problemTitle string, testResults []TestResult, score
 
 	// 总体概览
 	report.WriteString("## 📊 总体概览\n\n")
-	report.WriteString(fmt.Sprintf("| 项目 | 结果 |\n"))
-	report.WriteString(fmt.Sprintf("|------|------|\n"))
+	report.WriteString("| 项目 | 结果 |\n")
+	report.WriteString("|------|------|\n")
 	report.WriteString(fmt.Sprintf("| **最终得分** | %.2f / %.2f (%.2f%%) |\n", getMark, totalMark, passRate*100))
 	report.WriteString(fmt.Sprintf("| **最终结果** | %s |\n", GetResultName(finalResult)))
 	report.WriteString(fmt.Sprintf("| **测试点总数** | %d 个 |\n", len(testResults)))

@@ -30,7 +30,7 @@ make
 
 ### Installation
 
-1. Copy `hustoj-go` binary to `/usr/bin/`
+1. Copy `hustoj` binary to `/usr/bin/`
 2. Copy `extra/judged-go.service` to `/etc/systemd/system/`
 3. Set up language rootfs: `cd extra && bash build_rootfs.sh <lang_id>`
 4. Copy language configs: `cp -r extra/etc/langs /home/judge/etc/`
@@ -45,21 +45,21 @@ make
 sudo systemctl start judged-go
 
 # Or run directly
-hustoj-go daemon --ojhome=/home/judge --debug
+hustoj daemon --ojhome=/home/judge --debug
 ```
 
 ### Client
 
 ```bash
 # Judge a single submission
-hustoj-go client <solution_id> <runner_id> [oj_home] [DEBUG]
+hustoj client <solution_id> <runner_id> [oj_home] [DEBUG]
 ```
 
 ### Sandbox
 
 ```bash
 # Execute command in sandbox environment
-hustoj-go sandbox --rootfs=<path> --cmd="<command>" --cwd=<working_dir>
+hustoj sandbox --rootfs=<path> --cmd="<command>" --cwd=<working_dir>
 ```
 
 ## Configuration
@@ -124,10 +124,10 @@ env = ["LANG=en_US.UTF-8"]
 
 ```bash
 # Development build
-go build -o hustoj-go
+go build -o hustoj
 
 # Production build
-go build -ldflags="-s -w" -o hustoj-go
+go build -ldflags="-s -w" -o hustoj
 
 # Run tests
 go test ./...

@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+
+      # 与本地 extra/check_all.sh 同一条路径，避免两边结论不一致。
+      - name: 全量门禁（Go + PHP）
+        run: bash extra/check_all.sh
+
+      - name: staticcheck
+        run: |
+          go install honnef.co/go/tools/cmd/staticcheck@latest
+          staticcheck ./...
+
+      - name: systemd unit 语法
+        run: |
+          # CI 容器里没有 systemd，用文本校验替代 systemd-analyze verify。
+          test -f extra/hustoj-web.service
+          test -f extra/judged-go.service
+          grep -q '^ExecStart=/usr/bin/hustoj web' extra/hustoj-web.service
+          grep -q '^ExecStart=/usr/bin/hustoj daemon' extra/judged-go.service
+
+      - name: 凭据不得入库
+        run: |
+          # 用 git ls-files 判断"是否被跟踪"，而不是判断文件是否存在：
+          # 生产机上 db_info.inc.php 本就存在（被 .gitignore 排除），
+          # 按文件存在性判断会在本地误报、在 CI 才通过。
+          # git ls-files 走索引，与工作区无关，两边结论一致。
+          for f in phpweb/include/db_info.inc.php phpweb/include/judge.conf web.toml; do
+            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
+              echo "真实配置被提交入库: $f"; exit 1
+            fi
+          done
+          ! git grep -nEi '(password|passwd)\s*=\s*["'"'"'][^"'"'"']{6,}' -- '*.go' '*.toml' '*.service'
+
+  shellcheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
+          shellcheck extra/check_all.sh extra/check_lang_index.sh

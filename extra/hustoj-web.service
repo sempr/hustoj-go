@@ -1,0 +1,75 @@
+[Unit]
+Description=HUSTOJ Web Service
+After=network.target mariadb.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+
+ExecStart=/usr/bin/hustoj web --ojhome /home/judge
+
+Restart=on-failure
+RestartSec=5s
+
+# 数据库凭据由 judge.conf 注入。
+# systemd 以 PID 1（root）身份读取 EnvironmentFile，再降权执行进程，
+# 故 judge.conf 保持 root:root 0600 即可，无需为 www-data 放宽权限。
+EnvironmentFile=/home/judge/etc/judge.conf
+
+# 进程时区。代码里不写死时区（repository.DSN 的 time_zone 与 time.Now() 都
+# 从这里推导），对齐 PHP 的 date_default_timezone_set("Asia/Shanghai") 与
+# SET time_zone='+8:00'（include/init.php:147-148）。
+# 两半缺一不可：TZ 决定 time.Now() 与 parseTime 的 loc=Local，DSN 的
+# time_zone 决定 SQL 的 NOW()/CURDATE()/DATE()。缺任一半都会让时间整体差 8 小时。
+# 用 TZ 名而非固定偏移，parseTime 读 DATETIME 时才会按同一时区解析。
+#
+# 想改时区改这里即可（或改 judge.conf 里的 TZ，两者同名时以本行为准）：
+Environment=TZ=Asia/Shanghai
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=hustoj-web
+
+# --- 加固 ---
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+
+# 不需要 systemd 提供的任何能力：服务自身不改变用户、不挂载文件系统、
+# 也不操作网络接口；数据库走 TCP，连的是已有的 3306。
+CapabilityBoundingSet=
+AmbientCapabilities=
+
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# 服务创建的文件默认不对其他用户可读（上传内容含用户数据）。
+UMask=0077
+
+# 仅保留必需的可写路径：
+#   /home/judge/data          题目测试数据（判题与题目导入共用）
+#   /home/judge/src/web       站内上传（头像、附件、用户提交的内容）
+#   /var/lib/php/sessions     迁移期只读 PHP 会话桥；PHP 侧仍会继续写入自己的会话
+ReadWritePaths=/home/judge/data /home/judge/src/web /var/lib/php/sessions
+
+# 资源上限，避免单个 Web 实例拖垮整机
+MemoryMax=1G
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

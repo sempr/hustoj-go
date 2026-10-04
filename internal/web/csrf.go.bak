@@ -1,0 +1,91 @@
+// CSRF 防护：直接用 justinas/nosurf，不再自己实现。
+//
+// 为什么不再自己写：
+//
+// 手写 CSRF 很容易漏掉其中一条不变量 —— 校验与消费必须在同一个临界区内
+// （否则并发的两次 POST 会各自"读到"同一个 token 并双双通过）、
+// token 必须是常量时间比较、数组参数 csrf[]= 不能造成类型混淆。
+// 这些坑 nosurf 都已经踩平并有测试覆盖。
+//
+// 它用的是纯双提交 Cookie 方案：
+//
+//	Cookie 里存一枚随机 master token；
+//	表单里放 token XOR 一次性随机串（OTP 掩码）；
+//	校验时把提交值解掩码还原出 master，与 Cookie 里的做常量时间比较。
+//
+// 因此服务端不需要保存任何状态：不落 Redis、不落磁盘，进程重启不失效，
+// 多个实例天然共享（每个实例读同一个 Cookie），扩展无需粘性会话。
+//
+// 与 PHP 的差异（有意接受）：PHP 用"会话内的 token 池 + 单次消费"，
+// nosurf 是无状态的双提交 Cookie。行为上对用户不可见，且 nosurf 更难写错。
+
+package web
+
+import (
+	"net/http"
+
+	"github.com/justinas/nosurf"
+)
+
+// csrfFieldName 是表单里承载 token 的字段名。
+//
+// 与 nosurf 的默认值一致；显式写出是为了让模板与校验点一眼能对上。
+const csrfFieldName = nosurf.CookieName
+
+// wrapCSRF 给业务 handler 套上 nosurf 校验。
+//
+// nosurf 只校验"不安全"方法（POST/PUT/PATCH/DELETE 等），
+// GET/HEAD 直接放行，所以读接口不需要任何改动。
+func wrapCSRF(next http.Handler) http.Handler {
+	h := nosurf.New(next)
+
+	// Cookie 属性对齐 PHPSESSID：Path=/、HttpOnly、SameSite=Lax。
+	//
+	// HttpOnly 是双提交方案的安全前提之一：即便有 XSS 读不到 token，
+	// 跨站表单仍然无法伪造（跨站读不到 Cookie 才是防线，HttpOnly 是加固）。
+	cookie := http.Cookie{
+		Name:     nosurf.CookieName,
+		Path:     "/",
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+	}
+	h.SetBaseCookie(cookie)
+
+	// 失败时不要用 nosurf 默认的纯文本 403 —— 迁移期两端并存，
+	// 页面直接吐出默认错误页与其它页面样式不一致，用户会以为站点坏了。
+	// 站点跑在 nginx 后面：TLS 在 nginx 终止，Go 看到的 r.TLS 恒为 nil。
+	// nosurf 默认把每个请求都当 HTTPS（保守假设），而实际是 HTTP，
+	// 于是同源页面发来的 Origin（http://...）会被判成跨源。
+	//
+	// 所以按 X-Forwarded-Proto 判定。它由 nginx 以 $scheme 写入，
+	// 客户端无法伪造：nginx 的 proxy_set_header 会覆盖掉来路上的同名头。
+	h.SetIsTLSFunc(func(r *http.Request) bool {
+		return r.Header.Get("X-Forwarded-Proto") == "https" || r.TLS != nil
+	})
+
+	h.SetFailureHandler(http.HandlerFunc(csrfFailure))
+
+	return h
+}
+
+// csrfFailure 是 CSRF 校验失败时的响应。
+//
+// 迁移期两端并存，不能用 nosurf 默认的纯文本 403：直接吐默认错误页
+// 与其它页面样式不一致，用户会以为站点坏了。这里复用登录失败那套
+// alert + 后退，让它看起来像一次普通的表单过期。
+//
+// 仍然走模板渲染 —— 脚本里内插消息必须由 html/template 在 JS 上下文
+// 转义，手写拼接迟早会因为漏掉 </script> 而漏成 XSS。
+func csrfFailure(w http.ResponseWriter, r *http.Request) {
+	renderRaw(w, http.StatusOK, "alertAndBack",
+		alertView{Message: "页面已过期，请刷新后重试！"})
+}
+
+// csrfToken 返回本次请求应当嵌入表单的 token。
+//
+// 安全上可以无条件签发：token 与该用户自己的 Cookie 绑定，
+// 跨站页面即使诱导服务端签发，攻击者也无法替受害者构造出
+// "受害者的 Cookie + 对应的表单 token" 这一对。
+func csrfToken(r *http.Request) string {
+	return nosurf.Token(r)
+}

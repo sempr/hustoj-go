@@ -4,7 +4,11 @@ After=network.target
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/hustoj-go daemon --ojhome /home/judge --debug
+# 评审守护进程也写 judgetime=now()、并按 DATETIME 读取时间，因此需要与
+# Web 相同的进程时区；具体值由部署配置决定，代码里不写死。
+# 说明见 hustoj-web.service 里的 Environment=TZ= 注释。
+Environment=TZ=Asia/Shanghai
+ExecStart=/usr/bin/hustoj daemon --ojhome /home/judge --debug
 Restart=on-failure
 RestartSec=5s
 User=root
