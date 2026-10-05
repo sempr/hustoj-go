@@ -104,10 +104,33 @@ func setupReviewFixture(t *testing.T, srv *Server) {
 		}
 	}
 	cleanup := func() {
-		_, _ = srv.db.ExecContext(ctx, `DELETE FROM solution WHERE solution_id >= 9900000`)
-		_, _ = srv.db.ExecContext(ctx, `DELETE FROM contest_problem WHERE contest_id = ?`, reviewFixtureID)
-		_, _ = srv.db.ExecContext(ctx, `DELETE FROM contest WHERE contest_id IN (?, 999999)`,
-			reviewFixtureID, 999999)
+		t.Helper()
+		// 清理失败必须报出来。之前这里是 `_, _ =`，删除被静默吞掉，下一个
+		// 用例再插同一批固定 ID 就会撞 Duplicate entry，而且看不出是哪一步
+		// 没删掉。
+		//
+		// 也不能用 `DELETE FROM solution WHERE solution_id >= 9900000` 这种
+		// 阈值删除：下面要显式指定 solution_id（Add 的累加依赖提交顺序），
+		// 那些显式 ID 会把 AUTO_INCREMENT 顶到 9900007，于是之后所有自动
+		// 生成的 solution_id 都 >= 9900000，会被这个阈值删掉 —— 别的用例
+		// （以及手工造的影子库数据）会莫名其妙地丢提交。
+		for _, d := range []struct {
+			q    string
+			args []any
+		}{
+			{`DELETE FROM solution WHERE contest_id IN (?, 999999)`,
+				[]any{reviewFixtureID}},
+			{`DELETE FROM solution WHERE user_id IN (?, ?, ?, ?)`,
+				[]any{"rv1", "rv2", "rv3", "rv4"}},
+			{`DELETE FROM contest_problem WHERE contest_id = ?`, []any{reviewFixtureID}},
+			// 999999 是字面量，不是占位符，只能传一个参数。
+			{`DELETE FROM contest WHERE contest_id IN (?, 999999)`,
+				[]any{reviewFixtureID}},
+		} {
+			if _, err := srv.db.ExecContext(ctx, d.q, d.args...); err != nil {
+				t.Errorf("清理 fixture 失败 (%s): %v", d.q, err)
+			}
+		}
 	}
 	cleanup()
 	t.Cleanup(cleanup)

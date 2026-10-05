@@ -337,14 +337,19 @@ func TestSec2Str(t *testing.T) {
 		3661:  "01:01:01",
 		86399: "23:59:59",
 		90000: "25:00:00", // 超过 24 小时不环绕
+		// 负数不归零：PHP 的 %02d 会把负号算进宽度，秒位更是直接输出负值。
+		// 续赛比赛会把开赛前的提交算成负时间，contestrank.xls.php 的 Add
+		// 又没有 sec<0 早退，所以这条路径真的会出现。
+		// （对拍 cid=980001 时 PHP 输出 "-1:00:00"。）
+		-5:    "00:00:-5",
+		-61:   "00:-1:-1",
+		-3600: "-1:00:00",
+		-3661: "-1:-1:-1",
 	}
 	for sec, want := range cases {
 		if got := sec2str(sec); got != want {
 			t.Errorf("sec2str(%d) = %q，期望 %q", sec, got, want)
 		}
-	}
-	if got := sec2str(-5); got != "00:00:00" {
-		t.Errorf("负秒数应归零，实际 %q", got)
 	}
 }
 

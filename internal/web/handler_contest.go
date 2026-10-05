@@ -521,5 +521,6 @@ func (s *Server) registerContestRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /contestrank5.php", func(w http.ResponseWriter, r *http.Request) {
 		s.handleContestReviewRank(w, r, rankOI)
 	})
+	mux.HandleFunc("GET /contestrank.xls.php", s.handleContestRankXLS)
 	mux.HandleFunc("GET /conteststatistics.php", s.handleContestStatistics)
 }

@@ -194,13 +194,14 @@ func contestProblemLetter(num int) string {
 
 // sec2str 复刻 PHP 的 sec2str()（include/my_func.inc.php:605）。
 //
-// PHP 的 sprintf("%02d:%02d:%02d", $sec/3600, $sec%3600/60, $sec%60) 会对
-// 三个参数各自截断为整数，这里显式整除，结果相同。
+// PHP 是 sprintf("%02d:%02d:%02d", $sec/3600, $sec%3600/60, $sec%60)：三个
+// 参数都是表达式而非字面整除，先算出浮点再各自截断为整数，负数按"向零截断"
+// 处理且 %02d 会把负号算进宽度（-3600 → "-1:00:00"，-61 → "00:-1:-1"）。
+// 续赛比赛会把开赛前的提交算成负时间，所以不能把负值夹到 0。
 func sec2str(sec int) string {
-	if sec < 0 {
-		sec = 0
-	}
-	return fmt.Sprintf("%02d:%02d:%02d", sec/3600, sec%3600/60, sec%60)
+	hours := int(float64(sec) / 3600)
+	minutes := int(float64(sec%3600) / 60)
+	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, sec%60)
 }
 
 // rankSolution 是取数用的中间结构，对应 contest_solutions.php 的查询列。

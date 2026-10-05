@@ -147,6 +147,28 @@ Go 侧全部经 `html/template` 转义。
   比赛未开始、密码错误都是正常状态，用 404 会让监控误判。
   密码输入表单不实现：它 POST 到 `contest.php?cid=`，该路径仍在 PHP 侧。
 
+排名页与导出（已迁移）：
+
+- `/contestrank.php` — 正式榜；`/contestrank4.php`、`/contestrank5.php` — 补题榜
+  （`handler_contest_review.go`，解决集 × ACM/OI 两种计分）。
+- `/contestrank.xls.php` — Excel 导出（`handler_contest_xls.go`）。
+  输出是 `application/excel` 的 HTML table，**不是 XLSX**，不要"改成"真 xlsx。
+- 取题键统一是 `contest_problem.num`（0-based 存储，1-based 展示）。
+- XLS 的 mark 由排序后的名次做正态分布分配（`getMark`，mark_start=60、
+  mark_end=100、sigma=5），**会覆盖**按题累加的 mark；单题比赛直接满分
+  （`mark_base=100`）。WA 惩罚取整数秒，AC 惩罚是首个 AC 与上次 AC 的差值。
+- XLS 无时间窗口：`contest_id=? AND num>=0 AND problem_id>0`，按
+  `user_id, solution_id` 排序，逐条累加。封榜隐藏只看
+  `in_date > end - 封榜比例*赛长`，豁免**仅管理员**（比 NOIP 豁免窄）。
+- XLS 不复刻两个上游缺陷：`getMark` 的零除（PHP 会
+  `DivisionByZeroError` 并截断页面，Go 输出完整空表）；NOIP/locked 走
+  `error.php` 整页（Go 沿用站内 `errorPage`，外框不同、语义相同）。
+- XLS 保留 `sec2str()` 的负数语义（`-3600 -> -1:00:00`），与
+  contestrank.php 共用 `handler_rank.go` 里的同一个实现。
+- XLS 的 Excel 公式注入防护按**实际行为**而非本意实现：PHP 写的
+  `/^[=+-@]/` 里 `-` 未转义，PCRE 解释成 `+`(0x2B) 到 `@`(0x40) 的区间，
+  因此 `,` `-` `.` `/` 数字 `:` `;` `<` `>` `?` 也都会命中。
+
 ### 4.2 关键实现约束
 
 - **路径与 PHP 完全一致**，切流只改 nginx 路由，不改 URL、不做重定向。
@@ -158,6 +180,10 @@ Go 侧全部经 `html/template` 转义。
 - **未登录时不查用户完成状态**（与 PHP 一致），否则每个匿名请求都会触发
   `solution` 表扫描。
 - **管理员优先于自由练习开关**（`problemset.php:120` 的判断顺序）。
+- **排名排序用 `sort.SliceStable`**：PHP 8 的 `usort` 已稳定，且
+  `contestrank.xls.php` 的 `s_cmp` 字面返回 `$A->solved < $B->solved`
+  （布尔被 usort 当"排在前"），实际语义是 **solved 降序 + time 升序**。
+  别照字面抄，也别换成不稳定的 `sort.Slice`。
 
 ### 4.3 未实现（切流前必须补）
 
@@ -195,6 +221,33 @@ PHP 侧由 `php` 解释器执行 `problemset.php` 的原始拼装逻辑返回 `p
 而不是用 Go 重写一遍 —— 否则 PHP 源码一改，"权威实现"就悄悄过期了。
 
 覆盖 3 模式 × 4 搜索词 × 3 页 = 36 组，外加计数与完成状态。
+
+排名页/XLS 另有一条独立的对拍链路（oracle 是部署树
+`/home/judge/src/web`，经 `/tmp/run_xls4.php` 输出，注意它必须
+`include/memcache.php`，否则 PHP 8.5 报未定义
+`mysql_query_cache()`）：
+
+```bash
+/tmp/cmp_xls.sh                      # 默认 cid 列表，逐行 diff
+HUSTOJ_XLS_DUMP=/tmp/go_xls HUSTOJ_XLS_CIDS=1000 \
+HUSTOJ_EQUIV_DSN='...' TZ=Asia/Shanghai \
+  go test ./internal/web -run TestContestRankXLSOracleDump
+```
+
+导出 HTML 由 `TestContestRankXLSOracleDump` 落盘（`*.html` + `*.headers`），
+常规测试运行自动跳过。合成数据在 `/tmp/xls_fixture.sql`，
+清理用 `/tmp/xls_fixture_cleanup.sql`。
+
+**fixture 与测试共享同一个影子库，两个坑：**
+
+- 补题榜 fixture 用显式 `solution_id`（`Add` 累加依赖提交顺序），
+  会把 `solution` 的 AUTO_INCREMENT 顶上去。所以清理**不能**用
+  `DELETE ... WHERE solution_id >= 9900000` 这种阈值，会连带删掉别的用例
+  自动生成的行。改为按 `contest_id` / `user_id` 精确删。
+- **不要在常驻 fixture 里造"进行中的 NOIP 比赛"**：`ranklist.php` 会全局
+  拦截任何进行中的 NOIP 比赛（非管理员），一个常驻的 980005 会让
+  `TestRanklistRenderIntegration` 稳定失败。XLS 的 NOIP 分支用一次性 SQL
+  `/tmp/xls_noip_probe.sql` 造，对拍完立刻 `/tmp/xls_noip_cleanup.sql` 删。
 
 ### 5.2 已知的对拍盲区
 
