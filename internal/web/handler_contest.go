@@ -512,5 +512,14 @@ func (s *Server) registerContestRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /contestrank-oi.php", func(w http.ResponseWriter, r *http.Request) {
 		s.handleContestRankMode(w, r, rankOI)
 	})
+	// 补题榜：比赛结束后在练习里补做比赛原题的排名，取数口径与上面两个正式榜
+	// 不同（按 problem_id + 开赛时间取，不按 contest_id），见
+	// handler_contest_review.go 的说明。
+	mux.HandleFunc("GET /contestrank4.php", func(w http.ResponseWriter, r *http.Request) {
+		s.handleContestReviewRank(w, r, rankACM)
+	})
+	mux.HandleFunc("GET /contestrank5.php", func(w http.ResponseWriter, r *http.Request) {
+		s.handleContestReviewRank(w, r, rankOI)
+	})
 	mux.HandleFunc("GET /conteststatistics.php", s.handleContestStatistics)
 }

@@ -525,7 +525,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <td class="text-center">解题数</td>
 <td class="text-center">罚时</td>
 {{if .OI}}<td class="text-center">总分</td>{{end}}
-{{range $i, $l := .Letters}}<th><a href="problem.php?cid={{$.CID}}&pid={{$i}}">{{$l}}</a></th>{{end}}
+{{range $i, $l := .Letters}}{{if $.Review}}<th><a href="problem.php?id={{index $.ProblemIDs $i}}">{{$l}}</a></th>{{else}}<th><a href="problem.php?cid={{$.CID}}&pid={{$i}}">{{$l}}</a></th>{{end}}{{end}}
 <th></th>
 </tr>
 </thead>
@@ -621,6 +621,53 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <div class="ui list">
 {{range .Absent}}<a href="userinfo.php?user={{.UserID}}">{{.UserID}}</a>&nbsp;{{end}}
 </div>
+</div>
+{{end}}
+</div>
+{{end}}
+
+{{/* 补题榜 contestrank4.php / contestrank5.php。
+
+   和正式榜共用 contestRankProblems 表格，差别有三处，都是照抄部署版模板：
+   1. 标题后面缀"补题榜"，右上角只有"返回"按钮指回正式榜（正式榜才有下载/复盘）。
+      template/syzoj/contestrank4.php:41-43。
+   2. 题头链到 problem.php?id=<problem_id> 而不是 problem.php?cid=&pid=<题号>。
+   3. 没有"缺席"区块 —— 部署版补题榜不查缺席名单。 */}}
+{{define "contestRankReviewACM"}}
+<div style="margin-bottom:40px;" class="padding">
+<h1 style="text-align:left;">Contest{{.CID}} - {{.Title}} - 补题榜
+<button class="ui small yellow button" onclick='$("tr[class!=active]").toggle();'>显示/隐藏</button>
+<a class="ui small blue button" href="{{.BackURL}}">返回</a>
+</h1>
+{{if .Locked}}<div class="ui info message">The board has been locked.</div>{{end}}
+</div>
+<div id="rankdiv" class="padding">
+{{if .Rows}}
+{{template "contestRankProblems" .}}
+{{else}}
+<div style="background-color:#fff;height:18px;margin-top:-18px;"></div>
+<div class="ui placeholder segment" style="margin-top:0px;">
+<div class="ui icon header"><i class="ui file icon" style="margin-bottom:20px;"></i>暂无选手提交</div>
+</div>
+{{end}}
+</div>
+{{end}}
+
+{{define "contestRankReviewOI"}}
+<div style="margin-bottom:40px;" class="padding">
+<h1 style="text-align:left;">Contest{{.CID}} -- {{.Title}} -- 补题榜
+<button class="ui small yellow button" onclick='$("tr[class!=active]").toggle();'>显示/隐藏</button>
+<a class="ui small blue button" href="{{.BackURL}}">返回</a>
+</h1>
+{{if .Locked}}<div class="ui info message">The board has been locked.</div>{{end}}
+</div>
+<div id="rankdiv" class="padding">
+{{if .Rows}}
+{{template "contestRankProblems" .}}
+{{else}}
+<div style="background-color:#fff;height:18px;margin-top:-18px;"></div>
+<div class="ui placeholder segment" style="margin-top:0px;">
+<div class="ui icon header"><i class="ui file icon" style="margin-bottom:20px;"></i>暂无选手提交</div>
 </div>
 {{end}}
 </div>

@@ -498,17 +498,23 @@ type rankRow struct {
 	Cells    []rankProblemCell
 }
 
-// contestRankView 是两个排名模板共用的数据。
+// contestRankView 是排名模板共用的数据。
+//
+// Review / BackURL / ProblemIDs 只在补题榜（contestrank4.php、contestrank5.php）
+// 里有值，正式榜保持零值，见 handler_contest_review.go。
 type contestRankView struct {
-	CID      int32
-	Title    string
-	Mode     rankMode
-	OI       bool
-	Letters  []string
-	Rows     []rankRow
-	Absent   []absentUser
-	Locked   bool
-	ViewUser string
+	CID        int32
+	Title      string
+	Mode       rankMode
+	OI         bool
+	Review     bool // 补题榜：题头链 problem.php?id=，无缺席区块
+	Letters    []string
+	ProblemIDs []int32 // 补题榜：题号 → problem_id
+	BackURL    string  // 补题榜：返回正式榜的链接
+	Rows       []rankRow
+	Absent     []absentUser
+	Locked     bool
+	ViewUser   string
 }
 
 func newContestRankView(cid int32, title string, mode rankMode,
