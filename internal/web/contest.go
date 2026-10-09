@@ -81,7 +81,7 @@ const contestLimitKeyword = "限时"
 // subnet/defunct/private/未开始检查都不看 OJ_FREE_PRACTICE，该开关在
 // problem.php:65 只影响空结果时错误页的文案，且两种情况最终都是错误页。
 // 若在这里放行会绕过私有比赛校验，属于越权。
-func EvaluateContestAccess(ctx context.Context, q dbgen.Querier, c dbgen.GetContestByIDRow, id Identity, now time.Time, remoteIP string, hasSession bool) (ContestAccess, error) {
+func EvaluateContestAccess(ctx context.Context, q dbgen.FullQuerier, c dbgen.GetContestByIDRow, id Identity, now time.Time, remoteIP string, hasSession bool) (ContestAccess, error) {
 	res := ContestAccess{Contest: c}
 
 	// subnet 为空表示不限制（in_subnet_of_contest:265-276）。
@@ -157,7 +157,7 @@ func hasContestTimeLimit(description string) bool {
 }
 
 // HasContestPrivilege 查询用户是否被邀请参加私有比赛。
-func HasContestPrivilege(ctx context.Context, q dbgen.Querier, userID string, contestID int32) (bool, error) {
+func HasContestPrivilege(ctx context.Context, q dbgen.FullQuerier, userID string, contestID int32) (bool, error) {
 	ok, err := q.HasContestPrivilege(ctx, dbgen.HasContestPrivilegeParams{
 		UserID:   userID,
 		Rightstr: "c" + strconv.Itoa(int(contestID)),
@@ -227,7 +227,7 @@ func ipInSubnet(ip net.IP, cidr string) bool {
 // 按 contest_problem.num 取题（problem.php:95-97），不按 problem_id。
 // 注意这里不做任何 defunct 过滤：比赛模式下已删除的题目仍要能打开，
 // 否则赛中改题会导致选手点不开题面。
-func ContestProblem(ctx context.Context, q dbgen.Querier, contestID, pid int32) (dbgen.Problem, error) {
+func ContestProblem(ctx context.Context, q dbgen.FullQuerier, contestID, pid int32) (dbgen.Problem, error) {
 	problemID, err := q.GetContestProblemID(ctx, dbgen.GetContestProblemIDParams{
 		ContestID: sql.NullInt32{Int32: contestID, Valid: true},
 		Num:       pid,
@@ -246,7 +246,7 @@ func ContestProblem(ctx context.Context, q dbgen.Querier, contestID, pid int32) 
 //
 // problem.php:151-157 的 $flag 分支按比赛标题关键字判断，
 // 这里合并了两者：只要命中关键字或 contest_type 位即可。
-func IsNoIPLocked(ctx context.Context, q dbgen.Querier, problemID int32, keyword string, now time.Time) (bool, error) {
+func IsNoIPLocked(ctx context.Context, q dbgen.FullQuerier, problemID int32, keyword string, now time.Time) (bool, error) {
 	locked, err := q.IsProblemLocked(ctx, dbgen.IsProblemLockedParams{
 		ProblemID: problemID,
 		Level:     sql.NullInt16{Int16: 28, Valid: true},

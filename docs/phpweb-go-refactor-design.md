@@ -185,17 +185,25 @@ Go 侧全部经 `html/template` 转义。
   （布尔被 usort 当"排在前"），实际语义是 **solved 降序 + time 升序**。
   别照字面抄，也别换成不稳定的 `sort.Slice`。
 
-### 4.3 未实现（切流前必须补）
+### 4.3 其余已迁移路径
 
-- **PHP session 桥**。`Identity` 目前恒为匿名，`UserID` 为空 → AC 标记不显示；
-  私有比赛对带会话的受邀用户也会被 Go 拒绝（无法验证受邀标记）。
-  接上会话后 `Identity` 补 `UserID` 即可，查询与模板都不用改。
-  阻塞原因：缺真实脱敏 session fixture。
-- **个人限时赛的 loginlog 计时**：session 桥落地后，把
-  contest-check.php:101-140 的计时逻辑补进 Go，届时需要给
-  `hustoj-go-web.service` 的 `ReadWritePaths` 复核（loginlog 是 DB 写入，
-  不需要文件路径）。
-- 提交、登录、管理后台等其余路径。
+- **PHP session 桥**（`session_bridge.go`、`session.go`）：只读解析 PHP
+  会话文件，把 `UserID`、管理员标识、`m<cid>` 限时赛已用标记、`c<cid>`
+  私有比赛受邀标记映射进 `Identity`；`main.go` 按 `cfg.SessionBridge`
+  接线。Go 自建会话与 PHP 桥并存，注册/登录/登出写 Go 会话
+  （`loginpage.php`/`login.php`/`registerpage.php`/`register.php`/
+  `logout.php`/`vcode.php`）。
+- **个人限时赛计时**：session 桥落地后，`Identity.ContestTimeLimitUsed`
+  已由 `session.go:138` 与 `session_bridge.go:123` 填充，
+  `EvaluateContestAccess`（`contest.go:130`）据此拒绝超时。
+- **提交路径**：`submitpage.php`、`submit.php`。`submit.php` 的 token
+  在一次提交与多次轮询间可重复使用，走 `csrf_check_ajax.php` 的非单次
+  消费校验（已由 CSRF 回归覆盖）。
+- **状态页**：`status.php`。
+- **档案页**：`userinfo.php`（含名次重算、金币重算、登录日志仅管理员）。
+- **排名页**：`ranklist.php`（scope/非 scope 两种模式）。
+- **比赛列表**：`contest.php`（含"我的比赛"三路来源）。
+- **后台**：目前仅 `admin/problem_batch_delete.php`（事务化重写）。
 
 ---
 
@@ -354,12 +362,11 @@ tar xzf /root/backup/web-<时间戳>.tar.gz -C /home/judge/src
 
 ## 7. 后续工作
 
-1. **PHP session 桥** —— 解锁 AC 标记与登录态。需要真实脱敏 session fixture。
-2. **提交/登录路径** —— `submit.php` 的 token 在一次提交与多次轮询间可重复使用，
-   必须用 `csrf_check_ajax.php`（非单次消费的 `csrf_check.php`）。
-3. **比赛与后台**。
-4. **MyISAM → InnoDB** —— 21 张表是 MyISAM（`online` 是 MEMORY，
+1. **补齐后台路径** —— 目前仅 `admin/problem_batch_delete.php` 已迁移，
+   其余 `admin/*` 页面（题目/比赛/用户管理）仍在 PHP 侧。
+2. **MyISAM → InnoDB** —— 21 张表是 MyISAM（`online` 是 MEMORY，
    `solution_ai_answer` 是 InnoDB）。转换前必须在 MariaDB 11.8.6 影子环境验证
    锁、deadlock 与 judged-go 取件一致性。当前无影子环境，不要动。
-5. **`admin/problem_batch_delete.php` 非原子** —— 涉及多表与文件删除回滚。
-6. **数据库用户缺 `CREATE` 权限** —— 无法建影子库做数据级对拍。
+3. **`admin/problem_batch_delete.php` 非原子** —— 涉及多表与文件删除回滚。
+   Go 侧已事务化，但 PHP 侧仍是旧的逐条删除。
+4. **数据库用户缺 `CREATE` 权限** —— 无法建影子库做数据级对拍。

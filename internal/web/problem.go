@@ -155,7 +155,7 @@ func nowArg(now time.Time) sql.NullTime { return sql.NullTime{Time: now, Valid: 
 func SplitSource(s string) []string { return strings.Fields(s) }
 
 // count 按访问者模式选对应的计数查询。
-func count(ctx context.Context, q dbgen.Querier, v Viewer, kw string, now time.Time) (int64, error) {
+func count(ctx context.Context, q dbgen.FullQuerier, v Viewer, kw string, now time.Time) (int64, error) {
 	switch v {
 	case ViewerAdmin:
 		if kw != "" {
@@ -181,7 +181,7 @@ func count(ctx context.Context, q dbgen.Querier, v Viewer, kw string, now time.T
 // list 按访问者模式选对应的列表查询，并把各查询各自的 Row 类型归一到
 // ProblemSummary。归一在这里做而不是让 sqlc 生成统一类型，是为了保持
 // 每条查询都能直接对着 PHP 源码核对。
-func list(ctx context.Context, q dbgen.Querier, v Viewer, kw string, now time.Time, offset int) ([]ProblemSummary, error) {
+func list(ctx context.Context, q dbgen.FullQuerier, v Viewer, kw string, now time.Time, offset int) ([]ProblemSummary, error) {
 	limit := int32(pageSize)
 	off := int32(offset)
 
@@ -286,7 +286,7 @@ func list(ctx context.Context, q dbgen.Querier, v Viewer, kw string, now time.Ti
 // page 从 1 开始，与 PHP 的 $page 语义一致。越界页返回空列表而非报错，
 // 对应 PHP 在超出末页时 foreach 空结果什么都不输出。
 func ListProblems(
-	ctx context.Context, q dbgen.Querier,
+	ctx context.Context, q dbgen.FullQuerier,
 	v Viewer, userID string, page int, kw string, now time.Time,
 ) (ProblemListPage, error) {
 	if page < 1 {
@@ -351,7 +351,7 @@ func ListProblems(
 // 这里照搬 —— 放宽或收紧任何一侧都会让用户在切流瞬间看到不同的题目。
 //
 // 查不到（sql.ErrNoRows）由调用方转成 404。
-func GetProblem(ctx context.Context, q dbgen.Querier, v Viewer, id int32, now time.Time) (ProblemDetail, error) {
+func GetProblem(ctx context.Context, q dbgen.FullQuerier, v Viewer, id int32, now time.Time) (ProblemDetail, error) {
 	var (
 		r   dbgen.Problem
 		err error

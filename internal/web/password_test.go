@@ -15,11 +15,6 @@ import (
 	"testing"
 )
 
-// PHP 基准值：pwGen("password123") 的实际输出（用 PHP 生成后固定下来）。
-// 盐值是 PHP 侧随机产生的，因此这里只固定"格式"，
-// 真正的互通性由 TestPWCheckPHPVector 逐位验证。
-const phpPwGenSample = "tZEHBXlL7LdEQ1C5b0eLfn3Lhp4lQ9Uc50cr1SZBWjM="
-
 // phpHash 用 PHP 的算法在 Go 里重算一遍，作为"实现是否偏离 PHP"的探针。
 // 它与 pwCheck 独立：若两者写的是同一份逻辑，共用错误就无法被发现。
 func phpHash(password, salt string) string {

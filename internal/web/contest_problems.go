@@ -127,7 +127,7 @@ func (f contestProblemFlags) maskAccepted() bool {
 // fillContestProblems 补全每个题目的运行时字段。
 //
 // 对应 contest.php:77-135 的循环体。
-func (s *Server) fillContestProblems(ctx context.Context, q dbgen.Querier,
+func (s *Server) fillContestProblems(ctx context.Context, q dbgen.FullQuerier,
 	probs []ContestProblemItem, cid int32, id Identity, f contestProblemFlags) error {
 
 	// isManager 决定两件事：能否看提交数、赛后能否看到被隐藏的标题。
@@ -215,7 +215,7 @@ func (s *Server) fillContestProblems(ctx context.Context, q dbgen.Querier,
 // 随后是一段豁免：管理员、本场 m<cid>、source_browser、contest_creator
 // 都把 $noip 强制置为 false。这段豁免**只作用于 $noip**，
 // 不影响 $hide_others，也不影响 maskAccepted。
-func (s *Server) contestNoIPFlags(ctx context.Context, q dbgen.Querier,
+func (s *Server) contestNoIPFlags(ctx context.Context, q dbgen.FullQuerier,
 	contest dbgen.GetContestByIDRow, cid int32, id Identity, now int64) (contestProblemFlags, error) {
 
 	f := contestProblemFlags{

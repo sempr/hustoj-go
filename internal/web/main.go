@@ -36,7 +36,7 @@ type Server struct {
 	// 早期骨架的 checkDatabase 用临时连接做 Ping，New 已改为长期持有。
 	db *sql.DB
 	// q 允许测试注入替身；为 nil 时回落到 dbgen.New(db)。
-	q dbgen.Querier
+	q dbgen.FullQuerier
 
 	// sessions 是 Go 自身的会话存储（Redis），登录态与 CSRF 的真相来源。
 	sessions *GoSessionStore

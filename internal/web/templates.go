@@ -892,11 +892,6 @@ type pageData struct {
 	Content template.HTML
 }
 
-// contestListView 是比赛列表页模板的数据。
-type contestListView struct {
-	Contests []ContestListItem
-}
-
 // contestProblemsView 是比赛题目页模板的数据。
 type contestProblemsView struct {
 	Contest  dbgen.GetContestByIDRow

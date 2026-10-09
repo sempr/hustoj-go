@@ -36,7 +36,7 @@ type ContestListItem struct {
 }
 
 // ListContests 返回比赛列表（对应 contest.php 无 cid 分支）。
-func ListContests(ctx context.Context, q dbgen.Querier, now time.Time) ([]ContestListItem, error) {
+func ListContests(ctx context.Context, q dbgen.FullQuerier, now time.Time) ([]ContestListItem, error) {
 	// PHP: SELECT * FROM contest WHERE defunct='N' ORDER BY contest_id DESC
 	rows, err := q.ListContests(ctx)
 	if err != nil {
@@ -91,7 +91,7 @@ type ContestProblemItem struct {
 }
 
 // GetContestProblems 取比赛的题目列表（对应 contest.php:59-63）。
-func GetContestProblems(ctx context.Context, q dbgen.Querier, cid sql.NullInt32) ([]ContestProblemItem, error) {
+func GetContestProblems(ctx context.Context, q dbgen.FullQuerier, cid sql.NullInt32) ([]ContestProblemItem, error) {
 	rows, err := q.GetContestProblems(ctx, cid)
 	if err != nil {
 		return nil, err
@@ -132,14 +132,14 @@ type RankProblem struct {
 }
 
 // GetContestRankACM ACM 模式排名（contestrank.php）。
-func GetContestRankACM(ctx context.Context, q dbgen.Querier, cid int32) ([]RankRow, error) {
+func GetContestRankACM(ctx context.Context, q dbgen.FullQuerier, cid int32) ([]RankRow, error) {
 	// 复杂查询：按用户聚合 solution，计算 solved/penalty
 	// 简化版：先返回空，后续补全
 	return nil, nil
 }
 
 // GetContestRankOI OI 模式排名（contestrank-oi.php）。
-func GetContestRankOI(ctx context.Context, q dbgen.Querier, cid int32) ([]RankRow, error) {
+func GetContestRankOI(ctx context.Context, q dbgen.FullQuerier, cid int32) ([]RankRow, error) {
 	return nil, nil
 }
 
@@ -157,7 +157,7 @@ type StatRow struct {
 }
 
 // GetContestStatistics 比赛统计（conteststatistics.php）。
-func GetContestStatistics(ctx context.Context, q dbgen.Querier, cid int32) ([]StatRow, error) {
+func GetContestStatistics(ctx context.Context, q dbgen.FullQuerier, cid int32) ([]StatRow, error) {
 	return nil, nil
 }
 

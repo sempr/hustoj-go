@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/alicebob/miniredis/v2"
-	"github.com/go-redis/redis/v8"
 )
 
 // newTestSessionStore 起一个隔离的 Redis 并返回对应的会话存储。
@@ -35,11 +34,4 @@ func newTestSessionStore(t *testing.T) *GoSessionStore {
 		_ = store.Close()
 	})
 	return store
-}
-
-// testRedisClient 直接给出底层客户端，用于断言 TTL、key 前缀等
-// 存储层细节 —— 这些是 `Save` 的契约的一部分，光看返回值测不到。
-func testRedisClient(t *testing.T, store *GoSessionStore) *redis.Client {
-	t.Helper()
-	return store.rdb
 }

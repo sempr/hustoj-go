@@ -252,7 +252,8 @@ FROM contest
 ORDER BY contest_id DESC;
 
 -- name: GetContestProblems :many
-SELECT cp.num, p.problem_id, p.title, p.source, p.coin
+SELECT cp.num, p.problem_id, p.title, p.source, p.coin,
+       cp.c_accepted, cp.c_submit
 FROM contest_problem cp
 INNER JOIN problem p ON cp.problem_id = p.problem_id
 WHERE cp.contest_id = sqlc.arg(contest_id)

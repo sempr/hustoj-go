@@ -7,26 +7,8 @@
 package web
 
 import (
-	"crypto/subtle"
-	"html"
 	"net/http"
-	"strings"
 )
-
-// constantTimeEqual 定长比较，避免按字节提前返回泄露前缀。
-func constantTimeEqual(a, b string) bool {
-	return subtle.ConstantTimeCompare([]byte(a), []byte(b)) == 1
-}
-
-// htmlEscapeAttr 转义 HTML 属性值。
-func htmlEscapeAttr(s string) string {
-	return html.EscapeString(s)
-}
-
-// trimSpace 去首尾空白，对应 PHP 的 trim() 语义上的常用部分。
-func trimSpace(s string) string {
-	return strings.TrimSpace(s)
-}
 
 // alertAndBack 弹出提示并后退，对应 PHP 的 alert + history.go(-1)。
 //

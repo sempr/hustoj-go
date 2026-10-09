@@ -11,7 +11,7 @@ import (
 	"github.com/sempr/hustoj-go/pkg/dbgen"
 )
 
-// fakeQuerier 实现 dbgen.Querier，用于在不连库的前提下验证
+// fakeQuerier 实现 dbgen.FullQuerier，用于在不连库的前提下验证
 // "选了哪条查询、传了什么参数、结果怎么组装"。
 //
 // 之所以不用 sqlmock：那类库只能断言 SQL 字符串，而本层真正要守的是
@@ -134,7 +134,7 @@ type fakeRow struct {
 	Coin     uint32
 }
 
-var _ dbgen.Querier = (*fakeQuerier)(nil)
+var _ dbgen.FullQuerier = (*fakeQuerier)(nil)
 
 func (f *fakeQuerier) note(name string) { f.called = append(f.called, name) }
 
@@ -730,7 +730,7 @@ func TestViewerString(t *testing.T) {
 //
 // 提交链路的查询在 submit_test.go 里逐条断言，这里只提供最小实现：
 // 记录调用名并返回可注入的结果。缺一个方法就会在
-// `var _ dbgen.Querier` 处编译失败，所以新增查询时必须回到这里补替身 ——
+// `var _ dbgen.FullQuerier` 处编译失败，所以新增查询时必须回到这里补替身 ——
 // 这是刻意的：它保证测试替身不会悄悄落后于真实查询集。
 
 func (f *fakeQuerier) CountPendingJudges(context.Context) (int64, error) {
@@ -832,8 +832,8 @@ func (f *fakeQuerier) IncrementContestProblemSubmit(_ context.Context, _ dbgen.I
 
 // ── 档案页与比赛列表的替身 ────────────────────────────────────────────
 //
-// 同上：新增 dbgen.Querier 方法时必须在这里补替身，
-// 否则 `var _ dbgen.Querier` 会编译失败。
+// 同上：新增 dbgen.FullQuerier 方法时必须在这里补替身，
+// 否则 `var _ dbgen.FullQuerier` 会编译失败。
 //
 // 档案页的组装逻辑（等级计算、学号映射、颜色判定、差集去重）
 // 在 handler_userinfo_test.go 里用这些字段驱动验证；

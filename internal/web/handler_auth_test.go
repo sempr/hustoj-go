@@ -32,8 +32,6 @@ type authFixture struct {
 	srv     *Server
 	session string // $OJ_NAME
 	dir     string
-	// 记录 INSERT loginlog 的行，供失败频次测试断言
-	loginLogCount int
 }
 
 // testUserIDs 是本文件用到的全部合成账号。
@@ -742,6 +740,9 @@ func TestLogout(t *testing.T) {
 	rec := jar.postForm(t, f.srv, "/login.php", url.Values{
 		"user_id": {"grace"}, "password": {"secret123"}, "csrf_token": {token},
 	})
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("登录 = %d, want 303", rec.Code)
+	}
 	sid := jar.sid
 
 	rec = jar.get(t, f.srv, "/logout.php")

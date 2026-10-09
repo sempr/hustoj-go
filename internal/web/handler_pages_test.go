@@ -381,5 +381,5 @@ func trunc(s string, n int) string {
 	return s[:n] + "…"
 }
 
-// 编译期断言：确保 dbgen.Querier 的新方法都已在测试替身中实现。
-var _ dbgen.Querier = (*fakeQuerier)(nil)
+// 编译期断言：确保 dbgen.FullQuerier 的新方法都已在测试替身中实现。
+var _ dbgen.FullQuerier = (*fakeQuerier)(nil)

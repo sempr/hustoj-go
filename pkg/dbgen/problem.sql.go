@@ -189,7 +189,8 @@ func (q *Queries) GetContestProblemID(ctx context.Context, arg GetContestProblem
 }
 
 const getContestProblems = `-- name: GetContestProblems :many
-SELECT cp.num, p.problem_id, p.title, p.source, p.coin, cp.c_accepted, cp.c_submit
+SELECT cp.num, p.problem_id, p.title, p.source, p.coin,
+       cp.c_accepted, cp.c_submit
 FROM contest_problem cp
 INNER JOIN problem p ON cp.problem_id = p.problem_id
 WHERE cp.contest_id = ?
@@ -202,10 +203,8 @@ type GetContestProblemsRow struct {
 	Title     string         `json:"title"`
 	Source    sql.NullString `json:"source"`
 	Coin      uint32         `json:"coin"`
-	// CAccepted/CSubmit 是本场累计通过数与提交数，来自 contest_problem 的冗余列。
-	// PHP contest.php:66 取的正是这两列，缺了就没法渲染"通过/提交"。
-	CAccepted int32 `json:"c_accepted"`
-	CSubmit   int32 `json:"c_submit"`
+	CAccepted int32          `json:"c_accepted"`
+	CSubmit   int32          `json:"c_submit"`
 }
 
 func (q *Queries) GetContestProblems(ctx context.Context, contestID sql.NullInt32) ([]GetContestProblemsRow, error) {

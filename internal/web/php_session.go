@@ -29,7 +29,7 @@ import (
 // phpSession 是一个 PHP 会话文件的解析结果。
 //
 // 保留键序是为了让排障时的输出与文件内容对得上；
-// PHP 本身不依赖键序。
+// PHP 本身不依赖键序，但 session_bridge 需要按前缀扫出 c<cid>/m<cid>。
 type phpSession struct {
 	keys []string
 	vals map[string]string
@@ -163,17 +163,6 @@ func (s *phpSession) has(key string) bool {
 	return ok
 }
 
-// allKeys 返回全部会话键（保持解析时的原始顺序），主要用于调试与测试。
-func (s *phpSession) allKeys() []string {
-	out := make([]string, 0, len(s.vals))
-	for _, k := range s.keys {
-		if _, ok := s.vals[k]; ok {
-			out = append(out, k)
-		}
-	}
-	return out
-}
-
 // getString 取出字符串值。类型不符时返回 ok=false。
 func (s *phpSession) getString(key string) (string, bool) {
 	raw, ok := s.vals[key]
@@ -241,13 +230,6 @@ func (s *phpSession) getStringSlice(key string) []string {
 		pos = end
 	}
 	return out
-}
-
-// phpSerializeString 生成 s:LEN:"...";
-// 长度是字节数而非字符数：PHP strlen() 计的是字节，
-// 昵称/学校名含中文时按字符数算会被 PHP 判为损坏的序列化数据。
-func phpSerializeString(s string) string {
-	return fmt.Sprintf("s:%d:\"%s\";", len(s), s)
 }
 
 // phpStringValue 从 s:LEN:"..."; 取出内容。

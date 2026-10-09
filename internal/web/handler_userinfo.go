@@ -278,7 +278,7 @@ func (s *Server) renderUserInfoError(w http.ResponseWriter, msg string) {
 // userinfo.sql.go 各方法的注释）：写 users.solved/submit、重算 coin_earned。
 // 前者让榜单口径自愈，后者让金币与题面配置一致；漏掉任何一条都会让
 // "档案页显示的 AC 数"和"榜单里的 AC 数"长期对不上。
-func (s *Server) buildUserInfo(ctx context.Context, q dbgen.Querier, u dbgen.User,
+func (s *Server) buildUserInfo(ctx context.Context, q dbgen.FullQuerier, u dbgen.User,
 	exclude []int32, id Identity) (*userInfoView, error) {
 
 	userID := u.UserID

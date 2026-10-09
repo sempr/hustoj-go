@@ -158,13 +158,6 @@ func clampPage(p int) int {
 // 否则会走搜索分支但匹配不到任何东西。
 func parseSearch(raw string) string { return strings.TrimSpace(raw) }
 
-// renderHTML 统一写出 HTML 响应。
-func renderHTML(w http.ResponseWriter, code int, body string) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.WriteHeader(code)
-	_, _ = w.Write([]byte(body))
-}
-
 // handleProblemSet 实现 /problemset.php。
 func (s *Server) handleProblemSet(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
@@ -366,7 +359,7 @@ func (s *Server) registerProblemRoutes(mux *http.ServeMux) {
 }
 
 // queries 返回数据库查询接口。
-func (s *Server) queries() dbgen.Querier {
+func (s *Server) queries() dbgen.FullQuerier {
 	if s.q != nil {
 		return s.q
 	}

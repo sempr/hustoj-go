@@ -181,7 +181,7 @@ func phpQuote(s string) string {
 }
 
 // goIDs 用 Go 侧查询取出 problem_id 顺序。
-func goIDs(t *testing.T, q dbgen.Querier, v Viewer, page int, kw string, now time.Time) []int {
+func goIDs(t *testing.T, q dbgen.FullQuerier, v Viewer, page int, kw string, now time.Time) []int {
 	t.Helper()
 	got, err := ListProblems(context.Background(), q, v, "", page, kw, now)
 	if err != nil {

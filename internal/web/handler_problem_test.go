@@ -39,7 +39,7 @@ func newTestLogger() *slog.Logger {
 }
 
 // newTestServer 构造一个注入替身查询器、不碰真实数据库的服务。
-func newTestServer(t *testing.T, q dbgen.Querier, mutate func(*config.Config)) *Server {
+func newTestServer(t *testing.T, q dbgen.FullQuerier, mutate func(*config.Config)) *Server {
 	t.Helper()
 	cfg := config.Default()
 	if mutate != nil {
