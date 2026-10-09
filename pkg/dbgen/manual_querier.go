@@ -81,6 +81,11 @@ type ManualQuerier interface {
 	CountRanklistScopedUsers(ctx context.Context, sc RanklistScope) (int64, error)
 	// scope 模式取一页（ranklist.php:86）。
 	ListRanklistScopedUsers(ctx context.Context, sc RanklistScope, hidden []string, offset, limit int32) ([]RanklistUserRow, error)
+
+	// ── 题目提交状态页（problemstatus.php）──────────────────────────
+	//
+	// 实现见 problemstatus_manual.go。
+	ListProblemBestACSolutions(ctx context.Context, problemID int32, offset, limit int32) ([]ProblemBestACSolRow, error)
 }
 
 // FullQuerier 是 sqlc 生成的 Querier 与手写 ManualQuerier 的合集。

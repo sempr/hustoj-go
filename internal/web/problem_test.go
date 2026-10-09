@@ -122,6 +122,22 @@ type fakeQuerier struct {
 	// 未命中的日期回落到 lastSolutionDefault。
 	lastSolutionID      map[string]int64
 	lastSolutionDefault int64
+
+	// ── 单题提交状态页（problemstatus.php）─────────────────────────
+	psNOIP       int64
+	psUsers      int64
+	psACUsers    int64
+	psResults    []dbgen.GetProblemResultStatsRow
+	psInRunning  bool
+	psSolutions  []dbgen.ProblemBestACSolRow
+	psSource     sql.NullString
+	psProblemIDs []int32
+
+	// ── 源代码查看页（showsource.php）────────────────────────────
+	ssSolution      dbgen.GetSolutionByIDRow
+	ssContestWindow dbgen.GetContestWindowRow
+	ssLockedCID     int32
+	ssSource        string
 }
 
 type fakeRow struct {
@@ -1002,4 +1018,73 @@ func (f *fakeQuerier) CountRanklistScopedUsers(context.Context, dbgen.RanklistSc
 func (f *fakeQuerier) ListRanklistScopedUsers(_ context.Context, _ dbgen.RanklistScope, _ []string, _, _ int32) ([]dbgen.RanklistUserRow, error) {
 	f.note("ListRanklistScopedUsers")
 	return f.ranklistScoped, f.fail()
+}
+
+// ── 单题提交状态页（problemstatus.php）的替身 ─────────────────────────
+
+func (f *fakeQuerier) CountRunningNOIPProblemContests(_ context.Context, _ dbgen.CountRunningNOIPProblemContestsParams) (int64, error) {
+	f.note("CountRunningNOIPProblemContests")
+	return f.psNOIP, f.fail()
+}
+
+func (f *fakeQuerier) CountProblemUsers(_ context.Context, _ int32) (int64, error) {
+	f.note("CountProblemUsers")
+	return f.psUsers, f.fail()
+}
+
+func (f *fakeQuerier) CountProblemACUsers(_ context.Context, _ int32) (int64, error) {
+	f.note("CountProblemACUsers")
+	return f.psACUsers, f.fail()
+}
+
+func (f *fakeQuerier) GetProblemResultStats(_ context.Context, _ int32) ([]dbgen.GetProblemResultStatsRow, error) {
+	f.note("GetProblemResultStats")
+	return f.psResults, f.fail()
+}
+
+func (f *fakeQuerier) ProblemInRunningContest(_ context.Context, _ dbgen.ProblemInRunningContestParams) (bool, error) {
+	f.note("ProblemInRunningContest")
+	return f.psInRunning, f.fail()
+}
+
+func (f *fakeQuerier) UserSolvedProblem(_ context.Context, _ dbgen.UserSolvedProblemParams) (bool, error) {
+	f.note("UserSolvedProblem")
+	return false, f.fail()
+}
+
+func (f *fakeQuerier) GetProblemSource(_ context.Context, _ int32) (sql.NullString, error) {
+	f.note("GetProblemSource")
+	return f.psSource, f.fail()
+}
+
+func (f *fakeQuerier) ListProblemIDsBySource(_ context.Context, _ dbgen.ListProblemIDsBySourceParams) ([]int32, error) {
+	f.note("ListProblemIDsBySource")
+	return f.psProblemIDs, f.fail()
+}
+
+func (f *fakeQuerier) ListProblemBestACSolutions(_ context.Context, _ int32, _, _ int32) ([]dbgen.ProblemBestACSolRow, error) {
+	f.note("ListProblemBestACSolutions")
+	return f.psSolutions, f.fail()
+}
+
+// ── 源代码查看页（showsource.php）的替身 ─────────────────────────────
+
+func (f *fakeQuerier) GetSolutionByID(_ context.Context, _ uint32) (dbgen.GetSolutionByIDRow, error) {
+	f.note("GetSolutionByID")
+	return f.ssSolution, f.fail()
+}
+
+func (f *fakeQuerier) GetContestWindow(_ context.Context, _ int32) (dbgen.GetContestWindowRow, error) {
+	f.note("GetContestWindow")
+	return f.ssContestWindow, f.fail()
+}
+
+func (f *fakeQuerier) ProblemLockedContestID(_ context.Context, _ dbgen.ProblemLockedContestIDParams) (int32, error) {
+	f.note("ProblemLockedContestID")
+	return f.ssLockedCID, f.fail()
+}
+
+func (f *fakeQuerier) GetSourceCodeForSolution(_ context.Context, _ int32) (string, error) {
+	f.note("GetSourceCodeForSolution")
+	return f.ssSource, f.fail()
 }

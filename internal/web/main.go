@@ -145,6 +145,12 @@ func (s *Server) handler() http.Handler {
 	// 业务路由：全局排名页。
 	s.registerRanklistRoutes(mux)
 
+	// 业务路由：单题提交状态页。
+	s.registerProblemStatusRoutes(mux)
+
+	// 业务路由：源代码查看页。
+	s.registerShowsourceRoutes(mux)
+
 	// 业务路由：认证相关。
 	s.registerAuthRoutes(mux)
 

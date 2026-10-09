@@ -109,6 +109,16 @@ Go 侧全部经 `html/template` 转义。
 `html/template` 会把 `+` 转义成 `&#43;`（防 UTF-7 型 XSS 的历史行为），
 浏览器显示正常，非 bug。
 
+### 3.8 评测结果文案与部署版 lang 不同（待确认）
+
+Go 的 `judgeResultLabel`（`handler_status.go:511`）用的是
+「通过 / 错误答案 / 超时」，而部署树 `phpweb/lang/cn.php` 里
+`$jresult` 取的是「正确 / 答案错误 / 时间超限」（`lang/cn.php:83-88`）。
+这不是本次迁移引入的：`status.php` 与 `userinfo.php` 已经用的是前者。
+`problemstatus.php`（4.3）沿用同一份标签以保持 Go 页面间一致。若要求与
+PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lang
+文案，并同步更新 `handler_status_test.go` 的断言。
+
 ---
 
 ## 4. 当前实现范围
@@ -202,6 +212,17 @@ Go 侧全部经 `html/template` 转义。
 - **状态页**：`status.php`。
 - **档案页**：`userinfo.php`（含名次重算、金币重算、登录日志仅管理员）。
 - **排名页**：`ranklist.php`（scope/非 scope 两种模式）。
+- **单题状态页**：`problemstatus.php`。展示提交/人数/AC 人数、各结果分布、
+  每题每用户最优 AC 提交榜单与相关推荐；打开即回写 `problem.submit` /
+  `problem.accepted`。`$OJ_AUTO_SHARE` 生产关闭，其分支（含 `s<id>` 授权）
+  未实现。榜单查询因 sqlc 无法解析派生表而手写
+  （`pkg/dbgen/problemstatus_manual.go`）。
+- **源代码查看页**：`showsource.php`。三层权限：锁榜拦截（
+  `problem_locked($id,1)`，source_browser/administrator 豁免）、考试模式
+  `$OJ_EXAM_CONTEST_ID`（只豁免 source_browser）、以及 `s<problem_id>`
+  / 本人 / source_browser 三者之一。锁榜错误里的比赛号，上游误写成
+  `$result[0][0]`（实为 start_time 或 solution_id，见 3.7），Go 显示真正的
+  比赛号。源码经 `html/template` 转义，注释头用 `judgeResultLabel`（见 3.8）。
 - **比赛列表**：`contest.php`（含"我的比赛"三路来源）。
 - **后台**：目前仅 `admin/problem_batch_delete.php`（事务化重写）。
 

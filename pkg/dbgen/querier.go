@@ -44,9 +44,17 @@ type Querier interface {
 	// `select count(1) cnt FROM solution WHERE result<4`，超过 50 就开验证码。
 	// 这是队列堆积时的自保护，Go 侧等价实现。
 	CountPendingJudges(ctx context.Context) (int64, error)
+	// AC 过的不同用户数（problemstatus.php:70-75）。
+	CountProblemACUsers(ctx context.Context, problemID int32) (int64, error)
+	// 提交过的不同用户数（problemstatus.php:63-67）。
+	CountProblemUsers(ctx context.Context, problemID int32) (int64, error)
 	CountProblemsForAdmin(ctx context.Context) (int64, error)
 	CountProblemsForMember(ctx context.Context, now sql.NullTime) (int64, error)
 	CountProblemsFreePractice(ctx context.Context) (int64, error)
+	// 题目提交状态页（problemstatus.php）的查询。
+	// NOIP 拦截（problemstatus.php:34-44）。
+	// 与 ranklist.php 的版本不同：这里只看标题关键字，不看 contest_type。
+	CountRunningNOIPProblemContests(ctx context.Context, arg CountRunningNOIPProblemContestsParams) (int64, error)
 	CountSearchProblemsForAdmin(ctx context.Context, arg CountSearchProblemsForAdminParams) (int64, error)
 	CountSearchProblemsForMember(ctx context.Context, arg CountSearchProblemsForMemberParams) (int64, error)
 	CountSearchProblemsFreePractice(ctx context.Context, arg CountSearchProblemsFreePracticeParams) (int64, error)
@@ -80,6 +88,9 @@ type Querier interface {
 	// 比赛模式取题。submit.php:65-67 按 (cid, num) 查，defunct 恒为 'N'
 	// （原 SQL 字面量写死），因此这里不返回 defunct。
 	GetContestSubmitProblem(ctx context.Context, arg GetContestSubmitProblemParams) (int32, error)
+	// 提交所属比赛的起止时间（showsource.php:32-33）。
+	// 比赛不存在时返回 sql.ErrNoRows，按 PHP 的 $result 为空处理。
+	GetContestWindow(ctx context.Context, contestID int32) (GetContestWindowRow, error)
 	// 提交冷却。submit.php:286：
 	//   select in_date, solution_id from solution
 	//    where user_id=? and in_date>? order by in_date desc limit 1
@@ -107,9 +118,21 @@ type Querier interface {
 	// 远程评测题目。submit.php:372-379 命中则把 result 置 16（远程等待），
 	// 不进本地判题队列。
 	GetProblemRemoteOJ(ctx context.Context, problemID int32) (sql.NullString, error)
+	// 各评测结果分布（problemstatus.php:82-96）。jresult 下标从 result 取，
+	// 因此升序；只统计 result>=4。
+	GetProblemResultStats(ctx context.Context, problemID int32) ([]GetProblemResultStatsRow, error)
 	// SPJ 类型。submit.php:245 用于给 PHP 6（PHP 语言）补 coding 头。
 	GetProblemSPJ(ctx context.Context, problemID int32) (string, error)
+	// 推荐题目：先取本题 source，再按 source LIKE 找相关题（problemstatus.php:243-248）。
+	GetProblemSource(ctx context.Context, problemID int32) (sql.NullString, error)
 	GetRankList(ctx context.Context, contestID sql.NullInt32) ([]GetRankListRow, error)
+	// 源代码查看页（showsource.php）的查询。
+	// 按 solution_id 取提交行（showsource.php:17-19 的 SELECT *）。
+	// 只取权限判断与页头注释需要的列。
+	GetSolutionByID(ctx context.Context, solutionID uint32) (GetSolutionByIDRow, error)
+	// 取提交源码（showsource.php:116-120）。缺行时返回 sql.ErrNoRows，
+	// 页面显示 "No source code available!"。
+	GetSourceCodeForSolution(ctx context.Context, solutionID int32) (string, error)
 	GetStatusCount(ctx context.Context) (int64, error)
 	GetStatusCountContest(ctx context.Context, contestID sql.NullInt32) (int64, error)
 	// Status page queries
@@ -165,6 +188,7 @@ type Querier interface {
 	IsProblemLocked(ctx context.Context, arg IsProblemLockedParams) (bool, error)
 	// ── 比赛列表与题目 ────────────────────────────────────────────────
 	ListContests(ctx context.Context) ([]ListContestsRow, error)
+	ListProblemIDsBySource(ctx context.Context, arg ListProblemIDsBySourceParams) ([]int32, error)
 	// 题目列表/详情查询
 	//
 	// 这些查询刻意保持与 phpweb/problemset.php、phpweb/problem.php 的 SQL 等价，
@@ -194,6 +218,13 @@ type Querier interface {
 	ListProblemsForMember(ctx context.Context, arg ListProblemsForMemberParams) ([]ListProblemsForMemberRow, error)
 	// ── 自由练习：只看 defunct='N'，不排除比赛题 ────────────────────────────
 	ListProblemsFreePractice(ctx context.Context, arg ListProblemsFreePracticeParams) ([]ListProblemsFreePracticeRow, error)
+	// 题目是否被进行中的比赛占用（problemstatus.php:122-124）。
+	// 命中时内存/耗时/代码长度列显示 ------。
+	ProblemInRunningContest(ctx context.Context, arg ProblemInRunningContestParams) (bool, error)
+	// 题目被哪场"锁榜中"的比赛占用（my_func.inc.php:216-223 problem_locked）。
+	// 无命中时返回 sql.ErrNoRows，调用方按 0 处理。
+	// contest_type & level > 0 的运算符优先级在 MySQL 里等同于 (contest_type & level) > 0。
+	ProblemLockedContestID(ctx context.Context, arg ProblemLockedContestIDParams) (int32, error)
 	SearchProblemsForAdmin(ctx context.Context, arg SearchProblemsForAdminParams) ([]SearchProblemsForAdminRow, error)
 	// 注意：下面两条查询的列必须写成 `p.xxx` 限定形式。
 	// sqlc 的 MySQL 分析器在"title/source 的 OR 谓词"与"含子查询"同时出现时
@@ -206,6 +237,8 @@ type Querier interface {
 	SearchProblemsFreePractice(ctx context.Context, arg SearchProblemsFreePracticeParams) ([]SearchProblemsFreePracticeRow, error)
 	SetProblemAccepted(ctx context.Context, arg SetProblemAcceptedParams) error
 	SetProblemSubmit(ctx context.Context, arg SetProblemSubmitParams) error
+	// $OJ_AUTO_SHARE 开启时，某个用户是否已 AC 该题（problemstatus.php:131-133）。
+	UserSolvedProblem(ctx context.Context, arg UserSolvedProblemParams) (bool, error)
 }
 
 var _ Querier = (*Queries)(nil)

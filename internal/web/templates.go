@@ -794,6 +794,81 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </div>
 {{end}}
 
+{{/* problemStatus 是单题提交状态页，对应 template/syzoj/problemstatus.php。
+
+   PHP 用 Chart.js 画结果分布饼图，并另有一段 legend 显示提交/人数/AC 人数。
+   Go 侧与 userinfo 一样退化成两张表（统计 + 结果分布），信息量一致而不依赖 JS。 */}}
+{{define "problemStatus"}}
+<div class="ui container">
+<div class="ui grid">
+<div class="row">
+<div class="four wide column">
+<h4 class="ui top attached block header">统计</h4>
+<div class="ui bottom attached segment">
+<table class="ui very basic table">
+<tbody>
+<tr><th>{{(index .Stats 0).Label}}</th><td>{{(index .Stats 0).Value}}</td></tr>
+<tr><th>{{(index .Stats 1).Label}}</th><td>{{(index .Stats 1).Value}}</td></tr>
+<tr><th>{{(index .Stats 2).Label}}</th><td>{{(index .Stats 2).Value}}</td></tr>
+</tbody></table>
+{{if .Pie}}
+<table class="ui very basic table">
+<thead><tr><th>结果</th><th>次数</th></tr></thead>
+<tbody>
+{{range .Pie}}<tr><td>{{.Label}}</td><td>{{.Count}}</td></tr>
+{{end}}</tbody></table>
+{{end}}
+</div>
+</div>
+<div class="twelve wide column">
+<h4 class="ui top attached block header">排名</h4>
+<div class="ui bottom attached segment">
+<table class="ui very basic table">
+<thead><tr><th>排名</th><th>提交编号</th><th>用户</th><th>内存</th><th>时间</th><th>语言</th><th>代码长度</th><th>提交时间</th></tr></thead>
+<tbody>
+{{range .Solutions}}<tr>
+<td>{{.Rank}}</td>
+<td>{{.SolutionTag}}</td>
+<td><a href="userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
+<td>{{.Memory}}</td>
+<td>{{.Time}}</td>
+<td>{{if .LangHref}}<a href="{{.LangHref}}" target="_blank">{{.Language}}</a>{{else}}{{.Language}}{{end}}</td>
+<td>{{.CodeLength}}</td>
+<td>{{.InDate}}</td>
+</tr>
+{{end}}</tbody></table>
+<div class="ui pagination menu">
+<a class="item" href="problemstatus.php?id={{.ProblemID}}">主页</a>
+{{if .PrevHref}}<a class="item" href="{{.PrevHref}}">上一页</a>{{end}}
+{{if .NextHref}}<a class="item" href="{{.NextHref}}">下一页</a>{{end}}
+</div>
+</div>
+</div>
+</div>
+{{if .Recommends}}
+<div class="row"><div class="column">
+<h4 class="ui top attached block header">相关题目</h4>
+<div class="ui bottom attached segment">
+{{range .Recommends}}<a class="ui basic label" href="problem.php?id={{.}}">{{.}}</a>
+{{end}}
+</div>
+</div></div>
+{{end}}
+</div>
+</div>
+{{end}}
+
+{{/* showsourcePage 是源代码查看页，对应 template/syzoj/showsource.php。
+
+   PHP 用 SyntaxHighlighter 高亮 + ob 抓取的注释头；Go 退化成单个 <pre>，
+   内容由 handler 拼好并交给 html/template 转义（源码/昵称里的尖括号不再裸奔）。 */}}
+{{define "showsourcePage"}}
+<div class="padding">
+{{if .OK}}<pre class="brush:{{.Brush}};">{{.Source}}</pre>
+{{else}}I am sorry, You could not view this code!{{end}}
+</div>
+{{end}}
+
 {{/* ranklist 是全局排名页，对应 template/syzoj/ranklist.php。
 
    顶部是 scope 导航（日/周/月/上月/年）与 prefix、group_name 两个搜索框；

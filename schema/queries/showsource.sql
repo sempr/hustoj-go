@@ -1,0 +1,32 @@
+-- 源代码查看页（showsource.php）的查询。
+
+-- 按 solution_id 取提交行（showsource.php:17-19 的 SELECT *）。
+-- 只取权限判断与页头注释需要的列。
+-- name: GetSolutionByID :one
+SELECT solution_id, problem_id, user_id, nick, language, result,
+       time, memory, contest_id
+FROM solution
+WHERE solution_id = sqlc.arg(solution_id);
+
+-- 提交所属比赛的起止时间（showsource.php:32-33）。
+-- 比赛不存在时返回 sql.ErrNoRows，按 PHP 的 $result 为空处理。
+-- name: GetContestWindow :one
+SELECT start_time, end_time FROM contest WHERE contest_id = sqlc.arg(contest_id);
+
+-- 题目被哪场"锁榜中"的比赛占用（my_func.inc.php:216-223 problem_locked）。
+-- 无命中时返回 sql.ErrNoRows，调用方按 0 处理。
+-- contest_type & level > 0 的运算符优先级在 MySQL 里等同于 (contest_type & level) > 0。
+-- name: ProblemLockedContestID :one
+SELECT c.contest_id
+FROM contest c
+INNER JOIN contest_problem cp
+  ON c.contest_id = cp.contest_id AND cp.problem_id = sqlc.arg(problem_id)
+WHERE (c.contest_type & sqlc.arg(level) > 0 OR c.title LIKE sqlc.arg(keyword))
+  AND c.start_time < sqlc.arg(now)
+  AND c.end_time > sqlc.arg(now)
+LIMIT 1;
+
+-- 取提交源码（showsource.php:116-120）。缺行时返回 sql.ErrNoRows，
+-- 页面显示 "No source code available!"。
+-- name: GetSourceCodeForSolution :one
+SELECT source FROM source_code_user WHERE solution_id = sqlc.arg(solution_id);
