@@ -7,6 +7,7 @@ package web
 
 import (
 	"bytes"
+	"encoding/json"
 	"html/template"
 	"net/http"
 
@@ -96,6 +97,16 @@ var templateFuncs = template.FuncMap{
 	// coinStars 复刻 contest.php:95 的 min(coin, 5)：题面最多 5 颗星。
 	"coinStars":    coinStars,
 	"resultLabels": func() map[int32]string { return resultLabels },
+	// judgeLabelsJSON / judgeClassesJSON 供状态页把结果标签与配色嵌进
+	// 自动刷新的 JS（对应 PHP 模板里的 judge_result / judge_color）。
+	"judgeLabelsJSON": func() template.JS {
+		b, _ := json.Marshal(resultLabels)
+		return template.JS(b)
+	},
+	"judgeClassesJSON": func() template.JS {
+		b, _ := json.Marshal(judgeResultClasses)
+		return template.JS(b)
+	},
 }
 
 // maxStatusLanguage 是 status.php 允许的语言编号上界，对应
@@ -205,6 +216,7 @@ const pageContentTmpls = `
 本题目来自比赛 <a href="contest.php?cid={{.Contest.CID}}">{{.Contest.Title}}</a> 第 {{.Contest.PID}} 题
 </div>{{end}}
 <h1 class="ui header">{{.Title}}</h1>
+<div class="ui label">命题人：<span id="creator"></span></div>
 {{if eq .Defunct "Y"}}
 <div class="ui warning message">该题目已被删除或尚未公开</div>
 {{else}}
@@ -224,6 +236,20 @@ const pageContentTmpls = `
 {{if .Source.Valid}}<h3 class="ui header">来源</h3><div>{{.Source}}</div>{{end}}
 {{template "problemActions" .}}
 {{end}}
+
+{{/* 命题人异步加载：problem.php 用 $("#creator").load("problem-ajax.php?pid=")。*/}}
+<script>
+(function () {
+  var el = document.getElementById('creator');
+  if (!el) return;
+  var x = new XMLHttpRequest();
+  x.onreadystatechange = function () {
+    if (x.readyState === 4 && x.status === 200) el.innerHTML = x.responseText;
+  };
+  x.open('GET', 'problem-ajax.php?pid={{.ProblemID}}', true);
+  x.send();
+})();
+</script>
 </div>{{end}}
 
 {{/* contestError 是比赛准入失败的错误页。
@@ -480,10 +506,10 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <div class="field"><button class="ui button" type="submit">筛选</button></div>
 </div></form>
 
-<table class="ui celled table"><thead>
+<table id="result-tab" class="ui celled table"><thead>
 <tr><th>ID</th><th>用户</th><th>题目</th><th>结果</th><th>内存</th><th>时间</th><th>语言</th><th>提交时间</th></tr>
 </thead><tbody>
-{{range .Rows}}<tr>
+{{range .Rows}}<tr{{if not .Masked}} data-sid="{{.SolutionID}}" data-result="{{.Result}}"{{end}}>
 <td>{{.SolutionID}}</td>
 <td>{{.UserID}}</td>
 <td>{{.ProblemID}}</td>
@@ -495,6 +521,50 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </tr>
 {{end}}</tbody></table>
 {{template "statusPagination" .}}
+
+{{/* 自动刷新：对应 template/syzoj/auto_refresh.js 的轮询分支。PHP 用
+   status-ajax.php 拉回 "result,memory KB,time ms,judger,pass_rate,user_id"，
+   这里只更新结果/内存/时间三格。封榜行不带 data-sid，不参与轮询。 */}}
+<script>
+(function () {
+  var LABELS = {{judgeLabelsJSON}};
+  var CLASSES = {{judgeClassesJSON}};
+  var tbl = document.getElementById('result-tab');
+  if (!tbl || !tbl.tBodies.length) return;
+  function findRow(id) {
+    var rows = tbl.tBodies[0].rows;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].getAttribute('data-sid') === id) return rows[i];
+    }
+    return null;
+  }
+  function refresh(id, delay) {
+    var x = new XMLHttpRequest();
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4 || x.status !== 200) return;
+      var row = findRow(id);
+      if (!row) return;
+      var ra = x.responseText.split(',');
+      var res = parseInt(ra[0], 10);
+      row.cells[4].textContent = ra[1];
+      row.cells[5].textContent = ra[2];
+      var span = row.cells[3].firstChild;
+      span.textContent = LABELS[res] || res;
+      span.className = CLASSES[res] || '';
+      if (res < 4 || res > 14) setTimeout(function () { refresh(id, delay * 1.5); }, delay);
+    };
+    x.open('GET', 'status-ajax.php?solution_id=' + id, true);
+    x.send();
+  }
+  var rows = tbl.tBodies[0].rows;
+  for (var i = 0; i < rows.length; i++) {
+    var sid = rows[i].getAttribute('data-sid');
+    if (!sid) continue;
+    var res = parseInt(rows[i].getAttribute('data-result'), 10);
+    if (res < 4 || res > 14) refresh(sid, 1000);
+  }
+})();
+</script>
 </div>{{end}}
 
 {{/* statusPagination 是 keyset 分页，对应 template/syzoj/status.php:124-143。

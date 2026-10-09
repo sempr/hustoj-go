@@ -111,6 +111,26 @@ type Config struct {
 	// 连题目提示一起隐藏；true 则保留提示。
 	NoIPHint bool `toml:"noip_hint"`
 
+	// ShowDiff 对应 PHP 的 $OJ_SHOW_DIFF（db_info.inc.php:70）。
+	// status-ajax.php 判断"本人能否查看判题详情（tr=1）"时要求它为真；
+	// 关闭后本人也看不到运行/编译错误详情。线上为 true。
+	ShowDiff bool `toml:"show_diff"`
+
+	// HideRightAnswer 对应 $OJ_HIDE_RIGHT_ANSWER（db_info.inc.php:71）。
+	// status-ajax.php 对 spj==2 的题目在开启时返回"拒绝访问"提示，
+	// 防止泄露填空/判断题答案。线上为 true。
+	HideRightAnswer bool `toml:"hide_right_answer"`
+
+	// PublicStatus 对应 $OJ_PUBLIC_STATUS（db_info.inc.php:102）。
+	// 关闭后 status-ajax.php 只对本人或 source_browser 返回判题结果，
+	// 其余请求返回 NOIP 警告文案。线上为 true。
+	PublicStatus bool `toml:"public_status"`
+
+	// RemoteJudge 对应 $OJ_REMOTE_JUDGE（db_info.inc.php:97）。
+	// Go 侧不实现远程评测触发（status-ajax.php 的 trigger_judge），
+	// 仅保留开关以对齐配置；线上为 false。
+	RemoteJudge bool `toml:"remote_judge"`
+
 	// RankLockPercent 对应 PHP 的 $OJ_RANK_LOCK_PERCENT：封榜时间占比赛
 	// 总时长的比例。0.2 表示 5 小时的比赛最后 1 小时封榜。
 	//
@@ -213,6 +233,11 @@ func Default() *Config {
 		NoIPKeyword: "noip",
 		// 与 db_info.inc.php:86 保持一致（false = 隐藏提示）。
 		NoIPHint: false,
+		// 以下与线上 db_info.inc.php:70/71/102/97 保持一致。
+		ShowDiff:        true,
+		HideRightAnswer: true,
+		PublicStatus:    true,
+		RemoteJudge:     false,
 		// 与 db_info.inc.php:66 保持一致（0 = 不封榜）。
 		RankLockPercent: 0,
 		// 与 db_info.inc.php:87 保持一致。
@@ -290,6 +315,10 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.FreePractice, "HUSTOJ_WEB_FREE_PRACTICE")
 	setString(&cfg.NoIPKeyword, "HUSTOJ_WEB_NOIP_KEYWORD")
 	setBool(&cfg.NoIPHint, "HUSTOJ_WEB_NOIP_HINT")
+	setBool(&cfg.ShowDiff, "HUSTOJ_WEB_SHOW_DIFF")
+	setBool(&cfg.HideRightAnswer, "HUSTOJ_WEB_HIDE_RIGHT_ANSWER")
+	setBool(&cfg.PublicStatus, "HUSTOJ_WEB_PUBLIC_STATUS")
+	setBool(&cfg.RemoteJudge, "HUSTOJ_WEB_REMOTE_JUDGE")
 	setBool(&cfg.CEPenalty, "HUSTOJ_WEB_CE_PENALTY")
 	setBool(&cfg.VCode, "HUSTOJ_WEB_VCODE")
 	setBool(&cfg.Register, "HUSTOJ_WEB_REGISTER")

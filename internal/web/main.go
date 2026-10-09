@@ -151,6 +151,9 @@ func (s *Server) handler() http.Handler {
 	// 业务路由：源代码查看页。
 	s.registerShowsourceRoutes(mux)
 
+	// 业务路由：AJAX 接口（状态轮询 / 判题详情 / 命题人）。
+	s.registerAjaxRoutes(mux)
+
 	// 业务路由：认证相关。
 	s.registerAuthRoutes(mux)
 

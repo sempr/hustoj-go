@@ -224,6 +224,21 @@ PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lan
   `$result[0][0]`（实为 start_time 或 solution_id，见 3.7），Go 显示真正的
   比赛号。源码经 `html/template` 转义，注释头用 `judgeResultLabel`（见 3.8）。
 - **比赛列表**：`contest.php`（含"我的比赛"三路来源）。
+- **状态轮询接口**：`status-ajax.php`。`solution_id` 缺失即回显
+  `<id>0, 0, 0,unknown,0`。公开（`$OJ_PUBLIC_STATUS`）/本人/source_browser
+  可见时返回 `result,memory KB,time ms,judger,pass_rate*100,user_id`，其中
+  judger 仅管理员返回真实值，否则字面量 `none`；进行中 NOIP 比赛（标题含
+  `$OJ_NOIP_KEYWORD` 或 `contest_type & 16`）只回关键字。`tr` 分支在
+  `$OJ_SHOW_DIFF` 且非锁榜时对本人返回编译/运行详情，spj==2 且
+  `$OJ_HIDE_RIGHT_ANSWER` 时拒绝；读到详情后清 `custominput`。新增配置
+  `show_diff`/`hide_right_answer`/`public_status`/`remote_judge`（默认
+  true/true/true/false）。`t=json` 无页面调用，Go 用 `encoding/json` 序列化
+  `dbgen.Solution`，字段细节与 PHP `json_encode` 不完全一致（见 3.7）。
+  `trigger_judge`（依赖 `$OJ_REMOTE_JUDGE`）未实现。
+- **命题人接口**：`problem-ajax.php`。按 `rightstr='p<pid>'` 查 `privilege`，
+  有则回 `userinfo.php` 链接（转义），无则 `外部导入`。前端在 `problem.php`
+  异步填入。
+- **比赛列表**：`contest.php`（含"我的比赛"三路来源）。
 - **后台**：目前仅 `admin/problem_batch_delete.php`（事务化重写）。
 
 ---

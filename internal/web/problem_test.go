@@ -138,6 +138,16 @@ type fakeQuerier struct {
 	ssContestWindow dbgen.GetContestWindowRow
 	ssLockedCID     int32
 	ssSource        string
+
+	// ── AJAX（status-ajax.php / problem-ajax.php）─────────────────
+	saSolution     dbgen.Solution
+	saContestTitle dbgen.GetContestTitleTypeRow
+	saCompileError sql.NullString
+	saCompileErr   error
+	saRuntimeError sql.NullString
+	saRuntimeErr   error
+	paCreator      string
+	paRightstr     string
 }
 
 type fakeRow struct {
@@ -1087,4 +1097,46 @@ func (f *fakeQuerier) ProblemLockedContestID(_ context.Context, _ dbgen.ProblemL
 func (f *fakeQuerier) GetSourceCodeForSolution(_ context.Context, _ int32) (string, error) {
 	f.note("GetSourceCodeForSolution")
 	return f.ssSource, f.fail()
+}
+
+// ── AJAX（status-ajax.php / problem-ajax.php）的替身 ──────────────────
+
+func (f *fakeQuerier) GetSolutionStatusByID(_ context.Context, _ uint32) (dbgen.Solution, error) {
+	f.note("GetSolutionStatusByID")
+	return f.saSolution, f.fail()
+}
+
+func (f *fakeQuerier) GetProblemCreator(_ context.Context, rightstr string) (string, error) {
+	f.note("GetProblemCreator")
+	f.paRightstr = rightstr
+	if err := f.fail(); err != nil {
+		return "", err
+	}
+	return f.paCreator, nil
+}
+
+func (f *fakeQuerier) GetContestTitleType(_ context.Context, _ int32) (dbgen.GetContestTitleTypeRow, error) {
+	f.note("GetContestTitleType")
+	return f.saContestTitle, f.fail()
+}
+
+func (f *fakeQuerier) GetCompileError(_ context.Context, _ int32) (sql.NullString, error) {
+	f.note("GetCompileError")
+	if f.saCompileErr != nil {
+		return f.saCompileError, f.saCompileErr
+	}
+	return f.saCompileError, f.fail()
+}
+
+func (f *fakeQuerier) GetRuntimeError(_ context.Context, _ int32) (sql.NullString, error) {
+	f.note("GetRuntimeError")
+	if f.saRuntimeErr != nil {
+		return f.saRuntimeError, f.saRuntimeErr
+	}
+	return f.saRuntimeError, f.fail()
+}
+
+func (f *fakeQuerier) DeleteCustomInput(_ context.Context, _ int32) error {
+	f.note("DeleteCustomInput")
+	return f.fail()
 }

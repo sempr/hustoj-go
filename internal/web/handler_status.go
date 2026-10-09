@@ -515,10 +515,13 @@ func judgeResultLabel(result int32) string {
 	return fmt.Sprintf("未知(%d)", result)
 }
 
+// judgeResultClasses 是结果码对应的 CSS 类，索引即 result。
+// 抽成包级变量以便状态页把同一份映射嵌进自动刷新的 JS。
+var judgeResultClasses = []string{"waiting", "compiling", "running", "judging", "ac", "pe", "wa", "tle", "mle", "ole", "re", "ce", "rf", "nzec", "sig", "ie"}
+
 func judgeResultClass(result int32) string {
-	classes := []string{"waiting", "compiling", "running", "judging", "ac", "pe", "wa", "tle", "mle", "ole", "re", "ce", "rf", "nzec", "sig", "ie"}
-	if int(result) < len(classes) {
-		return classes[result]
+	if int(result) < len(judgeResultClasses) {
+		return judgeResultClasses[result]
 	}
 	return ""
 }

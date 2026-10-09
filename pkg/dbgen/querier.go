@@ -62,6 +62,10 @@ type Querier interface {
 	// 投毒计数（$OJ_POISON_BOT_COUNT）。submit.php:392 统计该用户该题的 AC 数，
 	// 达到阈值后判题机开始返回随机结果，把算力让给真人。
 	CountUserAccepted(ctx context.Context, arg CountUserAcceptedParams) (int64, error)
+	// 判题信息被查看后清掉自定义输入（status-ajax.php:54-55）。
+	DeleteCustomInput(ctx context.Context, solutionID int32) error
+	// 编译错误详情（status-ajax.php:34）：result=11 走 compileinfo。
+	GetCompileError(ctx context.Context, solutionID int32) (sql.NullString, error)
 	// ── 比赛模式的题目详情（/problem.php?cid=X&pid=Y）────────────────────
 	//
 	// /problem.php 是练习与比赛两种模式的公共入口（problem.php:25 与 :53）。
@@ -88,6 +92,8 @@ type Querier interface {
 	// 比赛模式取题。submit.php:65-67 按 (cid, num) 查，defunct 恒为 'N'
 	// （原 SQL 字面量写死），因此这里不返回 defunct。
 	GetContestSubmitProblem(ctx context.Context, arg GetContestSubmitProblemParams) (int32, error)
+	// 比赛标题与类型，用于 NOIP 屏蔽（status-ajax.php:66-69）。
+	GetContestTitleType(ctx context.Context, contestID int32) (GetContestTitleTypeRow, error)
 	// 提交所属比赛的起止时间（showsource.php:32-33）。
 	// 比赛不存在时返回 sql.ErrNoRows，按 PHP 的 $result 为空处理。
 	GetContestWindow(ctx context.Context, contestID int32) (GetContestWindowRow, error)
@@ -101,6 +107,11 @@ type Querier interface {
 	// defunct 不在此处过滤：problem.php 对已删除题目会显示提示页，
 	// 由路由层决定渲染什么，查询层保持中立。
 	GetProblemByID(ctx context.Context, problemID int32) (Problem, error)
+	// 出题人 AJAX（problem-ajax.php）的查询。
+	//
+	// problem-ajax.php:17 按 rightstr='p<pid>' 取 privilege 表里的第一个用户，
+	// 作为题目命题人展示；无命中时 PHP 输出 $MSG_IMPORTED（"外部导入"）。
+	GetProblemCreator(ctx context.Context, rightstr string) (string, error)
 	// ── 详情页的三模式可见性 ──────────────────────────────────────────────
 	//
 	// 详情页的过滤比列表页更严，多一条 private='1'（problem.php:44）：
@@ -126,10 +137,16 @@ type Querier interface {
 	// 推荐题目：先取本题 source，再按 source LIKE 找相关题（problemstatus.php:243-248）。
 	GetProblemSource(ctx context.Context, problemID int32) (sql.NullString, error)
 	GetRankList(ctx context.Context, contestID sql.NullInt32) ([]GetRankListRow, error)
+	// 运行错误详情（status-ajax.php:43）：其余走 runtimeinfo。
+	GetRuntimeError(ctx context.Context, solutionID int32) (sql.NullString, error)
 	// 源代码查看页（showsource.php）的查询。
 	// 按 solution_id 取提交行（showsource.php:17-19 的 SELECT *）。
 	// 只取权限判断与页头注释需要的列。
 	GetSolutionByID(ctx context.Context, solutionID uint32) (GetSolutionByIDRow, error)
+	// 状态页 AJAX（status-ajax.php）的查询。
+	// 按 solution_id 取整行（status-ajax.php:24-25 的 SELECT *）。
+	// :one 配 LIMIT 1，与 PHP 一致：查不到即无行。
+	GetSolutionStatusByID(ctx context.Context, solutionID uint32) (Solution, error)
 	// 取提交源码（showsource.php:116-120）。缺行时返回 sql.ErrNoRows，
 	// 页面显示 "No source code available!"。
 	GetSourceCodeForSolution(ctx context.Context, solutionID int32) (string, error)
