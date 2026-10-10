@@ -90,6 +90,16 @@ var templateFuncs = template.FuncMap{
 	"contestErrorShowContestLinks": contestErrorShowContestLinks,
 	"add":                          func(a, b int) int { return a + b },
 	"sub":                          func(a, b int) int { return a - b },
+	// until 返回 [0, n) 的整数序列，供模板 range 分页用。
+	"until": func(n int) []int {
+		result := make([]int, n)
+		for i := range result {
+			result[i] = i
+		}
+		return result
+	},
+	// even 判断整数是否为偶数，供模板交替行样式用。
+	"even": func(i int) bool { return i%2 == 0 },
 	// int 转换，供模板中将 int32 转为 int 以便比较。
 	"int": func(i int32) int { return int(i) },
 	// languageNames 和 resultLabels 供 statusPage 模板的 select 选项用。
@@ -995,6 +1005,215 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </div>
 </div>
 </div>
+{{end}}
+
+{{/* indexPage 是首页，对应 template/syzoj/index.php。
+
+    新闻列表、本月之星、最近题目/比赛、echarts 图表。 */}}
+{{define "indexPage"}}
+<div class="padding">
+<div class="ui three column grid">
+<div class="eleven wide column">
+<h4 class="ui top attached block header"><i class="ui info icon"></i>新闻</h4>
+<div class="ui bottom attached segment">
+<table class="ui very basic table">
+<thead><tr><th>标题</th><th>时间</th></tr></thead>
+<tbody>
+{{range .NewsList}}<tr>
+<td><a href="viewnews.php?id={{.NewsID}}">{{.Title}}</a></td>
+<td>{{.Time}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{if gt .Pages 1}}
+<div style="display:inline;">
+<nav class="center">
+<ul class="pagination pagination-sm">
+<li class="page-item"><a href="index.php?page=1">&lt;&lt;</a></li>
+<li class="page-item"><a href="index.php?page={{if eq .Page 1}}{{.Page}}{{else}}{{sub .Page 1}}{{end}}">&lt;</a></li>
+{{range $i := until .Pages}}{{if and (ge $i $.SPage) (le $i $.EPage)}}
+<li class="{{if eq $i $.Page}}active {{end}}page-item"><a title="go to page" href="index.php?page={{$i}}">{{$i}}</a></li>
+{{end}}{{end}}
+<li class="page-item"><a href="index.php?page={{if eq .Page .Pages}}{{.Page}}{{else}}{{add .Page 1}}{{end}}">&gt;</a></li>
+<li class="page-item"><a href="index.php?page={{.Pages}}">&gt;&gt;</a></li>
+</ul>
+</nav>
+</div>
+{{end}}
+
+{{if .MonthStars}}
+<h4 class="ui top attached block header"><i class="ui star icon"></i>本月之星</h4>
+<div class="ui bottom attached segment">
+<table class="ui very basic center aligned table" style="table-layout: fixed;">
+<tbody>
+{{range .MonthStars}}<tr>
+<td><a target="_blank" href="userinfo.php?user={{.UserID}}">⭐{{.UserID}}⭐</a></td>
+<td>{{.Nick}}</td>
+<td>{{.AC}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
+<h4 class="ui top attached block header"><i class="ui star icon"></i>{{.IndexNewsTitle}}</h4>
+<div class="ui bottom attached segment">
+<table class="ui very basic left aligned table" style="table-layout: fixed;">
+<tbody>
+{{range .IndexNewsList}}<tr><td>{{.Content}}</td></tr>
+{{end}}
+<tr><td>
+<center> Recent submission : {{.Speed}} .
+<div id="submission" style="width:80%;height:300px"></div>
+</center>
+</td></tr>
+</tbody>
+</table>
+</div>
+</div>
+<div class="right floated five wide column">
+<h4 class="ui top attached block header"><i class="ui rss icon"></i> 最近题目 </h4>
+<div class="ui bottom attached segment">
+<table class="ui very basic center aligned table">
+<thead><tr><th width="60%">标题</th><th width="40%">时间</th></tr></thead>
+<tbody>
+{{range .RecentProblems}}<tr>
+<td><a href="problem.php?id={{.ProblemID}}">{{.Title}}</a></td>
+<td>{{.MaxInDate}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+<h4 class="ui top attached block header"><i class="ui search icon"></i>搜索</h4>
+<div class="ui bottom attached segment">
+<form action="problem.php" method="get">
+<div class="ui search" style="width: 100%;">
+<div class="ui left icon input" style="width: 100%;">
+<input class="prompt" style="width: 100%;" type="text" placeholder="题目编号 …" name="id">
+<i class="search icon"></i>
+</div>
+</div>
+</form>
+</div>
+<h4 class="ui top attached block header"><i class="ui calendar icon"></i>最近比赛</h4>
+<div class="ui bottom attached center aligned segment">
+<table class="ui very basic center aligned table">
+<thead><tr><th>比赛名称</th><th>开始时间</th></tr></thead>
+<tbody>
+{{range .RecentContests}}<tr>
+<td><a href="contest.php?cid={{.ContestID}}">{{.Title}}</a></td>
+<td>{{.StartTime}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+</div>
+</div>
+</div>
+<script>
+(function() {
+  var all = {{.ChartDataAll}};
+  var ac = {{.ChartDataAC}};
+  if (typeof echarts === 'undefined') return;
+  var el = document.getElementById('submission');
+  if (!el) return;
+  var chart = echarts.init(el);
+  var option = {
+    tooltip: { trigger: 'axis', formatter: '{b0}({a0}): {c0}<br />{b1}({a1}): {c1}' },
+    legend: { data: ['提交', 'AC'] },
+    xAxis: { data: ac.map(function(d){return d.md;}), inverse: true },
+    yAxis: [{ type: 'value', name: '提交' }],
+    series: [
+      { name: '提交', type: 'bar', data: all.map(function(d){return d.c;}) },
+      { name: 'AC', type: 'bar', data: ac.map(function(d){return d.c;}) }
+    ]
+  };
+  chart.setOption(option);
+})();
+</script>
+{{end}}
+
+{{/* portalPage 是门户页，对应 template/syzoj/portal.php。
+
+    待办题目、我的比赛。 */}}
+{{define "portalPage"}}
+<div class="ui container">
+<div class="ui icon message">
+<div class="content">
+<div class="header" style="margin-bottom: 10px;">待办题目</div>
+<table class="ui very basic center aligned table">
+<thead>
+<tr class="toprow">
+<td></td>
+<td class="hidden-xs center">编号</td>
+<td class="center">标题</td>
+<td class="hidden-xs center">来源</td>
+<td style="cursor:hand" class="center">通过</td>
+<td style="cursor:hand" class="center">提交</td>
+</tr>
+</thead>
+<tbody>
+{{range $i, $p := .ProblemSet}}<tr class="{{if even $i}}evenrow{{else}}oddrow{{end}}">
+<td>{{$p.Marker}}</td>
+<td class="hidden-xs center">{{$p.ProblemID}}</td>
+<td class="center"><a href="problem.php?id={{$p.ProblemID}}">{{$p.Title}}</a></td>
+<td class="hidden-xs center">{{$p.Source}}</td>
+<td class="center"><a href="status.php?problem_id={{$p.ProblemID}}&jresult=4">{{if $p.Accepted.Valid}}{{$p.Accepted.Int32}}{{else}}0{{end}}</a></td>
+<td class="center"><a href="status.php?problem_id={{$p.ProblemID}}">{{if $p.Submit.Valid}}{{$p.Submit.Int32}}{{else}}0{{end}}</a></td>
+</tr>
+{{end}}
+</tbody>
+</table><br>
+<table class="ui very basic center aligned table">
+<thead>
+<tr class="toprow" align="center">
+<td>比赛编号</td>
+<td>比赛名称</td>
+<td>比赛状态</td>
+<td>公开/私有</td>
+<td>创建者</td>
+</tr>
+</thead>
+<tbody align="center">
+{{range $i, $c := .ContestSet}}<tr class="{{if even $i}}evenrow{{else}}oddrow{{end}}">
+<td>{{$c.ContestID}}</td>
+<td><a href="contest.php?cid={{$c.ContestID}}">{{$c.Title}}</a></td>
+<td class="text-left">开始: {{$c.StartTime}} 结束: {{$c.EndTime}}</td>
+<td>{{if eq $c.Private 0}}公开{{else}}私有{{end}}</td>
+<td>{{$c.UserID}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+<p><a href="javascript:history.go(-1)">返回</a></p>
+</div>
+</div>
+</div>
+{{end}}
+
+{{/* viewNewsPage 是新闻详情页，对应 template/syzoj/viewnews.php。 */}}
+{{define "viewNewsPage"}}
+<div class="padding">
+<h1>{{.NewsTitle}}</h1>
+<p style="margin-bottom: 5px;">
+<b style="margin-right: 30px;"><i class="edit icon"></i><a class="black-link" href="userinfo.php?user={{.NewsWriter}}"> {{.NewsWriter}}</a></b>
+<b style="margin-right: 30px;"><i class="calendar icon"></i> {{.NewsDate}}</b>
+</p>
+<div class="ui existing segment" style="overflow-y:overlay;">
+<div id="content" class="font-content">{{.NewsContent}}</div>
+</div>
+</div>
+{{if .MathJax}}
+<script>
+MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
+</script>
+<script id="MathJax-script" async src="template/bs3/tex-chtml.js"></script>
+{{end}}
 {{end}}
 
 `

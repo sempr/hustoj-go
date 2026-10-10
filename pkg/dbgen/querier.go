@@ -28,6 +28,8 @@ type Querier interface {
 	// 用参数绑定而非拼字符串，cid 来自用户输入，拼字符串等于把 rightstr
 	// 的内容交给用户构造。
 	CountContestInvites(ctx context.Context, arg CountContestInvitesParams) (int64, error)
+	// 新闻计数（分页用）
+	CountNews(ctx context.Context, faqsTitle string) (int64, error)
 	// 提交入库相关查询
 	//
 	// 对应 phpweb/submit.php。这些写入必须与 PHP 逐条等价，原因有三：
@@ -64,6 +66,12 @@ type Querier interface {
 	CountUserAccepted(ctx context.Context, arg CountUserAcceptedParams) (int64, error)
 	// 判题信息被查看后清掉自定义输入（status-ajax.php:54-55）。
 	DeleteCustomInput(ctx context.Context, solutionID int32) error
+	// 运行中的比赛
+	GetActiveContests(ctx context.Context) ([]GetActiveContestsRow, error)
+	// 图表数据（AC 提交）
+	GetChartDataAC(ctx context.Context, lastID uint32) ([]GetChartDataACRow, error)
+	// 图表数据（全部提交）
+	GetChartDataAll(ctx context.Context, lastID uint32) ([]GetChartDataAllRow, error)
 	// 编译错误详情（status-ajax.php:34）：result=11 走 compileinfo。
 	GetCompileError(ctx context.Context, solutionID int32) (sql.NullString, error)
 	// ── 比赛模式的题目详情（/problem.php?cid=X&pid=Y）────────────────────
@@ -103,6 +111,24 @@ type Querier interface {
 	// 命中时 PHP 不报错，直接把用户重定向到自己的 status 页
 	// （ajax 模式则回 -1）。这是防刷屏与防 WAF 抽风的机制。
 	GetLastRecentSubmit(ctx context.Context, arg GetLastRecentSubmitParams) (uint32, error)
+	// 最近提交 ID（用于图表范围）
+	GetLastSolutionID(ctx context.Context) (interface{}, error)
+	// 本月之星边界 solution_id（本月第一条提交之前）
+	GetMonthStarBoundary(ctx context.Context) (uint32, error)
+	// 本月之星排名（排除隐藏用户）
+	GetMonthStarRank(ctx context.Context, arg GetMonthStarRankParams) ([]GetMonthStarRankRow, error)
+	// ── 新闻详情（viewnews.php）─────────────────────────────────────────
+	// 新闻详情
+	GetNewsByID(ctx context.Context, newsID int32) ([]GetNewsByIDRow, error)
+	// 新闻列表（首页）
+	GetNewsList(ctx context.Context) ([]GetNewsListRow, error)
+	// 首页/门户/新闻详情查询
+	//
+	// 这些查询对应 phpweb/index.php、phpweb/portal.php、phpweb/viewnews.php
+	// 的 SQL 逻辑，绞杀期两者必须给出完全相同的结果。
+	// ── 首页（index.php）────────────────────────────────────────────────
+	// 获取进行中的 NOIP 比赛 ID 列表（用于排除统计）
+	GetNoipContestIDs(ctx context.Context, noipKeyword sql.NullString) ([]int32, error)
 	// ── 题目详情 ────────────────────────────────────────────────────────────
 	// defunct 不在此处过滤：problem.php 对已删除题目会显示提示页，
 	// 由路由层决定渲染什么，查询层保持中立。
@@ -137,6 +163,10 @@ type Querier interface {
 	// 推荐题目：先取本题 source，再按 source LIKE 找相关题（problemstatus.php:243-248）。
 	GetProblemSource(ctx context.Context, problemID int32) (sql.NullString, error)
 	GetRankList(ctx context.Context, contestID sql.NullInt32) ([]GetRankListRow, error)
+	// 最近比赛
+	GetRecentContests(ctx context.Context) ([]GetRecentContestsRow, error)
+	// 最近题目（用户未通过的题目）
+	GetRecentProblems(ctx context.Context, userID string) ([]GetRecentProblemsRow, error)
 	// 运行错误详情（status-ajax.php:43）：其余走 runtimeinfo。
 	GetRuntimeError(ctx context.Context, solutionID int32) (sql.NullString, error)
 	// 源代码查看页（showsource.php）的查询。
@@ -160,6 +190,8 @@ type Querier interface {
 	// 管理员/题目编辑/题目审核可提交已删除题目（不加 defunct 条件），
 	// 所以 defunct 交给 Go 侧判定，不在此处过滤。
 	GetSubmitProblem(ctx context.Context, problemID int32) (GetSubmitProblemRow, error)
+	// 提交速度（管理员）
+	GetSubmitSpeed(ctx context.Context, lastID uint32) (interface{}, error)
 	// ── 当前用户的完成状态标记 ──────────────────────────────────────────────
 	// PHP：select problem_id, MIN(result) AS result FROM solution
 	//       WHERE user_id=? and result>=4 GROUP BY problem_id
@@ -172,8 +204,15 @@ type Querier interface {
 	// 加 COALESCE 也不改变推断）。SQL 保持与 PHP 的 `source like ?` 逐字一致，
 	// 由调用方用 web.LikeArg() 包一层，不为了顺眼而改动查询语义。
 	GetUserBestResults(ctx context.Context, userID string) ([]GetUserBestResultsRow, error)
+	// 用户参加的比赛
+	GetUserContests(ctx context.Context, userID string) ([]sql.NullInt32, error)
 	// 取用户昵称，写入 solution.nick 以便列表页免 JOIN users。
 	GetUserNick(ctx context.Context, userID string) (string, error)
+	// ── 门户（portal.php）────────────────────────────────────────────────
+	// 用户已提交/已通过的题目
+	GetUserSubmittedProblems(ctx context.Context, userID string) ([]GetUserSubmittedProblemsRow, error)
+	// 用户未通过的题目
+	GetUserUnsolvedProblems(ctx context.Context, arg GetUserUnsolvedProblemsParams) ([]GetUserUnsolvedProblemsRow, error)
 	// 私有比赛的受邀者。PHP 走 session _c<cid>，session 桥落地后
 	// 改用这张表；contest-check.php:62-70 就是这个查询。
 	//

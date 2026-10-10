@@ -148,6 +148,16 @@ type fakeQuerier struct {
 	saRuntimeErr   error
 	paCreator      string
 	paRightstr     string
+	newsList       []dbgen.GetNewsListRow
+	monthStars     []dbgen.GetMonthStarRankRow
+	recentProblems []dbgen.GetRecentProblemsRow
+	recentContests []dbgen.GetRecentContestsRow
+	chartDataAll   []dbgen.GetChartDataAllRow
+	chartDataAC    []dbgen.GetChartDataACRow
+	submittedProblems []dbgen.GetUserSubmittedProblemsRow
+	unsolvedProblems  []dbgen.GetUserUnsolvedProblemsRow
+	activeContests    []dbgen.GetActiveContestsRow
+	newsByID          []dbgen.GetNewsByIDRow
 }
 
 type fakeRow struct {
@@ -1113,6 +1123,86 @@ func (f *fakeQuerier) GetProblemCreator(_ context.Context, rightstr string) (str
 		return "", err
 	}
 	return f.paCreator, nil
+}
+
+func (f *fakeQuerier) CountNews(_ context.Context, _ string) (int64, error) {
+	f.note("CountNews")
+	return 0, f.fail()
+}
+
+func (f *fakeQuerier) GetNoipContestIDs(_ context.Context, _ sql.NullString) ([]int32, error) {
+	f.note("GetNoipContestIDs")
+	return nil, f.fail()
+}
+
+func (f *fakeQuerier) GetMonthStarBoundary(_ context.Context) (uint32, error) {
+	f.note("GetMonthStarBoundary")
+	return 0, f.fail()
+}
+
+func (f *fakeQuerier) GetLastSolutionID(_ context.Context) (interface{}, error) {
+	f.note("GetLastSolutionID")
+	return uint32(0), f.fail()
+}
+
+func (f *fakeQuerier) GetSubmitSpeed(_ context.Context, _ uint32) (interface{}, error) {
+	f.note("GetSubmitSpeed")
+	return float64(0), f.fail()
+}
+
+func (f *fakeQuerier) GetUserContests(_ context.Context, _ string) ([]sql.NullInt32, error) {
+	f.note("GetUserContests")
+	return nil, f.fail()
+}
+
+func (f *fakeQuerier) GetNewsList(_ context.Context) ([]dbgen.GetNewsListRow, error) {
+	f.note("GetNewsList")
+	return f.newsList, f.fail()
+}
+
+func (f *fakeQuerier) GetMonthStarRank(_ context.Context, _ dbgen.GetMonthStarRankParams) ([]dbgen.GetMonthStarRankRow, error) {
+	f.note("GetMonthStarRank")
+	return f.monthStars, f.fail()
+}
+
+func (f *fakeQuerier) GetRecentProblems(_ context.Context, _ string) ([]dbgen.GetRecentProblemsRow, error) {
+	f.note("GetRecentProblems")
+	return f.recentProblems, f.fail()
+}
+
+func (f *fakeQuerier) GetRecentContests(_ context.Context) ([]dbgen.GetRecentContestsRow, error) {
+	f.note("GetRecentContests")
+	return f.recentContests, f.fail()
+}
+
+func (f *fakeQuerier) GetChartDataAll(_ context.Context, _ uint32) ([]dbgen.GetChartDataAllRow, error) {
+	f.note("GetChartDataAll")
+	return f.chartDataAll, f.fail()
+}
+
+func (f *fakeQuerier) GetChartDataAC(_ context.Context, _ uint32) ([]dbgen.GetChartDataACRow, error) {
+	f.note("GetChartDataAC")
+	return f.chartDataAC, f.fail()
+}
+
+func (f *fakeQuerier) GetUserSubmittedProblems(_ context.Context, _ string) ([]dbgen.GetUserSubmittedProblemsRow, error) {
+	f.note("GetUserSubmittedProblems")
+	return f.submittedProblems, f.fail()
+}
+
+func (f *fakeQuerier) GetUserUnsolvedProblems(_ context.Context, _ dbgen.GetUserUnsolvedProblemsParams) ([]dbgen.GetUserUnsolvedProblemsRow, error) {
+	f.note("GetUserUnsolvedProblems")
+	return f.unsolvedProblems, f.fail()
+}
+
+func (f *fakeQuerier) GetActiveContests(_ context.Context) ([]dbgen.GetActiveContestsRow, error) {
+	f.note("GetActiveContests")
+	return f.activeContests, f.fail()
+}
+
+func (f *fakeQuerier) GetNewsByID(_ context.Context, _ int32) ([]dbgen.GetNewsByIDRow, error) {
+	f.note("GetNewsByID")
+	return f.newsByID, f.fail()
 }
 
 func (f *fakeQuerier) GetContestTitleType(_ context.Context, _ int32) (dbgen.GetContestTitleTypeRow, error) {

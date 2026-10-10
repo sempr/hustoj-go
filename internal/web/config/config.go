@@ -209,6 +209,29 @@ type Config struct {
 	// 按列的真实容量设限，让边界处要么明确通过、要么明确拒绝，
 	// 不留静默失败的窗口。
 	MaxSourceLength int `toml:"max_source_length"`
+
+	// OnSiteContestID 对应 PHP 的 $OJ_ON_SITE_CONTEST_ID：大于 0 时全站
+	// 重定向到指定比赛（现场赛模式）。生产未配置（注释掉），默认 0。
+	OnSiteContestID int32 `toml:"on_site_contest_id"`
+
+	// IndexNewsTitle 对应 PHP 的 $OJ_INDEX_NEWS_TITLE：首页显示的
+	// 新闻标题。线上值为 "HelloWorld!"（db_info.inc.php:94）。
+	IndexNewsTitle string `toml:"index_news_title"`
+
+	// LongLogin 对应 PHP 的 $OJ_LONG_LOGIN：启用长期登录自动刷新。
+	// 线上为 false（db_info.inc.php:63）。
+	LongLogin bool `toml:"long_login"`
+
+	// MenuNews 对应 PHP 的 $OJ_MENU_NEWS：导航栏是否显示菜单新闻。
+	// 线上为 true（db_info.inc.php:151）。
+	MenuNews bool `toml:"menu_news"`
+
+	// MathJax 对应 PHP 的 $OJ_MATHJAX：是否加载 MathJax 公式渲染。
+	// 线上为 true（db_info.inc.php:75）。
+	MathJax bool `toml:"mathjax"`
+
+	// Lang 对应 PHP 的 $OJ_LANG：默认语言。线上为 "cn"（db_info.inc.php:26）。
+	Lang string `toml:"lang"`
 }
 
 // Default 返回内置默认值。
@@ -258,6 +281,13 @@ func Default() *Config {
 		OIOneSolutionOnly:     false,
 		VCodePendingThreshold: 50,
 		MaxSourceLength:       65535,
+		// 以下与线上 db_info.inc.php 保持一致。
+		OnSiteContestID: 0, // 生产未配置（注释掉）
+		IndexNewsTitle:  "HelloWorld!",
+		LongLogin:       false,
+		MenuNews:        true,
+		MathJax:         true,
+		Lang:            "cn",
 	}
 }
 
@@ -327,6 +357,12 @@ func applyEnv(cfg *Config) {
 	setInt(&cfg.GoSessionTTL, "HUSTOJ_WEB_SESSION_TTL")
 	setBool(&cfg.NeedLogin, "HUSTOJ_WEB_NEED_LOGIN")
 	setInt32(&cfg.ExamContestID, "HUSTOJ_WEB_EXAM_CONTEST_ID")
+	setInt32(&cfg.OnSiteContestID, "HUSTOJ_WEB_ON_SITE_CONTEST_ID")
+	setStr(&cfg.IndexNewsTitle, "HUSTOJ_WEB_INDEX_NEWS_TITLE")
+	setBool(&cfg.LongLogin, "HUSTOJ_WEB_LONG_LOGIN")
+	setBool(&cfg.MenuNews, "HUSTOJ_WEB_MENU_NEWS")
+	setBool(&cfg.MathJax, "HUSTOJ_WEB_MATHJAX")
+	setStr(&cfg.Lang, "HUSTOJ_WEB_LANG")
 	if v, ok := lookupEnv("OJ_HOME"); ok {
 		cfg.OJHome = v
 	}
