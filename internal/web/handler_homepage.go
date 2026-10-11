@@ -32,12 +32,12 @@ import (
 
 // IndexPageVM 是首页的视图模型。
 type IndexPageVM struct {
-	Title           string
-	OJName          string
-	NewsList        []NewsItem
-	MonthStars      []MonthStar
-	RecentProblems  []RecentProblem
-	RecentContests  []RecentContest
+	Title          string
+	OJName         string
+	NewsList       []NewsItem
+	MonthStars     []MonthStar
+	RecentProblems []RecentProblem
+	RecentContests []RecentContest
 	ChartDataAll   template.JS
 	ChartDataAC    template.JS
 	Speed          string
@@ -278,12 +278,12 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 
 	renderPage(w, http.StatusOK, "indexPage", "主页", IndexPageVM{
-		Title:           "主页",
-		OJName:          s.cfg.OJName,
-		NewsList:        newsItems,
-		MonthStars:      monthStarItems,
-		RecentProblems:  recentProblemItems,
-		RecentContests:  recentContestItems,
+		Title:          "主页",
+		OJName:         s.cfg.OJName,
+		NewsList:       newsItems,
+		MonthStars:     monthStarItems,
+		RecentProblems: recentProblemItems,
+		RecentContests: recentContestItems,
 		ChartDataAll:   template.JS(chartAllJSON),
 		ChartDataAC:    template.JS(chartACJSON),
 		Speed:          speed,
@@ -298,31 +298,14 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// buildNotInClause 构建 NOT IN 子句。
-func buildNotInClause(ids []int32) string {
-	if len(ids) == 0 {
-		return ""
-	}
-	var sb strings.Builder
-	sb.WriteString(" AND contest_id NOT IN (")
-	for i, id := range ids {
-		if i > 0 {
-			sb.WriteString(",")
-		}
-		sb.WriteString(strconv.Itoa(int(id)))
-	}
-	sb.WriteString(")")
-	return sb.String()
-}
-
 // ── 门户（portal.php）────────────────────────────────────────────────
 
 // PortalPageVM 是门户页的视图模型。
 type PortalPageVM struct {
-	Title          string
-	OJName         string
-	ProblemSet     []PortalProblem
-	ContestSet     []PortalContest
+	Title      string
+	OJName     string
+	ProblemSet []PortalProblem
+	ContestSet []PortalContest
 }
 
 // PortalProblem 是门户题目。

@@ -66,6 +66,8 @@ type Querier interface {
 	CountUserAccepted(ctx context.Context, arg CountUserAcceptedParams) (int64, error)
 	// 判题信息被查看后清掉自定义输入（status-ajax.php:54-55）。
 	DeleteCustomInput(ctx context.Context, solutionID int32) error
+	// ── 导出 AC 代码（export_ac_code.php）───────────────────────────────
+	GetACCodeByUser(ctx context.Context, uid string) ([]GetACCodeByUserRow, error)
 	// 运行中的比赛
 	GetActiveContests(ctx context.Context) ([]GetActiveContestsRow, error)
 	// 图表数据（AC 提交）
@@ -90,21 +92,30 @@ type Querier interface {
 	//   3. 练习模式过滤 defunct，但比赛模式**不过滤**：已删除题目仍要能在比赛里
 	//      复现，所以这里复用 GetProblemByID 的无过滤语义。
 	GetContestByID(ctx context.Context, contestID int32) (GetContestByIDRow, error)
+	// ── 导出比赛代码（export_contest_code.php）──────────────────────────
+	GetContestCode(ctx context.Context, cid sql.NullInt32) ([]GetContestCodeRow, error)
 	GetContestForRank(ctx context.Context, contestID int32) (GetContestForRankRow, error)
 	// 比赛信息，用于时间窗、私有性与语言掩码。submit.php:99 要求比赛正在进行
 	// （start_time<=now AND end_time>now），查不到即"不在比赛中"。
 	GetContestForSubmit(ctx context.Context, arg GetContestForSubmitParams) (GetContestForSubmitRow, error)
+	// ── 比赛排名（contestrank2.php、contestrank3.php）───────────────────
+	GetContestInfo(ctx context.Context, cid int32) (GetContestInfoRow, error)
+	GetContestProblemCount(ctx context.Context, cid sql.NullInt32) (int64, error)
 	GetContestProblemID(ctx context.Context, arg GetContestProblemIDParams) (int32, error)
+	GetContestProblemMap(ctx context.Context, cid sql.NullInt32) ([]GetContestProblemMapRow, error)
 	GetContestProblems(ctx context.Context, contestID sql.NullInt32) ([]GetContestProblemsRow, error)
 	GetContestProblemsForRank(ctx context.Context, contestID sql.NullInt32) ([]GetContestProblemsForRankRow, error)
+	GetContestSubmissions(ctx context.Context, cid sql.NullInt32) ([]GetContestSubmissionsRow, error)
 	// 比赛模式取题。submit.php:65-67 按 (cid, num) 查，defunct 恒为 'N'
 	// （原 SQL 字面量写死），因此这里不返回 defunct。
 	GetContestSubmitProblem(ctx context.Context, arg GetContestSubmitProblemParams) (int32, error)
+	GetContestTeams(ctx context.Context, cid sql.NullInt32) ([]GetContestTeamsRow, error)
 	// 比赛标题与类型，用于 NOIP 屏蔽（status-ajax.php:66-69）。
 	GetContestTitleType(ctx context.Context, contestID int32) (GetContestTitleTypeRow, error)
 	// 提交所属比赛的起止时间（showsource.php:32-33）。
 	// 比赛不存在时返回 sql.ErrNoRows，按 PHP 的 $result 为空处理。
 	GetContestWindow(ctx context.Context, contestID int32) (GetContestWindowRow, error)
+	GetFirstBlood(ctx context.Context, cid sql.NullInt32) ([]GetFirstBloodRow, error)
 	// 提交冷却。submit.php:286：
 	//   select in_date, solution_id from solution
 	//    where user_id=? and in_date>? order by in_date desc limit 1
@@ -129,6 +140,11 @@ type Querier interface {
 	// ── 首页（index.php）────────────────────────────────────────────────
 	// 获取进行中的 NOIP 比赛 ID 列表（用于排除统计）
 	GetNoipContestIDs(ctx context.Context, noipKeyword sql.NullString) ([]int32, error)
+	// P1 用户页查询（online.php、recent-contest.php、export_ac_code.php、export_contest_code.php、contestrank2/3.php）
+	// ── 在线用户（online.php）────────────────────────────────────────────
+	GetOnlineUsers(ctx context.Context) ([]GetOnlineUsersRow, error)
+	GetOnlineUsersByIP(ctx context.Context, ipSearch sql.NullString) ([]GetOnlineUsersByIPRow, error)
+	GetOnlineUsersExcludeSelf(ctx context.Context, uid string) ([]GetOnlineUsersExcludeSelfRow, error)
 	// ── 题目详情 ────────────────────────────────────────────────────────────
 	// defunct 不在此处过滤：problem.php 对已删除题目会显示提示页，
 	// 由路由层决定渲染什么，查询层保持中立。
@@ -165,6 +181,8 @@ type Querier interface {
 	GetRankList(ctx context.Context, contestID sql.NullInt32) ([]GetRankListRow, error)
 	// 最近比赛
 	GetRecentContests(ctx context.Context) ([]GetRecentContestsRow, error)
+	// ── 最近比赛（recent-contest.php）────────────────────────────────────
+	GetRecentContestsList(ctx context.Context) ([]GetRecentContestsListRow, error)
 	// 最近题目（用户未通过的题目）
 	GetRecentProblems(ctx context.Context, userID string) ([]GetRecentProblemsRow, error)
 	// 运行错误详情（status-ajax.php:43）：其余走 runtimeinfo。

@@ -140,24 +140,33 @@ type fakeQuerier struct {
 	ssSource        string
 
 	// ── AJAX（status-ajax.php / problem-ajax.php）─────────────────
-	saSolution     dbgen.Solution
-	saContestTitle dbgen.GetContestTitleTypeRow
-	saCompileError sql.NullString
-	saCompileErr   error
-	saRuntimeError sql.NullString
-	saRuntimeErr   error
-	paCreator      string
-	paRightstr     string
-	newsList       []dbgen.GetNewsListRow
-	monthStars     []dbgen.GetMonthStarRankRow
-	recentProblems []dbgen.GetRecentProblemsRow
-	recentContests []dbgen.GetRecentContestsRow
-	chartDataAll   []dbgen.GetChartDataAllRow
-	chartDataAC    []dbgen.GetChartDataACRow
-	submittedProblems []dbgen.GetUserSubmittedProblemsRow
-	unsolvedProblems  []dbgen.GetUserUnsolvedProblemsRow
-	activeContests    []dbgen.GetActiveContestsRow
-	newsByID          []dbgen.GetNewsByIDRow
+	saSolution         dbgen.Solution
+	saContestTitle     dbgen.GetContestTitleTypeRow
+	saCompileError     sql.NullString
+	saCompileErr       error
+	saRuntimeError     sql.NullString
+	saRuntimeErr       error
+	paCreator          string
+	paRightstr         string
+	newsList           []dbgen.GetNewsListRow
+	monthStars         []dbgen.GetMonthStarRankRow
+	recentProblems     []dbgen.GetRecentProblemsRow
+	recentContests     []dbgen.GetRecentContestsRow
+	chartDataAll       []dbgen.GetChartDataAllRow
+	chartDataAC        []dbgen.GetChartDataACRow
+	submittedProblems  []dbgen.GetUserSubmittedProblemsRow
+	unsolvedProblems   []dbgen.GetUserUnsolvedProblemsRow
+	activeContests     []dbgen.GetActiveContestsRow
+	onlineUsers        []dbgen.GetOnlineUsersRow
+	recentContestsList []dbgen.GetRecentContestsListRow
+	acCodeByUser       []dbgen.GetACCodeByUserRow
+	contestCode        []dbgen.GetContestCodeRow
+	contestInfo        dbgen.GetContestInfoRow
+	contestSubmissions []dbgen.GetContestSubmissionsRow
+	firstBlood         []dbgen.GetFirstBloodRow
+	contestTeams       []dbgen.GetContestTeamsRow
+	contestProblemMap  []dbgen.GetContestProblemMapRow
+	newsByID           []dbgen.GetNewsByIDRow
 }
 
 type fakeRow struct {
@@ -1198,6 +1207,66 @@ func (f *fakeQuerier) GetUserUnsolvedProblems(_ context.Context, _ dbgen.GetUser
 func (f *fakeQuerier) GetActiveContests(_ context.Context) ([]dbgen.GetActiveContestsRow, error) {
 	f.note("GetActiveContests")
 	return f.activeContests, f.fail()
+}
+
+func (f *fakeQuerier) GetOnlineUsers(_ context.Context) ([]dbgen.GetOnlineUsersRow, error) {
+	f.note("GetOnlineUsers")
+	return f.onlineUsers, f.fail()
+}
+
+func (f *fakeQuerier) GetOnlineUsersByIP(_ context.Context, _ sql.NullString) ([]dbgen.GetOnlineUsersByIPRow, error) {
+	f.note("GetOnlineUsersByIP")
+	return nil, f.fail()
+}
+
+func (f *fakeQuerier) GetOnlineUsersExcludeSelf(_ context.Context, _ string) ([]dbgen.GetOnlineUsersExcludeSelfRow, error) {
+	f.note("GetOnlineUsersExcludeSelf")
+	return nil, f.fail()
+}
+
+func (f *fakeQuerier) GetRecentContestsList(_ context.Context) ([]dbgen.GetRecentContestsListRow, error) {
+	f.note("GetRecentContestsList")
+	return f.recentContestsList, f.fail()
+}
+
+func (f *fakeQuerier) GetACCodeByUser(_ context.Context, _ string) ([]dbgen.GetACCodeByUserRow, error) {
+	f.note("GetACCodeByUser")
+	return f.acCodeByUser, f.fail()
+}
+
+func (f *fakeQuerier) GetContestCode(_ context.Context, _ sql.NullInt32) ([]dbgen.GetContestCodeRow, error) {
+	f.note("GetContestCode")
+	return f.contestCode, f.fail()
+}
+
+func (f *fakeQuerier) GetContestInfo(_ context.Context, _ int32) (dbgen.GetContestInfoRow, error) {
+	f.note("GetContestInfo")
+	return f.contestInfo, f.fail()
+}
+
+func (f *fakeQuerier) GetContestProblemCount(_ context.Context, _ sql.NullInt32) (int64, error) {
+	f.note("GetContestProblemCount")
+	return 0, f.fail()
+}
+
+func (f *fakeQuerier) GetContestSubmissions(_ context.Context, _ sql.NullInt32) ([]dbgen.GetContestSubmissionsRow, error) {
+	f.note("GetContestSubmissions")
+	return f.contestSubmissions, f.fail()
+}
+
+func (f *fakeQuerier) GetFirstBlood(_ context.Context, _ sql.NullInt32) ([]dbgen.GetFirstBloodRow, error) {
+	f.note("GetFirstBlood")
+	return f.firstBlood, f.fail()
+}
+
+func (f *fakeQuerier) GetContestTeams(_ context.Context, _ sql.NullInt32) ([]dbgen.GetContestTeamsRow, error) {
+	f.note("GetContestTeams")
+	return f.contestTeams, f.fail()
+}
+
+func (f *fakeQuerier) GetContestProblemMap(_ context.Context, _ sql.NullInt32) ([]dbgen.GetContestProblemMapRow, error) {
+	f.note("GetContestProblemMap")
+	return f.contestProblemMap, f.fail()
 }
 
 func (f *fakeQuerier) GetNewsByID(_ context.Context, _ int32) ([]dbgen.GetNewsByIDRow, error) {

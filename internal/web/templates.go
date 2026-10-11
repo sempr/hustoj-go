@@ -1216,6 +1216,104 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 {{end}}
 {{end}}
 
+{{/* onlinePage 是在线用户页，对应 template/syzoj/online.php。 */}}
+{{define "onlinePage"}}
+<div class="ui container">
+<h2 class="ui header">在线用户</h2>
+<table class="ui very basic table">
+<thead><tr><th>用户</th><th>密码</th><th>IP</th><th>时间</th></tr></thead>
+<tbody>
+{{range .Users}}<tr>
+<td><a href="userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
+<td>{{.Password}}</td>
+<td>{{.IP}}</td>
+<td>{{.Time}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
+{{/* recentContestPage 是最近比赛页，对应 template/syzoj/recent-contest.php。 */}}
+{{define "recentContestPage"}}
+<div class="ui container">
+<h2 class="ui header">最近比赛</h2>
+<table class="ui very basic table">
+<thead><tr><th>比赛编号</th><th>比赛名称</th><th>开始时间</th><th>结束时间</th><th>创建者</th></tr></thead>
+<tbody>
+{{range .Contests}}<tr>
+<td>{{.ContestID}}</td>
+<td><a href="contest.php?cid={{.ContestID}}">{{.Title}}</a></td>
+<td>{{.StartTime}}</td>
+<td>{{.EndTime}}</td>
+<td>{{.UserID}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
+{{/* compareSourcePage 是代码对比页，对应 template/syzoj/comparesource.php。 */}}
+{{define "compareSourcePage"}}
+<div class="ui container">
+<h2 class="ui header">代码对比</h2>
+<div class="ui two column grid">
+<div class="column">
+<h3>左侧代码</h3>
+<p>用户: {{.LeftInfo.UserID}} | 题目: {{.LeftInfo.ProblemID}} | 结果: {{.LeftInfo.Result}}</p>
+<pre>{{.LeftSource}}</pre>
+</div>
+<div class="column">
+<h3>右侧代码</h3>
+<p>用户: {{.RightInfo.UserID}} | 题目: {{.RightInfo.ProblemID}} | 结果: {{.RightInfo.Result}}</p>
+<pre>{{.RightSource}}</pre>
+</div>
+</div>
+</div>
+{{end}}
+
+{{/* contestRankPage 是滚榜页，对应 template/syzoj/contestrank2.php。 */}}
+{{define "contestRankPage"}}
+<div class="ui container">
+<h2 class="ui header">滚榜 - {{.ContestName}}</h2>
+<p>开始时间: {{.StartTime}} | 结束时间: {{.EndTime}} | 封榜时间: {{.LockTime}}</p>
+<table class="ui very basic table">
+<thead><tr><th>排名</th><th>用户</th><th>解题数</th><th>用时</th></tr></thead>
+<tbody>
+{{range .Rankings}}<tr>
+<td>{{.Rank}}</td>
+<td>{{.UserID}}</td>
+<td>{{.Solved}}</td>
+<td>{{.Time}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
+{{/* contestRank3Page 是滚榜页，对应 template/syzoj/contestrank3.php。 */}}
+{{define "contestRank3Page"}}
+<div class="ui container">
+<h2 class="ui header">滚榜 - {{.ContestName}}</h2>
+<p>开始时间: {{.StartTime}} | 结束时间: {{.EndTime}} | 封榜时间: {{.LockTime}}</p>
+<table class="ui very basic table">
+<thead><tr><th>排名</th><th>用户</th><th>解题数</th><th>用时</th></tr></thead>
+<tbody>
+{{range .Rankings}}<tr>
+<td>{{.Rank}}</td>
+<td>{{.UserID}}</td>
+<td>{{.Solved}}</td>
+<td>{{.Time}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
 `
 
 // renderPage 渲染具名页面模板并套上外壳，写出响应。
