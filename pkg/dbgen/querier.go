@@ -10,6 +10,7 @@ import (
 )
 
 type Querier interface {
+	CheckMailPrivilege(ctx context.Context, arg CheckMailPrivilegeParams) ([]int32, error)
 	// 被降级后需要重算题目计数。submit.php:337-341 用一条
 	// `UPDATE problem p INNER JOIN (SELECT count(1) ...) s` 同时算和写。
 	//
@@ -124,6 +125,10 @@ type Querier interface {
 	GetLastRecentSubmit(ctx context.Context, arg GetLastRecentSubmitParams) (uint32, error)
 	// 最近提交 ID（用于图表范围）
 	GetLastSolutionID(ctx context.Context) (interface{}, error)
+	GetMailByID(ctx context.Context, arg GetMailByIDParams) ([]GetMailByIDRow, error)
+	// P2 用户功能查询（mail.php、modify.php、lostpassword.php、lostpassword2.php）
+	// ── 邮件（mail.php）────────────────────────────────────────────────
+	GetMailList(ctx context.Context, arg GetMailListParams) ([]GetMailListRow, error)
 	// 本月之星边界 solution_id（本月第一条提交之前）
 	GetMonthStarBoundary(ctx context.Context) (uint32, error)
 	// 本月之星排名（排除隐藏用户）
@@ -222,8 +227,12 @@ type Querier interface {
 	// 加 COALESCE 也不改变推断）。SQL 保持与 PHP 的 `source like ?` 逐字一致，
 	// 由调用方用 web.LikeArg() 包一层，不为了顺眼而改动查询语义。
 	GetUserBestResults(ctx context.Context, userID string) ([]GetUserBestResultsRow, error)
+	// ── 用户信息修改（modify.php）──────────────────────────────────────
+	GetUserByID(ctx context.Context, userID string) (GetUserByIDRow, error)
 	// 用户参加的比赛
 	GetUserContests(ctx context.Context, userID string) ([]sql.NullInt32, error)
+	// ── 密码重置（lostpassword.php、lostpassword2.php）──────────────────
+	GetUserEmail(ctx context.Context, userID string) (sql.NullString, error)
 	// 取用户昵称，写入 solution.nick 以便列表页免 JOIN users。
 	GetUserNick(ctx context.Context, userID string) (string, error)
 	// ── 门户（portal.php）────────────────────────────────────────────────
@@ -292,6 +301,7 @@ type Querier interface {
 	ListProblemsForMember(ctx context.Context, arg ListProblemsForMemberParams) ([]ListProblemsForMemberRow, error)
 	// ── 自由练习：只看 defunct='N'，不排除比赛题 ────────────────────────────
 	ListProblemsFreePractice(ctx context.Context, arg ListProblemsFreePracticeParams) ([]ListProblemsFreePracticeRow, error)
+	MarkMailRead(ctx context.Context, mailID int32) error
 	// 题目是否被进行中的比赛占用（problemstatus.php:122-124）。
 	// 命中时内存/耗时/代码长度列显示 ------。
 	ProblemInRunningContest(ctx context.Context, arg ProblemInRunningContestParams) (bool, error)
@@ -309,8 +319,13 @@ type Querier interface {
 	// 别图省事去掉别名限定，那样 codegen 会直接失败。
 	SearchProblemsForMember(ctx context.Context, arg SearchProblemsForMemberParams) ([]SearchProblemsForMemberRow, error)
 	SearchProblemsFreePractice(ctx context.Context, arg SearchProblemsFreePracticeParams) ([]SearchProblemsFreePracticeRow, error)
+	SendMail(ctx context.Context, arg SendMailParams) error
 	SetProblemAccepted(ctx context.Context, arg SetProblemAcceptedParams) error
 	SetProblemSubmit(ctx context.Context, arg SetProblemSubmitParams) error
+	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	UpdateUserPasswordByKey(ctx context.Context, arg UpdateUserPasswordByKeyParams) error
+	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error
+	UpdateUserSolutionNick(ctx context.Context, arg UpdateUserSolutionNickParams) error
 	// $OJ_AUTO_SHARE 开启时，某个用户是否已 AC 该题（problemstatus.php:131-133）。
 	UserSolvedProblem(ctx context.Context, arg UserSolvedProblemParams) (bool, error)
 }

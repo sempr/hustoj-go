@@ -167,6 +167,8 @@ type fakeQuerier struct {
 	contestTeams       []dbgen.GetContestTeamsRow
 	contestProblemMap  []dbgen.GetContestProblemMapRow
 	newsByID           []dbgen.GetNewsByIDRow
+	userByID           dbgen.GetUserByIDRow
+	userEmail          sql.NullString
 }
 
 type fakeRow struct {
@@ -1272,6 +1274,61 @@ func (f *fakeQuerier) GetContestProblemMap(_ context.Context, _ sql.NullInt32) (
 func (f *fakeQuerier) GetNewsByID(_ context.Context, _ int32) ([]dbgen.GetNewsByIDRow, error) {
 	f.note("GetNewsByID")
 	return f.newsByID, f.fail()
+}
+
+func (f *fakeQuerier) GetMailList(_ context.Context, _ dbgen.GetMailListParams) ([]dbgen.GetMailListRow, error) {
+	f.note("GetMailList")
+	return nil, f.fail()
+}
+
+func (f *fakeQuerier) GetMailByID(_ context.Context, _ dbgen.GetMailByIDParams) ([]dbgen.GetMailByIDRow, error) {
+	f.note("GetMailByID")
+	return nil, f.fail()
+}
+
+func (f *fakeQuerier) MarkMailRead(_ context.Context, _ int32) error {
+	f.note("MarkMailRead")
+	return f.fail()
+}
+
+func (f *fakeQuerier) CheckMailPrivilege(_ context.Context, _ dbgen.CheckMailPrivilegeParams) ([]int32, error) {
+	f.note("CheckMailPrivilege")
+	return []int32{1}, f.fail()
+}
+
+func (f *fakeQuerier) SendMail(_ context.Context, _ dbgen.SendMailParams) error {
+	f.note("SendMail")
+	return f.fail()
+}
+
+func (f *fakeQuerier) GetUserByID(_ context.Context, _ string) (dbgen.GetUserByIDRow, error) {
+	f.note("GetUserByID")
+	return f.userByID, f.fail()
+}
+
+func (f *fakeQuerier) UpdateUserProfile(_ context.Context, _ dbgen.UpdateUserProfileParams) error {
+	f.note("UpdateUserProfile")
+	return f.fail()
+}
+
+func (f *fakeQuerier) UpdateUserSolutionNick(_ context.Context, _ dbgen.UpdateUserSolutionNickParams) error {
+	f.note("UpdateUserSolutionNick")
+	return f.fail()
+}
+
+func (f *fakeQuerier) GetUserEmail(_ context.Context, _ string) (sql.NullString, error) {
+	f.note("GetUserEmail")
+	return f.userEmail, f.fail()
+}
+
+func (f *fakeQuerier) UpdateUserPassword(_ context.Context, _ dbgen.UpdateUserPasswordParams) error {
+	f.note("UpdateUserPassword")
+	return f.fail()
+}
+
+func (f *fakeQuerier) UpdateUserPasswordByKey(_ context.Context, _ dbgen.UpdateUserPasswordByKeyParams) error {
+	f.note("UpdateUserPasswordByKey")
+	return f.fail()
 }
 
 func (f *fakeQuerier) GetContestTitleType(_ context.Context, _ int32) (dbgen.GetContestTitleTypeRow, error) {

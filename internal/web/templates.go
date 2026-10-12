@@ -1216,18 +1216,29 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 {{end}}
 {{end}}
 
-{{/* onlinePage 是在线用户页，对应 template/syzoj/online.php。 */}}
-{{define "onlinePage"}}
+{{/* mailPage 是邮件页，对应 template/syzoj/mail.php。 */}}
+{{define "mailPage"}}
 <div class="ui container">
-<h2 class="ui header">在线用户</h2>
+<h2 class="ui header">邮件</h2>
+{{if .ViewMail}}
+<div class="ui segment">
+<h3>{{.ViewMail.Title}}</h3>
+<p>发件人: {{.ViewMail.FromUser}} | 收件人: {{.ViewMail.ToUser}} | 时间: {{.ViewMail.InDate}}</p>
+<div>{{.ViewMail.Content}}</div>
+</div>
+{{end}}
+<form method="post" class="ui form">
+<div class="field"><label>收件人</label><input name="to_user" value="{{.ToUser}}"></div>
+<div class="field"><label>标题</label><input name="title" value="{{.Title2}}"></div>
+<div class="field"><label>内容</label><textarea name="content"></textarea></div>
+<button class="ui button" type="submit">发送</button>
+</form>
 <table class="ui very basic table">
-<thead><tr><th>用户</th><th>密码</th><th>IP</th><th>时间</th></tr></thead>
+<thead><tr><th>邮件</th><th>时间</th></tr></thead>
 <tbody>
-{{range .Users}}<tr>
-<td><a href="userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
-<td>{{.Password}}</td>
-<td>{{.IP}}</td>
-<td>{{.Time}}</td>
+{{range .MailList}}<tr>
+<td><a href="mail.php?vid={{.MailID}}">{{.FromUser}}:{{.Title}}</a>{{if .NewMail}}<span class="red">New</span>{{end}}</td>
+<td>{{.InDate}}</td>
 </tr>
 {{end}}
 </tbody>
@@ -1235,82 +1246,45 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </div>
 {{end}}
 
-{{/* recentContestPage 是最近比赛页，对应 template/syzoj/recent-contest.php。 */}}
-{{define "recentContestPage"}}
+{{/* modifyPage 是用户信息修改页，对应 template/syzoj/modify.php。 */}}
+{{define "modifyPage"}}
 <div class="ui container">
-<h2 class="ui header">最近比赛</h2>
-<table class="ui very basic table">
-<thead><tr><th>比赛编号</th><th>比赛名称</th><th>开始时间</th><th>结束时间</th><th>创建者</th></tr></thead>
-<tbody>
-{{range .Contests}}<tr>
-<td>{{.ContestID}}</td>
-<td><a href="contest.php?cid={{.ContestID}}">{{.Title}}</a></td>
-<td>{{.StartTime}}</td>
-<td>{{.EndTime}}</td>
-<td>{{.UserID}}</td>
-</tr>
-{{end}}
-</tbody>
-</table>
+<h2 class="ui header">修改用户信息</h2>
+{{if .Error}}<div class="ui negative message">{{.Error}}</div>{{end}}
+<form method="post" class="ui form">
+<div class="field"><label>旧密码</label><input type="password" name="opassword"></div>
+<div class="field"><label>新密码</label><input type="password" name="npassword"></div>
+<div class="field"><label>确认新密码</label><input type="password" name="rptpassword"></div>
+<div class="field"><label>昵称</label><input name="nick" value="{{.Nick}}"></div>
+<div class="field"><label>学校</label><input name="school" value="{{.School}}"></div>
+<div class="field"><label>邮箱</label><input name="email" value="{{.Email}}"></div>
+<button class="ui button" type="submit">保存</button>
+</form>
 </div>
 {{end}}
 
-{{/* compareSourcePage 是代码对比页，对应 template/syzoj/comparesource.php。 */}}
-{{define "compareSourcePage"}}
+{{/* lostPasswordPage 是密码重置页，对应 template/syzoj/lostpassword.php。 */}}
+{{define "lostPasswordPage"}}
 <div class="ui container">
-<h2 class="ui header">代码对比</h2>
-<div class="ui two column grid">
-<div class="column">
-<h3>左侧代码</h3>
-<p>用户: {{.LeftInfo.UserID}} | 题目: {{.LeftInfo.ProblemID}} | 结果: {{.LeftInfo.Result}}</p>
-<pre>{{.LeftSource}}</pre>
-</div>
-<div class="column">
-<h3>右侧代码</h3>
-<p>用户: {{.RightInfo.UserID}} | 题目: {{.RightInfo.ProblemID}} | 结果: {{.RightInfo.Result}}</p>
-<pre>{{.RightSource}}</pre>
-</div>
-</div>
+<h2 class="ui header">密码重置</h2>
+{{if .Error}}<div class="ui negative message">{{.Error}}</div>{{end}}
+<form method="post" class="ui form">
+<div class="field"><label>用户名</label><input name="user_id"></div>
+<div class="field"><label>邮箱</label><input name="email"></div>
+<button class="ui button" type="submit">重置密码</button>
+</form>
 </div>
 {{end}}
 
-{{/* contestRankPage 是滚榜页，对应 template/syzoj/contestrank2.php。 */}}
-{{define "contestRankPage"}}
+{{/* lostPassword2Page 是密码重置确认页，对应 template/syzoj/lostpassword2.php。 */}}
+{{define "lostPassword2Page"}}
 <div class="ui container">
-<h2 class="ui header">滚榜 - {{.ContestName}}</h2>
-<p>开始时间: {{.StartTime}} | 结束时间: {{.EndTime}} | 封榜时间: {{.LockTime}}</p>
-<table class="ui very basic table">
-<thead><tr><th>排名</th><th>用户</th><th>解题数</th><th>用时</th></tr></thead>
-<tbody>
-{{range .Rankings}}<tr>
-<td>{{.Rank}}</td>
-<td>{{.UserID}}</td>
-<td>{{.Solved}}</td>
-<td>{{.Time}}</td>
-</tr>
-{{end}}
-</tbody>
-</table>
-</div>
-{{end}}
-
-{{/* contestRank3Page 是滚榜页，对应 template/syzoj/contestrank3.php。 */}}
-{{define "contestRank3Page"}}
-<div class="ui container">
-<h2 class="ui header">滚榜 - {{.ContestName}}</h2>
-<p>开始时间: {{.StartTime}} | 结束时间: {{.EndTime}} | 封榜时间: {{.LockTime}}</p>
-<table class="ui very basic table">
-<thead><tr><th>排名</th><th>用户</th><th>解题数</th><th>用时</th></tr></thead>
-<tbody>
-{{range .Rankings}}<tr>
-<td>{{.Rank}}</td>
-<td>{{.UserID}}</td>
-<td>{{.Solved}}</td>
-<td>{{.Time}}</td>
-</tr>
-{{end}}
-</tbody>
-</table>
+<h2 class="ui header">密码重置</h2>
+<form method="post" class="ui form">
+<div class="field"><label>用户名</label><input name="user_id" value="{{.UserID}}"></div>
+<div class="field"><label>重置密钥</label><input name="lost_key"></div>
+<button class="ui button" type="submit">确认重置</button>
+</form>
 </div>
 {{end}}
 
