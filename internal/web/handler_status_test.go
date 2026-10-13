@@ -746,8 +746,29 @@ func TestStatusFilterFormSingleRowEmptyDefaults(t *testing.T) {
 	if !strings.Contains(body, `name="problem_id" value=""`) {
 		t.Errorf("problem_id 输入框应留空:\n%s", body)
 	}
-	if !strings.Contains(body, "display:flex") {
-		t.Errorf("筛选项应排成一行（flex 容器）:\n%s", body)
+	if !strings.Contains(body, `class="status-filters"`) {
+		t.Errorf("筛选项应使用居中单行的 status-filters 容器:\n%s", body)
+	}
+}
+
+// 筛选栏样式：居中 + 单行，且把 Simple.css 的 label{display:block}、
+// input/select{width:100%} 改回并排与自动宽度。
+func TestStatusFilterBarCSS(t *testing.T) {
+	css, err := assetFS.ReadFile("static/hustoj.css")
+	if err != nil {
+		t.Fatalf("读取 hustoj.css 失败: %v", err)
+	}
+	s := string(css)
+	for _, want := range []string{
+		".status-filters {",
+		"justify-content: center;",
+		"flex-wrap: nowrap;",
+		".status-filters .field label {",
+		"display: inline;",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("筛选栏样式缺少 %q", want)
+		}
 	}
 }
 

@@ -176,6 +176,43 @@ i.icon { display: none; }
  * 未访问/已访问同色。需要自定义颜色的组件（结果色、徽章、分页、按钮）各自
  * 补上 :visited 变体即可，见上面对应段落。 */
 
+/* ── 状态页筛选栏：居中 + 同一行 ──────────────────────────
+ * Simple.css 默认 label{display:block} 且 input/select{width:100%}，
+ * 会把每个筛选项拆成两行、并把下拉框撑满整行。这里改回"标签与控件并排"、
+ * 控件自动宽度，并把整条筛选栏居中、强制单行（窄屏横向滚动而非换行）。 */
+.status-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+  overflow-x: auto;
+}
+.status-filters .field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  margin: 0;
+}
+.status-filters .field label {
+  display: inline;
+  margin: 0;
+  font-size: 0.95em;
+  white-space: nowrap;
+}
+.status-filters input,
+.status-filters select {
+  width: auto;
+  margin: 0;
+}
+.status-filters .field .ui.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
 /* ── 状态表（#result-tab）─────────────────────────────────
  * 整表页面居中、总宽可调（--status-table-width），列内容居中。
  * 列宽比例由模板 <colgroup> 指定，table-layout:fixed 让比例生效。 */

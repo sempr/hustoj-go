@@ -561,7 +561,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 
 {{define "statusPage"}}<div class="ui container">
 <form class="ui form" method="GET">
-<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:12px;">
+<div class="status-filters">
 <div class="field"><label>比赛</label><input name="cid" value="{{.Filter.CIDText}}" placeholder="比赛 ID" style="width:90px"></div>
 <div class="field"><label>题目</label><input name="problem_id" value="{{.Filter.ProblemIDText}}" placeholder="题目 ID" style="width:90px"></div>
 <div class="field"><label>用户</label><input name="user_id" value="{{.Filter.UserID}}" placeholder="用户名" style="width:120px"></div>
