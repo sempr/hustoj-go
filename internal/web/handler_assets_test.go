@@ -51,3 +51,30 @@ func TestLayoutLinksAssets(t *testing.T) {
 		}
 	}
 }
+
+// 已访问链接的配色规则必须用 :where() 把优先级降到 0。
+//
+// 否则 "a:visited"(0,1,0) 会盖住同级的结果配色 .ac/.wa/.ce 等，
+// 把点过的"通过"从绿色变成 --accent（暗色模式下是黄的）。
+func TestHustojCSSLinkRuleHasZeroSpecificity(t *testing.T) {
+	css, err := assetFS.ReadFile("static/hustoj.css")
+	if err != nil {
+		t.Fatalf("读取 hustoj.css 失败: %v", err)
+	}
+	s := string(css)
+
+	if !strings.Contains(s, ":where(a, a:visited)") {
+		t.Errorf("链接配色规则必须用 :where() 包裹以降优先级")
+	}
+	for _, bad := range []string{"\na:visited {", "\na, a:visited {"} {
+		if strings.Contains(s, bad) {
+			t.Errorf("不应存在高优先级的裸规则 %q", strings.TrimSpace(bad))
+		}
+	}
+	// 结果配色类仍需存在（被 :where 规则让位后要能生效）。
+	for _, want := range []string{".ac {", ".wa", ".ce"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("缺少结果配色 %q", want)
+		}
+	}
+}

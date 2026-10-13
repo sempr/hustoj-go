@@ -160,9 +160,12 @@ i.icon { display: none; }
 
 /* ── 链接：已访问与未访问同色 ─────────────────────────────
  * Simple.css 只给 a 设了 text-decoration（颜色用浏览器默认蓝），
- * 却把 a:visited 设成 --accent，于是点过的链接会变色。这里显式统一，
- * 点过与否颜色一致（与旧版外观一致，也便于扫列表）。 */
-a, a:visited { color: var(--accent); }
+ * 却把 a:visited 设成 --accent，于是点过的链接会变色。
+ *
+ * 必须用 :where(...) 包裹：它的优先级是 0，否则 "a:visited"(0,1,0)
+ * 会盖住 .ac/.label 这类同级组件（把已访问的"通过"从绿/白变成 accent 色）。
+ * 作者样式优先级为 0 也仍会覆盖浏览器默认链接色，所以普通链接照样是 accent。 */
+:where(a, a:visited) { color: var(--accent); }
 
 /* ── 状态表（#result-tab）─────────────────────────────────
  * 整表页面居中、总宽可调（--status-table-width），列内容居中。
