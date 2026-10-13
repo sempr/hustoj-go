@@ -45,7 +45,12 @@ func TestLayoutLinksAssets(t *testing.T) {
 		"errorPage", "错误", map[string]string{"Message": "x"})
 
 	body := rec.Body.String()
-	for _, want := range []string{`href="/assets/simple.min.css?v=`, `href="/assets/hustoj.css?v=`, "<main>"} {
+	for _, want := range []string{
+		`href="/assets/simple.min.css?v=`,
+		`href="/assets/hustoj.css?v=`,
+		`href="/template/syzoj/css/katex.min.css"`, // KaTeX：公式排版
+		"<main>",
+	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("页面缺少 %q:\n%s", want, body)
 		}
