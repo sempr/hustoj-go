@@ -81,7 +81,7 @@ func TestShowsourceOwnerCanView(t *testing.T) {
 	// 因此断言用不含 "+" 的前缀即可。
 	for _, want := range []string{
 		"int main(){}", "Problem: 1001", "User: alice [Alice]",
-		"Language: C", "Result: 通过", "Time:12 ms", "Memory:2048 kb",
+		"Language: C", "Result: 正确", "Time:12 ms", "Memory:2048 kb",
 		"brush:c",
 	} {
 		if !strings.Contains(body, want) {

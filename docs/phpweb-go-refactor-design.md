@@ -109,15 +109,21 @@ Go 侧全部经 `html/template` 转义。
 `html/template` 会把 `+` 转义成 `&#43;`（防 UTF-7 型 XSS 的历史行为），
 浏览器显示正常，非 bug。
 
-### 3.8 评测结果文案与部署版 lang 不同（待确认）
+### 3.8 评测结果文案对齐 lang（已修正）
 
-Go 的 `judgeResultLabel`（`handler_status.go:511`）用的是
-「通过 / 错误答案 / 超时」，而部署树 `phpweb/lang/cn.php` 里
-`$jresult` 取的是「正确 / 答案错误 / 时间超限」（`lang/cn.php:83-88`）。
-这不是本次迁移引入的：`status.php` 与 `userinfo.php` 已经用的是前者。
-`problemstatus.php`（4.3）沿用同一份标签以保持 Go 页面间一致。若要求与
-PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lang
-文案，并同步更新 `handler_status_test.go` 的断言。
+`judgeResultLabel`（`handler_status.go`）与结果筛选下拉原先用
+「通过 / 错误答案 / 超时」，且 1/2/3 整体错位（1 显示成"编译中"），
+连"等待重判"都不出现。现已按 PHP 的 `$judge_result`
+（`include/const.inc.php:9`，文案取自 `lang/cn.php`）统一：
+
+```
+0 等待 1 等待重判 2 编译中 3 运行并评判 4 正确 5 格式错误 6 答案错误
+7 时间超限 8 内存超限 9 输出超限 10 运行错误 11 编译错误
+```
+
+下拉选项顺序也与 `status.php` 一致（先 4..11，再 0..3；12..15 不列）。
+12..15 保留 Go 判题器自己的语义（受限函数/非零退出/信号终止/内部错误），
+因为 PHP 那份（编译成功/运行完成/人工确认/提交中）与本判题器不一致。
 
 ---
 

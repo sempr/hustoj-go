@@ -53,7 +53,7 @@ func TestProblemStatusRendersStatsAndBoard(t *testing.T) {
 	body := rec.Body.String()
 	for _, want := range []string{
 		"提交记录", "用户(提交)", "用户(解决)",
-		"通过", "错误答案", // result 4 与 6 的标签
+		"正确", "答案错误", // result 4 与 6 的标签（对齐 PHP $judge_result）
 		"alice", "bob", "userinfo.php?user=alice",
 		"2048 KiB", "12 ms", "399 bytes",
 		"2026-05-13 19:24:00",

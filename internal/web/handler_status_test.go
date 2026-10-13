@@ -244,8 +244,8 @@ func TestMaskedRowHidesResultAndResources(t *testing.T) {
 func TestUnmaskedRowShowsResultAndResources(t *testing.T) {
 	row := StatusRow{Result: 4, Memory: 1024, Time: 250}
 
-	if got := row.ResultLabel(); got != "通过" {
-		t.Errorf("未封榜行结果文案 = %q，期望 %q", got, "通过")
+	if got := row.ResultLabel(); got != "正确" {
+		t.Errorf("未封榜行结果文案 = %q，期望 %q", got, "正确")
 	}
 	if got := row.MemoryText(); got != "1024 KiB" {
 		t.Errorf("内存文案 = %q", got)
@@ -339,7 +339,7 @@ func TestRenderStatusPageTemplate(t *testing.T) {
 	}
 	out := buf.String()
 
-	for _, want := range []string{"9001", "alice", "通过", "12 ms", "2048 KiB"} {
+	for _, want := range []string{"9001", "alice", "正确", "12 ms", "2048 KiB"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("状态页缺少 %q\n输出:\n%s", want, out)
 		}
@@ -830,5 +830,30 @@ func TestStatusTableHasCodeLengthColumn(t *testing.T) {
 	}
 	if !strings.Contains(body, "1234 bytes") {
 		t.Errorf("缺少代码长度取值:\n%s", body)
+	}
+}
+
+// 结果筛选下拉必须含"等待重判"(1)，且顺序与 PHP status.php 一致（4..11 再 0..3）。
+func TestStatusResultDropdownMatchesPHP(t *testing.T) {
+	s := newTestServer(t, &fakeQuerier{}, nil)
+	rec := httptest.NewRecorder()
+	s.renderPage(rec, httptest.NewRequest(http.MethodGet, "/status.php", nil), http.StatusOK,
+		"statusPage", "状态", newStatusPage(nil, StatusFilter{}))
+
+	body := rec.Body.String()
+	i := strings.Index(body, `name="jresult"`)
+	if i < 0 {
+		t.Fatalf("缺少结果下拉:\n%s", body)
+	}
+	seg := body[i:]
+
+	if !strings.Contains(seg, `<option value="1">等待重判</option>`) {
+		t.Errorf("结果下拉缺少 value=1 的\"等待重判\":\n%s", seg)
+	}
+	if !strings.Contains(seg, `<option value="4">正确</option>`) {
+		t.Errorf("value=4 文案应为\"正确\":\n%s", seg)
+	}
+	if strings.Index(seg, `value="4"`) > strings.Index(seg, `value="0"`) {
+		t.Errorf("结果下拉顺序应与 PHP 一致（4..11 在 0..3 之前）:\n%s", seg)
 	}
 }

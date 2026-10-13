@@ -109,11 +109,16 @@ var templateFuncs = template.FuncMap{
 	"languageNames": func() map[int32]string { return languageNames },
 	// coinStars 复刻 contest.php:95 的 min(coin, 5)：题面最多 5 颗星。
 	"coinStars":    coinStars,
-	"resultLabels": func() map[int32]string { return resultLabels },
+	"resultLabels": func() []resultOption { return resultOptions },
 	// judgeLabelsJSON / judgeClassesJSON 供状态页把结果标签与配色嵌进
 	// 自动刷新的 JS（对应 PHP 模板里的 judge_result / judge_color）。
+	// 结果文案统一走 judgeResultLabel，避免与页面显示的标签不一致。
 	"judgeLabelsJSON": func() template.JS {
-		b, _ := json.Marshal(resultLabels)
+		m := make(map[int32]string, 16)
+		for i := int32(0); i < 16; i++ {
+			m[i] = judgeResultLabel(i)
+		}
+		b, _ := json.Marshal(m)
 		return template.JS(b)
 	},
 	"judgeClassesJSON": func() template.JS {
@@ -144,15 +149,26 @@ var languageNames = func() map[int32]string {
 	return m
 }()
 
-// resultLabels 是 statusPage 的结果下拉框。
-//
-// 数值语义必须与 judgeResultLabel 一致（result=4 是"通过"），否则下拉框
-// 选"通过"会筛出错误答案。这里直接复用同一份标签，不再维护第二张表。
-var resultLabels = map[int32]string{
-	0: "等待", 1: "编译中", 2: "运行中", 3: "判题中", 4: "通过", 5: "格式错误",
-	6: "错误答案", 7: "超时", 8: "内存超限", 9: "输出超限", 10: "运行错误",
-	11: "编译错误", 12: "受限函数", 13: "非零退出", 14: "信号终止", 15: "内部错误",
+// resultOption 是结果下拉的一项。
+type resultOption struct {
+	Value int32
+	Label string
 }
+
+// resultOptions 是 statusPage 的结果下拉框。
+//
+// 顺序与 PHP status.php 一致：先 4..11（AC/PE/WA/…/CE），再 0..3
+// （等待/等待重判/编译中/运行并评判），12..15 不列（PHP 也不列）。
+// 文案统一取自 judgeResultLabel，不再维护第二张表 —— 之前那张表把
+// 1/2/3 写错位，"等待重判"在筛选里根本不出现。
+var resultOptions = func() []resultOption {
+	order := []int32{4, 5, 6, 7, 8, 9, 10, 11, 0, 1, 2, 3}
+	out := make([]resultOption, 0, len(order))
+	for _, v := range order {
+		out = append(out, resultOption{Value: v, Label: judgeResultLabel(v)})
+	}
+	return out
+}()
 
 // pageTemplates 汇集全部页面模板。
 //
@@ -564,8 +580,8 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <div class="field"><label>结果</label>
 <select name="jresult">
 <option value="-1"{{if eq (int $selResult) -1}} selected{{end}}>全部</option>
-{{range $i, $label := resultLabels}}
-<option value="{{$i}}"{{if eq $i (int $selResult)}} selected{{end}}>{{$label}}</option>
+{{range $opt := resultLabels}}
+<option value="{{$opt.Value}}"{{if eq $opt.Value (int $selResult)}} selected{{end}}>{{$opt.Label}}</option>
 {{end}}
 </select>
 </div>

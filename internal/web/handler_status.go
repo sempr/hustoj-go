@@ -526,9 +526,23 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // 以下辅助函数保持不变...
+// judgeResultLabel 对应 PHP 的 $judge_result（include/const.inc.php:9，
+// 文案取自 lang/cn.php）。索引即 result：
+//
+//	0 等待 1 等待重判 2 编译中 3 运行并评判 4 正确 5 格式错误 6 答案错误
+//	7 时间超限 8 内存超限 9 输出超限 10 运行错误 11 编译错误
+//
+// 曾经 1/2/3 整体错位（1 显示成"编译中"），导致"等待重判"在界面上根本
+// 不出现。12..15 用 Go 判题器自己的语义（PHP 那份对应"编译成功/运行完成/
+// 人工确认/提交中"，与本判题器不一致，且 PHP 下拉也不列这几项）。
 func judgeResultLabel(result int32) string {
-	labels := []string{"等待", "编译中", "运行中", "判题中", "通过", "格式错误", "错误答案", "超时", "内存超限", "输出超限", "运行错误", "编译错误", "受限函数", "非零退出", "信号终止", "内部错误"}
-	if int(result) < len(labels) {
+	labels := []string{
+		"等待", "等待重判", "编译中", "运行并评判",
+		"正确", "格式错误", "答案错误", "时间超限",
+		"内存超限", "输出超限", "运行错误", "编译错误",
+		"受限函数", "非零退出", "信号终止", "内部错误",
+	}
+	if int(result) >= 0 && int(result) < len(labels) {
 		return labels[result]
 	}
 	return fmt.Sprintf("未知(%d)", result)
