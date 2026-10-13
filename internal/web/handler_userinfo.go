@@ -253,7 +253,7 @@ func (s *Server) handleUserInfo(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "档案暂时不可用", http.StatusInternalServerError)
 		return
 	}
-	renderPage(w, http.StatusOK, "userInfo", view.Nick+"@"+s.cfg.OJName, view)
+	s.renderPage(w, r, http.StatusOK, "userInfo", view.Nick+"@"+s.cfg.OJName, view)
 }
 
 // isRankHidden 判断账号是否在 $OJ_RANK_HIDDEN 名单里。
@@ -268,7 +268,7 @@ func (s *Server) isRankHidden(userID string) bool {
 
 // renderUserInfoError 渲染"查无此人"的错误卡。
 func (s *Server) renderUserInfoError(w http.ResponseWriter, msg string) {
-	renderPage(w, http.StatusOK, "userInfoError", "错误信息 - "+s.cfg.OJName,
+	s.renderPage(w, nil, http.StatusOK, "userInfoError", "错误信息 - "+s.cfg.OJName,
 		userInfoErrorView{Message: msg})
 }
 

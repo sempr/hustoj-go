@@ -160,7 +160,7 @@ func (s *Server) handleAdminContestList(w http.ResponseWriter, r *http.Request) 
 			vm.Pages = append(vm.Pages, adminNewsLinkVM{Num: i, Active: i == page})
 		}
 	}
-	renderPage(w, http.StatusOK, "adminContestListPage", "比赛列表", vm)
+	s.renderPage(w, r, http.StatusOK, "adminContestListPage", "比赛列表", vm)
 }
 
 // ── contest_df_change.php / contest_pr_change.php ────────────────────
@@ -175,7 +175,7 @@ func (s *Server) handleAdminContestDefunctChange(w http.ResponseWriter, r *http.
 	cid := int32(parseInt(r.URL.Query().Get("cid")))
 	defunct, err := s.queries().GetContestDefunct(ctx, cid)
 	if err != nil {
-		renderPage(w, http.StatusOK, "errorPage", "无此比赛", map[string]string{"Message": "No Such Contest!"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此比赛", map[string]string{"Message": "No Such Contest!"})
 		return
 	}
 	next := "Y"
@@ -196,7 +196,7 @@ func (s *Server) handleAdminContestPrivateChange(w http.ResponseWriter, r *http.
 	cid := int32(parseInt(r.URL.Query().Get("cid")))
 	private, err := s.queries().GetContestPrivate(ctx, cid)
 	if err != nil {
-		renderPage(w, http.StatusOK, "errorPage", "无此比赛", map[string]string{"Message": "No Such Problem!"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此比赛", map[string]string{"Message": "No Such Problem!"})
 		return
 	}
 	next := int8(1)
@@ -414,7 +414,7 @@ func (s *Server) handleAdminContestAdd(w http.ResponseWriter, r *http.Request) {
 
 	vm := s.buildFormVM(false, 0, title, st, et, private, "", "", desc, plist, ulist, langmask, ctype, true)
 	vm.Token = r
-	renderPage(w, http.StatusOK, "adminContestFormPage", "添加比赛", vm)
+	s.renderPage(w, r, http.StatusOK, "adminContestFormPage", "添加比赛", vm)
 }
 
 func (s *Server) handleAdminContestEdit(w http.ResponseWriter, r *http.Request) {
@@ -469,7 +469,7 @@ func (s *Server) handleAdminContestEdit(w http.ResponseWriter, r *http.Request) 
 	cid := int32(parseInt(r.URL.Query().Get("cid")))
 	c, err := s.queries().GetContestByID(ctx, cid)
 	if err != nil {
-		renderPage(w, http.StatusOK, "errorPage", "无此比赛", map[string]string{"Message": "No such Contest!"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此比赛", map[string]string{"Message": "No such Contest!"})
 		return
 	}
 	ids, _ := s.queries().ListContestProblemIDsOrdered(ctx, nullCID(cid))
@@ -483,7 +483,7 @@ func (s *Server) handleAdminContestEdit(w http.ResponseWriter, r *http.Request) 
 		c.Subnet, c.Description.String, strings.Join(parts, ","), strings.Join(users, "\n"),
 		c.Langmask, c.ContestType.Int16, false)
 	vm.Token = r
-	renderPage(w, http.StatusOK, "adminContestFormPage", "编辑比赛", vm)
+	s.renderPage(w, r, http.StatusOK, "adminContestFormPage", "编辑比赛", vm)
 }
 
 func (s *Server) registerAdminContestRoutes(mux *http.ServeMux) {

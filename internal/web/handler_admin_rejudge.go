@@ -53,7 +53,7 @@ func (s *Server) handleAdminRejudge(w http.ResponseWriter, r *http.Request) {
 		case hasPid:
 			pid := int32(parseInt(r.FormValue("rjpid")))
 			if pid == 0 {
-				renderPage(w, http.StatusOK, "errorPage", "重新判题", map[string]string{
+				s.renderPage(w, r, http.StatusOK, "errorPage", "重新判题", map[string]string{
 					"Message": "Rejudge Problem ID should not equal to 0",
 				})
 				return
@@ -104,7 +104,7 @@ func (s *Server) handleAdminRejudge(w http.ResponseWriter, r *http.Request) {
 	for i := int32(4); i < 18; i++ {
 		to = append(to, i)
 	}
-	renderPage(w, http.StatusOK, "adminRejudgePage", "重新判题", adminRejudgeVM{
+	s.renderPage(w, r, http.StatusOK, "adminRejudgePage", "重新判题", adminRejudgeVM{
 		FromResults: from,
 		ToResults:   to,
 		Letters:     pidLetters(30),
@@ -226,7 +226,7 @@ func (s *Server) handleAdminSolutionStatistics(w http.ResponseWriter, r *http.Re
 			}
 		}
 
-		renderPage(w, http.StatusOK, "adminSolutionStatsPage", "解题统计", adminSolutionStatsVM{
+		s.renderPage(w, r, http.StatusOK, "adminSolutionStatsPage", "解题统计", adminSolutionStatsVM{
 			Problems: pids, Rows: rows, CID: cid, Token: r,
 		})
 		return
@@ -236,7 +236,7 @@ func (s *Server) handleAdminSolutionStatistics(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		s.log.Error("查询比赛失败", "err", err)
 	}
-	renderPage(w, http.StatusOK, "adminSolutionStatsPage", "解题统计", adminSolutionStatsVM{
+	s.renderPage(w, r, http.StatusOK, "adminSolutionStatsPage", "解题统计", adminSolutionStatsVM{
 		Contests: contests, CID: cid, Token: r,
 	})
 }

@@ -183,7 +183,7 @@ func (s *Server) handleAdminNewsList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	renderPage(w, http.StatusOK, "adminNewsListPage", "新闻管理", vm)
+	s.renderPage(w, r, http.StatusOK, "adminNewsListPage", "新闻管理", vm)
 }
 
 // buildAdminNewsRow 把列表/搜索两条查询的行摊平成视图模型。
@@ -220,7 +220,7 @@ func (s *Server) handleAdminNewsAddPage(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	renderPage(w, http.StatusOK, "adminNewsAddPage", "添加新闻", vm)
+	s.renderPage(w, r, http.StatusOK, "adminNewsAddPage", "添加新闻", vm)
 }
 
 // ── admin/news_add.php ───────────────────────────────────────────────
@@ -287,7 +287,7 @@ func (s *Server) handleAdminNewsEdit(w http.ResponseWriter, r *http.Request) {
 	id := int32(parseInt(r.URL.Query().Get("id")))
 	row, err := s.queries().GetNewsAdmin(ctx, id)
 	if errors.Is(err, sql.ErrNoRows) {
-		renderPage(w, http.StatusOK, "errorPage", "无此公告", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此公告", map[string]string{
 			"Message": "No such News!",
 		})
 		return
@@ -298,7 +298,7 @@ func (s *Server) handleAdminNewsEdit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, http.StatusOK, "adminNewsEditPage", "编辑新闻", adminNewsEditVM{
+	s.renderPage(w, r, http.StatusOK, "adminNewsEditPage", "编辑新闻", adminNewsEditVM{
 		NewsID:     row.NewsID,
 		Title:      row.Title,
 		Content:    row.Content,
@@ -341,7 +341,7 @@ func (s *Server) handleAdminNewsDefunctChange(w http.ResponseWriter, r *http.Req
 
 // adminLoginRequired 渲染与其他后台页一致的需要登录提示。
 func (s *Server) adminLoginRequired(w http.ResponseWriter) {
-	renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+	s.renderPage(w, nil, http.StatusOK, "errorPage", "需要登录", map[string]string{
 		"Message": "<a href=\"/loginpage.php\">Please Login First!</a>",
 	})
 }

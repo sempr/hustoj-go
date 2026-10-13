@@ -308,7 +308,7 @@ func (s *Server) handleContestRankXLS(w http.ResponseWriter, r *http.Request) {
 			// PHP 走 template/error.php 输出整页；Go 侧沿用站内 errorPage
 			// （与 contestrank.php / conteststatistics.go 一致），页面外框
 			// 不同但提示语义相同。
-			renderPage(w, http.StatusOK, "errorPage", "比赛", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "比赛", map[string]string{
 				"Message": "<h2>" + s.noipWarning() + "</h2>",
 			})
 			return

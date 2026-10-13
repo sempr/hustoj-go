@@ -165,7 +165,7 @@ func (d submitDeny) message() string {
 func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 	if !identity.LoggedIn {
-		renderPage(w, http.StatusOK, "alertAndBack", "请先登录", alertView{
+		s.renderPage(w, r, http.StatusOK, "alertAndBack", "请先登录", alertView{
 			Message: "请先登录后再提交代码",
 		})
 		return
@@ -186,7 +186,7 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 			Num:       num,
 		})
 		if err != nil {
-			renderPage(w, http.StatusOK, "alertAndBack", "提交", alertView{
+			s.renderPage(w, r, http.StatusOK, "alertAndBack", "提交", alertView{
 				Message: "比赛中没有这道题",
 			})
 			return
@@ -198,7 +198,7 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 	} else {
 		id := int32(intval(q.Get("id")))
 		if id <= 0 {
-			renderPage(w, http.StatusOK, "alertAndBack", "提交", alertView{
+			s.renderPage(w, r, http.StatusOK, "alertAndBack", "提交", alertView{
 				Message: "缺少题目编号",
 			})
 			return
@@ -206,7 +206,7 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 		view.ProblemID = id
 	}
 
-	renderPage(w, http.StatusOK, "submitPage", "提交代码", view)
+	s.renderPage(w, r, http.StatusOK, "submitPage", "提交代码", view)
 }
 
 // allowedLanguages 列出掩码允许的语言。
@@ -726,7 +726,7 @@ func decodeBase64(s string) (string, error) {
 // PHP 一律 exit(0) 渲染 error.php，状态码仍是 200 —— 提交失败是
 // 正常业务结果，不是资源不存在。这里保持 200。
 func (s *Server) renderSubmitDeny(w http.ResponseWriter, r *http.Request, d submitDeny) {
-	renderPage(w, http.StatusOK, "alertAndBack", d.message(), alertView{
+	s.renderPage(w, r, http.StatusOK, "alertAndBack", d.message(), alertView{
 		Message: d.message(),
 	})
 }

@@ -297,7 +297,7 @@ func (s *Server) handleContestList(w http.ResponseWriter, r *http.Request) {
 		view.Contests = append(view.Contests, item)
 	}
 
-	renderPage(w, http.StatusOK, "contestList", "比赛列表", view)
+	s.renderPage(w, r, http.StatusOK, "contestList", "比赛列表", view)
 }
 
 // myContestIDs 汇总"我参加过的比赛"，对应 contest.php:169-213。
@@ -411,7 +411,7 @@ func (s *Server) handleContestProblems(w http.ResponseWriter, r *http.Request) {
 		// 传 nil 而不是空的 Contest 行：newContestErrorView 用它区分
 		// "比赛不存在"（标题"比赛已经关闭!"、描述"Net in 子网 "）
 		// 与"比赛存在但没权限"（用真实标题与描述）。
-		renderPage(w, http.StatusOK, "contestError", "错误信息",
+		s.renderPage(w, r, http.StatusOK, "contestError", "错误信息",
 			newContestErrorView(cid, nil, ContestNotFound, false))
 		return
 	}
@@ -426,7 +426,7 @@ func (s *Server) handleContestProblems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !access.OK() {
-		renderPage(w, http.StatusOK, "contestError", "比赛准入失败",
+		s.renderPage(w, r, http.StatusOK, "contestError", "比赛准入失败",
 			newContestErrorView(cid, &contest, access.Deny, access.Deny == ContestSubnet))
 		return
 	}
@@ -455,7 +455,7 @@ func (s *Server) handleContestProblems(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, http.StatusOK, "contestProblems", contestTitle(contest.Title.String, cid),
+	s.renderPage(w, r, http.StatusOK, "contestProblems", contestTitle(contest.Title.String, cid),
 		contestProblemsView{Contest: contest, CID: cid, Problems: problems, Flags: flags})
 }
 

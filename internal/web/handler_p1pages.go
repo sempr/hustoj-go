@@ -57,7 +57,7 @@ func (s *Server) handleOnline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, http.StatusOK, "onlinePage", "在线用户", OnlinePageVM{
+	s.renderPage(w, r, http.StatusOK, "onlinePage", "在线用户", OnlinePageVM{
 		Title:  "在线用户",
 		OJName: s.cfg.OJName,
 		Users:  users,
@@ -165,7 +165,7 @@ func (s *Server) handleRecentContest(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	renderPage(w, http.StatusOK, "recentContestPage", "最近比赛", RecentContestPageVM{
+	s.renderPage(w, r, http.StatusOK, "recentContestPage", "最近比赛", RecentContestPageVM{
 		Title:    "最近比赛",
 		OJName:   s.cfg.OJName,
 		Contests: contests,
@@ -179,7 +179,7 @@ func (s *Server) handleExportACCode(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 
 	if !identity.LoggedIn {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">请先登录</a>",
 		})
 		return
@@ -209,7 +209,7 @@ func (s *Server) handleExportContestCode(w http.ResponseWriter, r *http.Request)
 	identity := s.resolveIdentity(w, r)
 
 	if !identity.LoggedIn {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">请先登录</a>",
 		})
 		return
@@ -225,7 +225,7 @@ func (s *Server) handleExportContestCode(w http.ResponseWriter, r *http.Request)
 	if !identity.Admin {
 		hasPriv, err := HasContestPrivilege(ctx, s.queries(), identity.UserID, cid)
 		if err != nil || !hasPriv {
-			renderPage(w, http.StatusOK, "errorPage", "无权限", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "无权限", map[string]string{
 				"Message": "<a href=\"/loginpage.php\">无权限</a>",
 			})
 			return
@@ -289,7 +289,7 @@ func (s *Server) handleCompareSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if leftID == 0 {
-		renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "代码不存在", map[string]string{
 			"Message": "No such code!",
 		})
 		return
@@ -298,7 +298,7 @@ func (s *Server) handleCompareSource(w http.ResponseWriter, r *http.Request) {
 	leftInfo, leftSource, err := s.getSourceInfo(ctx, leftID, identity)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			s.renderPage(w, r, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
 			return
 		}
 		s.log.Error("查询左侧源码失败", "err", err)
@@ -309,7 +309,7 @@ func (s *Server) handleCompareSource(w http.ResponseWriter, r *http.Request) {
 	rightInfo, rightSource, err := s.getSourceInfo(ctx, rightID, identity)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			s.renderPage(w, r, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
 			return
 		}
 		s.log.Error("查询右侧源码失败", "err", err)
@@ -317,7 +317,7 @@ func (s *Server) handleCompareSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, http.StatusOK, "compareSourcePage", "代码对比", CompareSourceVM{
+	s.renderPage(w, r, http.StatusOK, "compareSourcePage", "代码对比", CompareSourceVM{
 		Title:       "代码对比",
 		OJName:      s.cfg.OJName,
 		LeftSource:  leftSource,
@@ -368,7 +368,7 @@ func (s *Server) handleGetSource(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if id == 0 {
-		renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "代码不存在", map[string]string{
 			"Message": "No such code!",
 		})
 		return
@@ -377,7 +377,7 @@ func (s *Server) handleGetSource(w http.ResponseWriter, r *http.Request) {
 	sol, err := s.queries().GetSolutionByID(ctx, uint32(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			s.renderPage(w, r, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
 			return
 		}
 		s.log.Error("查询源码失败", "err", err)
@@ -432,7 +432,7 @@ func (s *Server) handleShowSource2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if id == 0 {
-		renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "代码不存在", map[string]string{
 			"Message": "No such code!",
 		})
 		return
@@ -441,7 +441,7 @@ func (s *Server) handleShowSource2(w http.ResponseWriter, r *http.Request) {
 	sol, err := s.queries().GetSolutionByID(ctx, uint32(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			s.renderPage(w, r, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
 			return
 		}
 		s.log.Error("查询源码失败", "err", err)
@@ -455,7 +455,7 @@ func (s *Server) handleShowSource2(w http.ResponseWriter, r *http.Request) {
 		if err == nil {
 			now := time.Now()
 			if contest.EndTime.Time.After(now) {
-				renderPage(w, http.StatusOK, "errorPage", "比赛进行中", map[string]string{
+				s.renderPage(w, r, http.StatusOK, "errorPage", "比赛进行中", map[string]string{
 					"Message": fmt.Sprintf("<h3>比赛编号: %d</h3><p>比赛进行中，无法查看源码</p>", contestID),
 				})
 				return
@@ -522,7 +522,7 @@ func (s *Server) handleContestRank2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cid == 0 {
-		renderPage(w, http.StatusOK, "errorPage", "比赛不存在", map[string]string{"Message": "No Such Contest!"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛不存在", map[string]string{"Message": "No Such Contest!"})
 		return
 	}
 
@@ -538,7 +538,7 @@ func (s *Server) handleContestRank2(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 
 	if startTime.After(now) {
-		renderPage(w, http.StatusOK, "errorPage", "比赛未开始", map[string]string{"Message": "比赛尚未开始!"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛未开始", map[string]string{"Message": "比赛尚未开始!"})
 		return
 	}
 
@@ -548,7 +548,7 @@ func (s *Server) handleContestRank2(w http.ResponseWriter, r *http.Request) {
 	}
 	noip := endTime.After(now) && strings.Contains(strings.ToLower(title), strings.ToLower(s.cfg.NoIPKeyword))
 	if noip && !identity.Admin && !identity.SourceBrowser {
-		renderPage(w, http.StatusOK, "errorPage", "比赛进行中", map[string]string{"Message": s.noipWarning()})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛进行中", map[string]string{"Message": s.noipWarning()})
 		return
 	}
 
@@ -580,7 +580,7 @@ func (s *Server) handleContestRank2(w http.ResponseWriter, r *http.Request) {
 
 	rankings := calculateContestRank(submissions, startTime, lockTime, now, s.cfg.CEPenalty)
 
-	renderPage(w, http.StatusOK, "contestRankPage", "滚榜", ContestRankVM{
+	s.renderPage(w, r, http.StatusOK, "contestRankPage", "滚榜", ContestRankVM{
 		Title:       "滚榜",
 		OJName:      s.cfg.OJName,
 		CID:         cid,
@@ -605,7 +605,7 @@ func (s *Server) handleContestRank3(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if cid == 0 {
-		renderPage(w, http.StatusOK, "errorPage", "比赛不存在", map[string]string{"Message": "No Such Contest"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛不存在", map[string]string{"Message": "No Such Contest"})
 		return
 	}
 
@@ -629,12 +629,12 @@ func (s *Server) handleContestRank3(w http.ResponseWriter, r *http.Request) {
 	now := time.Now()
 
 	if startTime.After(now) {
-		renderPage(w, http.StatusOK, "errorPage", "比赛未开始", map[string]string{"Message": "比赛尚未开始!"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛未开始", map[string]string{"Message": "比赛尚未开始!"})
 		return
 	}
 
 	if endTime.After(now) {
-		renderPage(w, http.StatusOK, "errorPage", "比赛未结束", map[string]string{"Message": "Contest Not Finished!"})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛未结束", map[string]string{"Message": "Contest Not Finished!"})
 		return
 	}
 
@@ -711,7 +711,7 @@ func (s *Server) handleContestRank3(w http.ResponseWriter, r *http.Request) {
 
 	rankings := calculateContestRank(submissions, startTime, lockTime, now, s.cfg.CEPenalty)
 
-	renderPage(w, http.StatusOK, "contestRank3Page", "滚榜", ContestRankVM{
+	s.renderPage(w, r, http.StatusOK, "contestRank3Page", "滚榜", ContestRankVM{
 		Title:       "滚榜",
 		OJName:      s.cfg.OJName,
 		CID:         cid,
@@ -847,7 +847,7 @@ func (s *Server) handleUserSetIP(w http.ResponseWriter, r *http.Request) {
 	contest, err := s.queries().GetContestByID(ctx, cid)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			renderPage(w, http.StatusOK, "errorPage", "比赛不存在",
+			s.renderPage(w, r, http.StatusOK, "errorPage", "比赛不存在",
 				map[string]string{"Message": "没有这场比赛"})
 			return
 		}
@@ -876,7 +876,7 @@ func (s *Server) handleUserSetIP(w http.ResponseWriter, r *http.Request) {
 				if err != nil {
 					s.log.Error("插入 loginlog 失败", "err", err)
 				} else {
-					renderPage(w, http.StatusOK, "userSetIPPage", "设置登录 IP", UserSetIPPageVM{
+					s.renderPage(w, r, http.StatusOK, "userSetIPPage", "设置登录 IP", UserSetIPPageVM{
 						Title: "设置登录 IP", OJName: s.cfg.OJName,
 						CID: cid, ContestName: contest.Title.String,
 						Description: contest.Description.String,
@@ -892,7 +892,7 @@ func (s *Server) handleUserSetIP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	renderPage(w, http.StatusOK, "userSetIPPage", "设置登录 IP", UserSetIPPageVM{
+	s.renderPage(w, r, http.StatusOK, "userSetIPPage", "设置登录 IP", UserSetIPPageVM{
 		Title: "设置登录 IP", OJName: s.cfg.OJName,
 		CID: cid, ContestName: contest.Title.String,
 		Description: contest.Description.String,

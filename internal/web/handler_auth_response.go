@@ -26,7 +26,7 @@ type alertView struct {
 
 // renderErrorPage 渲染错误页，对应 PHP 的 template/.../error.php。
 func (s *Server) renderErrorPage(w http.ResponseWriter, msg string) {
-	renderPage(w, http.StatusOK, "errorPage", "错误", errorView{Message: msg})
+	s.renderPage(w, nil, http.StatusOK, "errorPage", "错误", errorView{Message: msg})
 }
 
 // formView 是登录/注册表单模板的数据。

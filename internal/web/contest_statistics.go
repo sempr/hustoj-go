@@ -295,7 +295,7 @@ func (s *Server) handleContestStatistics(w http.ResponseWriter, r *http.Request)
 		view.ContestStatusText, view.ContestStatusTone = msgRunning, "danger"
 	}
 
-	renderPage(w, http.StatusOK, "contestStatistics", msgStatistics+" - "+s.cfg.OJName, view)
+	s.renderPage(w, r, http.StatusOK, "contestStatistics", msgStatistics+" - "+s.cfg.OJName, view)
 }
 
 // statCells 把一行聚合结果摊平成与表头同序的字符串。
@@ -365,7 +365,7 @@ func (s *Server) contestStatsChart(ctx context.Context, cid int32) ([]contestSta
 //
 // 两者都走 error.php，状态码 200。Message 里可能含 <h2>，是 PHP 原文的一部分。
 func (s *Server) renderContestStatsError(w http.ResponseWriter, message string) {
-	renderPage(w, http.StatusOK, "contestStatsError", "错误信息", contestStatsErrorView{Message: message})
+	s.renderPage(w, nil, http.StatusOK, "contestStatsError", "错误信息", contestStatsErrorView{Message: message})
 }
 
 // contestStatsErrorView 是统计页错误模板的数据。

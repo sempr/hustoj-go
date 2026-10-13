@@ -176,7 +176,7 @@ func (s *Server) handleProblemSet(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, http.StatusOK, "problemset", "题目列表", buildPageVM(data))
+	s.renderPage(w, r, http.StatusOK, "problemset", "题目列表", buildPageVM(data))
 }
 
 // handleProblem 实现 /problem.php。
@@ -227,7 +227,7 @@ func (s *Server) handleProblemPractice(w http.ResponseWriter, r *http.Request, i
 	// NOIP 锁榜对两种模式都生效（problem.php:150-168 在分支之外）。
 	detail.StatsHidden, detail.HintHidden = s.applyNoIPMask(r, identity, detail.ProblemID, now)
 
-	renderPage(w, http.StatusOK, "problemDetail", detail.Title, detail)
+	s.renderPage(w, r, http.StatusOK, "problemDetail", detail.Title, detail)
 }
 
 // handleProblemContest 处理 /problem.php?cid=X&pid=Y。
@@ -255,7 +255,7 @@ func (s *Server) handleProblemContest(w http.ResponseWriter, r *http.Request, id
 		// PHP 一律 exit(0) 渲染错误页，状态码仍是 200。
 		// 这里保留 200：比赛未开始是正常状态，不是资源不存在，
 		// 返回 404 会让浏览器与监控都误判。
-		renderPage(w, http.StatusOK, "contestError",
+		s.renderPage(w, r, http.StatusOK, "contestError",
 			"比赛准入失败", newContestErrorView(cid, &contest, access.Deny, access.Deny == ContestSubnet))
 		return
 	}
@@ -263,7 +263,7 @@ func (s *Server) handleProblemContest(w http.ResponseWriter, r *http.Request, id
 	row, err := ContestProblem(r.Context(), s.queries(), cid, pid)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			renderPage(w, http.StatusOK, "contestError", "题目不存在",
+			s.renderPage(w, r, http.StatusOK, "contestError", "题目不存在",
 				ContestAccess{Deny: ContestNotFound})
 			return
 		}
@@ -283,7 +283,7 @@ func (s *Server) handleProblemContest(w http.ResponseWriter, r *http.Request, id
 	detail.ContestIsOver = access.IsOver
 	detail.StatsHidden, detail.HintHidden = s.applyNoIPMask(r, identity, detail.ProblemID, now)
 
-	renderPage(w, http.StatusOK, "problemDetail", detail.Title, detail)
+	s.renderPage(w, r, http.StatusOK, "problemDetail", detail.Title, detail)
 }
 
 // applyNoIPMask 查询 NOIP 锁榜状态并写回详情。

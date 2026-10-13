@@ -322,7 +322,7 @@ func (s *Server) handleContestRankMode(w http.ResponseWriter, r *http.Request, m
 	contest, err := s.queries().GetContestForRank(r.Context(), cid)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			renderPage(w, http.StatusOK, "errorPage", "比赛不存在",
+			s.renderPage(w, r, http.StatusOK, "errorPage", "比赛不存在",
 				map[string]string{"Message": "没有这场比赛"})
 			return
 		}
@@ -338,7 +338,7 @@ func (s *Server) handleContestRankMode(w http.ResponseWriter, r *http.Request, m
 
 	// 比赛未开始（contestrank.php:130-134）。
 	if now.Before(start) {
-		renderPage(w, http.StatusOK, "errorPage", "比赛", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛", map[string]string{
 			"Message": "比赛尚未开始，暂不提供排名",
 		})
 		return
@@ -351,7 +351,7 @@ func (s *Server) handleContestRankMode(w http.ResponseWriter, r *http.Request, m
 	if !statusNOIPExempt(identity, cid) {
 		if isNOIPContest(&contest, s.cfg.NoIPKeyword, now) ||
 			s.contestRankLocked(r.Context(), cid, now) {
-			renderPage(w, http.StatusOK, "errorPage", "比赛", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "比赛", map[string]string{
 				"Message": "比赛进行中，暂不提供排名查询",
 			})
 			return
@@ -450,7 +450,7 @@ func (s *Server) handleContestRankMode(w http.ResponseWriter, r *http.Request, m
 	if mode == rankOI {
 		name = "contestRankOI"
 	}
-	renderPage(w, http.StatusOK, name, contest.Title.String, view)
+	s.renderPage(w, r, http.StatusOK, name, contest.Title.String, view)
 }
 
 // contestRankLocked 复刻 contest_locked($cid, 20)（include/my_func.inc.php:207）：

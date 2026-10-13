@@ -164,6 +164,7 @@ const layoutTmpl = `
 <title>{{.Title}}</title>
 </head>
 <body>
+{{template "siteHeader" .Nav}}
 <div class="ui container">
 <h1>{{.Title}}</h1>
 {{.Content}}
@@ -173,6 +174,24 @@ const layoutTmpl = `
 {{end}}`
 
 const pageContentTmpls = `
+{{/* siteHeader 是站点导航头，对应 template/syzoj/header.php 的固定菜单。
+     无外部 CSS，用内联样式保证可用；登录态来自 .Nav。 */}}
+{{define "siteHeader"}}<div class="site-header" style="border-bottom:1px solid #ddd;padding:8px 16px;margin-bottom:12px;font-size:14px;">
+<a href="/" style="font-weight:600;margin-right:16px;text-decoration:none;">{{.OJName}}</a>
+<a href="/problemset.php" style="margin-right:12px;text-decoration:none;">题目</a>
+<a href="/category.php" style="margin-right:12px;text-decoration:none;">来源</a>
+<a href="/contest.php{{if .LoggedIn}}?my{{end}}" style="margin-right:12px;text-decoration:none;">竞赛</a>
+<a href="/status.php" style="margin-right:12px;text-decoration:none;">状态</a>
+<a href="/ranklist.php" style="margin-right:12px;text-decoration:none;">排名</a>
+<a href="/faqs.php" style="margin-right:12px;text-decoration:none;">常见问答</a>
+{{if .CID}}<a href="/contest.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">赛题</a><a href="/status.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">比赛状态</a><a href="/contestrank.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">比赛排名</a><a href="/contestrank-oi.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">OI 排名</a>{{end}}
+<span style="float:right;">
+{{if .LoggedIn}}<a href="/userinfo.php?user={{.UserID}}" style="margin-right:12px;text-decoration:none;">{{.UserID}}{{if .Nick}}（{{.Nick}}）{{end}}</a><a href="/modifypage.php" style="margin-right:12px;text-decoration:none;">修改资料</a><a href="/portal.php" style="margin-right:12px;text-decoration:none;">待办</a>{{if .IsAdmin}}<a href="/admin/" style="margin-right:12px;text-decoration:none;">后台管理</a>{{end}}<a href="/logout.php" style="text-decoration:none;">退出</a>
+{{else}}<a href="/loginpage.php" style="margin-right:12px;text-decoration:none;">登录</a>{{if .ShowRegister}}<a href="/registerpage.php" style="text-decoration:none;">注册</a>{{end}}
+{{end}}</span>
+</div>
+{{end}}
+
 {{define "problemset"}}{{template "problemsetTable" .}}{{template "pagination" .}}{{end}}
 
 {{define "problemsetTable"}}<table class="ui celled table">
@@ -2393,17 +2412,48 @@ $(document).ready(function() { update(); window.setInterval(update, 2000); });
 
 `
 
-// renderPage 渲染具名页面模板并套上外壳，写出响应。
-func renderPage(w http.ResponseWriter, code int, name, title string, data any) {
+// navVM 是站点导航头的数据（登录态、比赛上下文）。
+type navVM struct {
+	OJName       string
+	LoggedIn     bool
+	UserID       string
+	Nick         string
+	IsAdmin      bool
+	ShowRegister bool
+	CID          int32
+}
+
+// buildNav 依据当前请求解析登录态，用于渲染导航头。
+func (s *Server) buildNav(w http.ResponseWriter, r *http.Request) navVM {
+	id := s.resolveIdentity(w, r)
+	return navVM{
+		OJName:       s.cfg.OJName,
+		LoggedIn:     id.LoggedIn,
+		UserID:       id.UserID,
+		Nick:         id.Nick,
+		IsAdmin:      id.Admin || id.ContestCreator || id.ProblemEditor,
+		ShowRegister: s.cfg.Register,
+		CID:          int32(parseInt(r.URL.Query().Get("cid"))),
+	}
+}
+
+// renderPage 渲染具名页面模板并套上外壳（含站点导航头），写出响应。
+// r 用于渲染登录态导航；允许为 nil（此时按匿名渲染）。
+func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, code int, name, title string, data any) {
 	var body bytes.Buffer
 	if err := pageTemplates.ExecuteTemplate(&body, name, data); err != nil {
 		http.Error(w, "页面渲染失败", http.StatusInternalServerError)
 		return
 	}
+	nav := navVM{OJName: s.cfg.OJName, ShowRegister: s.cfg.Register}
+	if r != nil {
+		nav = s.buildNav(w, r)
+	}
 	var out bytes.Buffer
 	if err := pageTemplates.ExecuteTemplate(&out, "layout", pageData{
 		Title:   title,
 		Content: template.HTML(body.String()),
+		Nav:     nav,
 	}); err != nil {
 		http.Error(w, "页面渲染失败", http.StatusInternalServerError)
 		return
@@ -2429,6 +2479,7 @@ func renderRaw(w http.ResponseWriter, code int, name string, data any) {
 type pageData struct {
 	Title   string
 	Content template.HTML
+	Nav     navVM
 }
 
 // contestProblemsView 是比赛题目页模板的数据。

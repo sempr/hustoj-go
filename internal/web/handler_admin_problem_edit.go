@@ -96,7 +96,7 @@ func (s *Server) handleAdminProblemAddPage(w http.ResponseWriter, r *http.Reques
 		s.log.Error("查询未来比赛失败", "err", err)
 	}
 
-	renderPage(w, http.StatusOK, "adminProblemAddPage", "添加题目", adminProblemAddVM{
+	s.renderPage(w, r, http.StatusOK, "adminProblemAddPage", "添加题目", adminProblemAddVM{
 		Source:   src.String,
 		Contests: contests,
 		ShowCoin: identity.Admin || identity.ProblemEditor,
@@ -196,7 +196,7 @@ func (s *Server) handleAdminProblemAdd(w http.ResponseWriter, r *http.Request) {
 		UserID: identity.UserID, Rightstr: "p" + strconv.Itoa(int(pid)), Valuestr: "true",
 	})
 
-	renderPage(w, http.StatusOK, "adminProblemAddResultPage", "题目已添加", adminProblemAddResultVM{Title: title, PID: pid})
+	s.renderPage(w, r, http.StatusOK, "adminProblemAddResultPage", "题目已添加", adminProblemAddResultVM{Title: title, PID: pid})
 }
 
 // ── admin/problem_edit.php ───────────────────────────────────────────
@@ -247,7 +247,7 @@ func (s *Server) handleAdminProblemEdit(w http.ResponseWriter, r *http.Request) 
 				s.writeDataFile(id, "sample.out", sampleOutput)
 			}
 		}
-		renderPage(w, http.StatusOK, "errorPage", "题目已更新", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "题目已更新", map[string]string{
 			"Message": "Problem Updated! Edit OK!",
 		})
 		return
@@ -256,10 +256,10 @@ func (s *Server) handleAdminProblemEdit(w http.ResponseWriter, r *http.Request) 
 	id := int32(parseInt(r.URL.Query().Get("id")))
 	p, err := s.queries().GetProblemByID(ctx, id)
 	if err != nil {
-		renderPage(w, http.StatusOK, "errorPage", "无此题目", map[string]string{"Message": "No such problem."})
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此题目", map[string]string{"Message": "No such problem."})
 		return
 	}
-	renderPage(w, http.StatusOK, "adminProblemEditPage", "编辑题目", adminProblemEditVM{
+	s.renderPage(w, r, http.StatusOK, "adminProblemEditPage", "编辑题目", adminProblemEditVM{
 		ProblemID:   p.ProblemID,
 		Title:       p.Title,
 		TimeLimit:   p.TimeLimit,

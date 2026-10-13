@@ -48,7 +48,7 @@ func (s *Server) handleAdminRanklistExport(w http.ResponseWriter, r *http.Reques
 	if s.cfg.NoIPKeyword != "" {
 		n, err := s.queries().CountRunningNOIPContests(ctx, now.Format("2006-01-02 15:04"), s.cfg.NoIPKeyword)
 		if err == nil && n > 0 {
-			renderPage(w, http.StatusOK, "errorPage", "NOIP", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "NOIP", map[string]string{
 				"Message": "NOIP 比赛进行中，暂不可导出排行榜。",
 			})
 			return
@@ -63,7 +63,7 @@ func (s *Server) handleAdminRanklistExport(w http.ResponseWriter, r *http.Reques
 	prefix := r.URL.Query().Get("prefix")
 	_, prefixSet := r.URL.Query()["prefix"]
 	if prefixSet && !isValidUserName(prefix) {
-		renderPage(w, http.StatusOK, "errorPage", "非法前缀", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "非法前缀", map[string]string{
 			"Message": "invalid user name prefix",
 		})
 		return

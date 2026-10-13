@@ -113,7 +113,7 @@ func (s *Server) handleAdminUserAdd(w http.ResponseWriter, r *http.Request) {
 		vm.UList = strings.TrimSpace(remained)
 	}
 
-	renderPage(w, http.StatusOK, "adminUserAddPage", "添加用户", vm)
+	s.renderPage(w, r, http.StatusOK, "adminUserAddPage", "添加用户", vm)
 }
 
 func token0(tokens []string) string {
@@ -138,14 +138,14 @@ func (s *Server) handleAdminUserImport(w http.ResponseWriter, r *http.Request) {
 		file, header, err := r.FormFile("fps")
 		if err != nil {
 			vm.Messages = append(vm.Messages, "上传失败: "+err.Error())
-			renderPage(w, http.StatusOK, "adminUserImportPage", "导入用户", vm)
+			s.renderPage(w, r, http.StatusOK, "adminUserImportPage", "导入用户", vm)
 			return
 		}
 		defer file.Close()
 		raw, err := io.ReadAll(file)
 		if err != nil {
 			vm.Messages = append(vm.Messages, "读取上传文件失败: "+err.Error())
-			renderPage(w, http.StatusOK, "adminUserImportPage", "导入用户", vm)
+			s.renderPage(w, r, http.StatusOK, "adminUserImportPage", "导入用户", vm)
 			return
 		}
 
@@ -172,7 +172,7 @@ func (s *Server) handleAdminUserImport(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	renderPage(w, http.StatusOK, "adminUserImportPage", "导入用户", vm)
+	s.renderPage(w, r, http.StatusOK, "adminUserImportPage", "导入用户", vm)
 }
 
 // importUsersCSV 解析一份 CSV 并逐行 upsert 用户。返回每行的结果消息。

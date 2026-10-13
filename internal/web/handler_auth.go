@@ -48,7 +48,7 @@ func (s *Server) handleLoginPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/index.php", http.StatusSeeOther)
 		return
 	}
-	renderPage(w, http.StatusOK, "loginForm", "登录", s.formView(r))
+	s.renderPage(w, r, http.StatusOK, "loginForm", "登录", s.formView(r))
 }
 
 // handleLogin 处理登录 POST /login.php。
@@ -475,7 +475,7 @@ func (s *Server) handleRegisterPage(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/index.php", http.StatusSeeOther)
 		return
 	}
-	renderPage(w, http.StatusOK, "registerForm", "注册", s.formView(r))
+	s.renderPage(w, r, http.StatusOK, "registerForm", "注册", s.formView(r))
 }
 
 // handleRegister 处理注册 POST /register.php。

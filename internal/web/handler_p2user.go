@@ -42,7 +42,7 @@ func (s *Server) handleMail(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 
 	if !identity.LoggedIn {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">请先登录</a>",
 		})
 		return
@@ -81,7 +81,7 @@ func (s *Server) handleMail(w http.ResponseWriter, r *http.Request) {
 			FromUser: identity.UserID, ToUser: toUser,
 		})
 		if err != nil || len(privs) == 0 {
-			renderPage(w, http.StatusOK, "errorPage", "无权限", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "无权限", map[string]string{
 				"Message": "邮件只能在教师和学生之间发送",
 			})
 			return
@@ -92,7 +92,7 @@ func (s *Server) handleMail(w http.ResponseWriter, r *http.Request) {
 		})
 		if err != nil {
 			s.log.Error("发送邮件失败", "err", err)
-			renderPage(w, http.StatusOK, "errorPage", "发送失败", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "发送失败", map[string]string{
 				"Message": "Not Mailed!",
 			})
 			return
@@ -125,7 +125,7 @@ func (s *Server) handleMail(w http.ResponseWriter, r *http.Request) {
 	toUser := html.EscapeString(r.URL.Query().Get("to_user"))
 	title2 := html.EscapeString(r.URL.Query().Get("title"))
 
-	renderPage(w, http.StatusOK, "mailPage", "邮件", MailPageVM{
+	s.renderPage(w, r, http.StatusOK, "mailPage", "邮件", MailPageVM{
 		Title: "邮件", OJName: s.cfg.OJName, MailList: mailList,
 		ViewMail: viewMail, ToUser: toUser, Title2: title2,
 	})
@@ -149,7 +149,7 @@ func (s *Server) handleModify(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 
 	if !identity.LoggedIn {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">请先登录</a>",
 		})
 		return
@@ -166,7 +166,7 @@ func (s *Server) handleModify(w http.ResponseWriter, r *http.Request) {
 		if user.Email.Valid {
 			email = user.Email.String
 		}
-		renderPage(w, http.StatusOK, "modifyPage", "修改用户信息", ModifyPageVM{
+		s.renderPage(w, r, http.StatusOK, "modifyPage", "修改用户信息", ModifyPageVM{
 			Title: "修改用户信息", OJName: s.cfg.OJName,
 			UserID: user.UserID, Nick: user.Nick, School: user.School, Email: email,
 		})
@@ -219,7 +219,7 @@ func (s *Server) handleModify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(errMsg) > 0 {
-		renderPage(w, http.StatusOK, "modifyPage", "修改用户信息", ModifyPageVM{
+		s.renderPage(w, r, http.StatusOK, "modifyPage", "修改用户信息", ModifyPageVM{
 			Title: "修改用户信息", OJName: s.cfg.OJName,
 			UserID: identity.UserID, Nick: nick, School: school, Email: email,
 			Error: strings.Join(errMsg, "\\n"),
@@ -294,7 +294,7 @@ func (s *Server) handleLostPassword(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if r.Method != http.MethodPost {
-		renderPage(w, http.StatusOK, "lostPasswordPage", "密码重置", LostPasswordPageVM{
+		s.renderPage(w, r, http.StatusOK, "lostPasswordPage", "密码重置", LostPasswordPageVM{
 			Title: "密码重置", OJName: s.cfg.OJName, Step: 1,
 		})
 		return
@@ -305,7 +305,7 @@ func (s *Server) handleLostPassword(w http.ResponseWriter, r *http.Request) {
 
 	emailResult, err := s.queries().GetUserEmail(ctx, userID)
 	if err != nil || !emailResult.Valid || emailResult.String != email || !strings.Contains(email, "@") {
-		renderPage(w, http.StatusOK, "lostPasswordPage", "密码重置", LostPasswordPageVM{
+		s.renderPage(w, r, http.StatusOK, "lostPasswordPage", "密码重置", LostPasswordPageVM{
 			Title: "密码重置", OJName: s.cfg.OJName, Step: 1, Error: "用户名与Email不匹配",
 		})
 		return
@@ -320,7 +320,7 @@ func (s *Server) handleLostPassword(w http.ResponseWriter, r *http.Request) {
 		ToUser: userID, FromUser: "system", Title: mailTitle, Content: sql.NullString{String: mailContent, Valid: true},
 	})
 
-	renderPage(w, http.StatusOK, "lostPassword2Page", "密码重置", LostPasswordPageVM{
+	s.renderPage(w, r, http.StatusOK, "lostPassword2Page", "密码重置", LostPasswordPageVM{
 		Title: "密码重置", OJName: s.cfg.OJName, Step: 2, UserID: userID,
 	})
 }
@@ -331,7 +331,7 @@ func (s *Server) handleLostPassword2(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if r.Method != http.MethodPost {
-		renderPage(w, http.StatusOK, "lostPassword2Page", "密码重置", LostPasswordPageVM{
+		s.renderPage(w, r, http.StatusOK, "lostPassword2Page", "密码重置", LostPasswordPageVM{
 			Title: "密码重置", OJName: s.cfg.OJName, Step: 2,
 		})
 		return
@@ -342,7 +342,7 @@ func (s *Server) handleLostPassword2(w http.ResponseWriter, r *http.Request) {
 
 	expectedKey, ok := getLostPasswordKey(userID)
 	if !ok || expectedKey != lostKey {
-		renderPage(w, http.StatusOK, "errorPage", "密码重置失败", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "密码重置失败", map[string]string{
 			"Message": "Password Reset Fail",
 		})
 		return
@@ -353,14 +353,14 @@ func (s *Server) handleLostPassword2(w http.ResponseWriter, r *http.Request) {
 	})
 	if err != nil {
 		s.log.Error("密码重置失败", "err", err)
-		renderPage(w, http.StatusOK, "errorPage", "密码重置失败", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "密码重置失败", map[string]string{
 			"Message": "Password Reset Fail",
 		})
 		return
 	}
 
 	deleteLostPasswordKey(userID)
-	renderPage(w, http.StatusOK, "errorPage", "密码重置成功", map[string]string{
+	s.renderPage(w, r, http.StatusOK, "errorPage", "密码重置成功", map[string]string{
 		"Message": "密码已重置为您输入的密钥。点击 <a href=\"/\">这里</a> 登录!",
 	})
 }
@@ -447,7 +447,7 @@ func (s *Server) handleReinfo(w http.ResponseWriter, r *http.Request) {
 
 	sid := int32(parseInt(r.URL.Query().Get("sid")))
 	if sid <= 0 {
-		renderPage(w, http.StatusOK, "errorPage", "无此代码", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此代码", map[string]string{
 			"Message": "No such code!",
 		})
 		return
@@ -455,14 +455,14 @@ func (s *Server) handleReinfo(w http.ResponseWriter, r *http.Request) {
 
 	sol, err := s.queries().GetSolutionStatusByID(ctx, uint32(sid))
 	if err != nil {
-		renderPage(w, http.StatusOK, "errorPage", "无此代码", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此代码", map[string]string{
 			"Message": "No such code!",
 		})
 		return
 	}
 
 	if sol.UserID != identity.UserID && !identity.SourceBrowser {
-		renderPage(w, http.StatusOK, "errorPage", "访问被拒绝", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "访问被拒绝", map[string]string{
 			"Message": "Access Denied",
 		})
 		return
@@ -479,7 +479,7 @@ func (s *Server) handleReinfo(w http.ResponseWriter, r *http.Request) {
 		errorMsg = runtimeErr.String
 	}
 
-	renderPage(w, http.StatusOK, "reinfoPage", "运行错误信息", ReinfoPageVM{
+	s.renderPage(w, r, http.StatusOK, "reinfoPage", "运行错误信息", ReinfoPageVM{
 		Title: "运行错误信息", OJName: s.cfg.OJName,
 		SID: sid, Mark: mark, ErrorMsg: errorMsg,
 	})

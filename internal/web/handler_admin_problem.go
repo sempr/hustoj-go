@@ -185,7 +185,7 @@ func (s *Server) handleAdminProblemList(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	renderPage(w, http.StatusOK, "adminProblemListPage", "题目列表", vm)
+	s.renderPage(w, r, http.StatusOK, "adminProblemListPage", "题目列表", vm)
 }
 
 // ── admin/problem_df_change.php ──────────────────────────────────────
@@ -341,7 +341,7 @@ func (s *Server) handleAdminProblemChangeID(w http.ResponseWriter, r *http.Reque
 		vm.Message = s.changeProblemID(ctx, from, to)
 	}
 
-	renderPage(w, http.StatusOK, "adminProblemChangeIDPage", "修改题号", vm)
+	s.renderPage(w, r, http.StatusOK, "adminProblemChangeIDPage", "修改题号", vm)
 }
 
 // changeProblemID 把题号 from 改成 to：先挪数据目录，再改库，失败回滚目录。

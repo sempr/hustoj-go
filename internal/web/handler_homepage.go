@@ -277,7 +277,7 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	renderPage(w, http.StatusOK, "indexPage", "主页", IndexPageVM{
+	s.renderPage(w, r, http.StatusOK, "indexPage", "主页", IndexPageVM{
 		Title:          "主页",
 		OJName:         s.cfg.OJName,
 		NewsList:       newsItems,
@@ -335,7 +335,7 @@ func (s *Server) handlePortal(w http.ResponseWriter, r *http.Request) {
 
 	// 未登录显示错误
 	if !identity.LoggedIn {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">请先登录</a>",
 		})
 		return
@@ -386,7 +386,7 @@ func (s *Server) handlePortal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, http.StatusOK, "portalPage", "门户", PortalPageVM{
+	s.renderPage(w, r, http.StatusOK, "portalPage", "门户", PortalPageVM{
 		Title:      "门户",
 		OJName:     s.cfg.OJName,
 		ProblemSet: buildPortalProblems(unsolvedProblems, subMap, accMap),
@@ -484,14 +484,14 @@ func (s *Server) handleViewNews(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(news) == 0 {
-		renderPage(w, http.StatusOK, "errorPage", "新闻不存在", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "新闻不存在", map[string]string{
 			"Message": "公告不存在!",
 		})
 		return
 	}
 
 	n := news[0]
-	renderPage(w, http.StatusOK, "viewNewsPage", n.Title, ViewNewsPageVM{
+	s.renderPage(w, r, http.StatusOK, "viewNewsPage", n.Title, ViewNewsPageVM{
 		Title:       n.Title,
 		OJName:      s.cfg.OJName,
 		NewsTitle:   n.Title,

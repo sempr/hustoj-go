@@ -112,7 +112,7 @@ func (s *Server) handleShowsource(w http.ResponseWriter, r *http.Request) {
 		view.Brush = sourceBrush(sol.Language)
 		view.Source = showsourceText(sol, viewSource)
 	}
-	renderPage(w, http.StatusOK, "showsourcePage",
+	s.renderPage(w, r, http.StatusOK, "showsourcePage",
 		strconv.Itoa(id)+" - "+msgSourceCode+" - "+s.cfg.OJName, view)
 }
 

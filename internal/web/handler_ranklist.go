@@ -207,7 +207,7 @@ func (s *Server) handleRanklist(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	renderPage(w, http.StatusOK, "ranklist", msgRanklist+" - "+s.cfg.OJName, view)
+	s.renderPage(w, r, http.StatusOK, "ranklist", msgRanklist+" - "+s.cfg.OJName, view)
 }
 
 // buildRanklistScope 组装 scope 模式的 solution_id 区间（ranklist.php:62-84）。
@@ -288,7 +288,7 @@ func ranklistRatio(solved, submit int) string {
 
 // renderRanklistError 渲染 NOIP 警告页（走 error.php，标题 $MSG_ERROR_INFO）。
 func (s *Server) renderRanklistError(w http.ResponseWriter, message string) {
-	renderPage(w, http.StatusOK, "contestStatsError", msgErrorInfo+" - "+s.cfg.OJName,
+	s.renderPage(w, nil, http.StatusOK, "contestStatsError", msgErrorInfo+" - "+s.cfg.OJName,
 		contestStatsErrorView{Message: message})
 }
 

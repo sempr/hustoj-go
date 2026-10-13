@@ -165,7 +165,7 @@ func (s *Server) handleContestReviewRank(w http.ResponseWriter, r *http.Request,
 	contest, err := s.queries().GetContestForRank(r.Context(), cid)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			renderPage(w, http.StatusOK, "errorPage", "比赛不存在",
+			s.renderPage(w, r, http.StatusOK, "errorPage", "比赛不存在",
 				map[string]string{"Message": "没有这场比赛"})
 			return
 		}
@@ -181,7 +181,7 @@ func (s *Server) handleContestReviewRank(w http.ResponseWriter, r *http.Request,
 
 	// contestrank4.php:88-91：尚未开赛不给看。
 	if now.Before(start) {
-		renderPage(w, http.StatusOK, "errorPage", "比赛", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "比赛", map[string]string{
 			"Message": "比赛尚未开始，暂不提供排名",
 		})
 		return
@@ -191,7 +191,7 @@ func (s *Server) handleContestReviewRank(w http.ResponseWriter, r *http.Request,
 	if !statusNOIPExempt(identity, cid) {
 		if isNOIPContest(&contest, s.cfg.NoIPKeyword, now) ||
 			s.contestRankLocked(r.Context(), cid, now) {
-			renderPage(w, http.StatusOK, "errorPage", "比赛", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "比赛", map[string]string{
 				"Message": "比赛进行中，暂不提供排名查询",
 			})
 			return
@@ -287,7 +287,7 @@ func (s *Server) handleContestReviewRank(w http.ResponseWriter, r *http.Request,
 	if mode == rankOI {
 		name = "contestRankReviewOI"
 	}
-	renderPage(w, http.StatusOK, name, contest.Title.String, view)
+	s.renderPage(w, r, http.StatusOK, name, contest.Title.String, view)
 }
 
 // renderEmptyReviewRank 渲染"比赛没有题目"的补题榜。
@@ -296,7 +296,7 @@ func (s *Server) renderEmptyReviewRank(w http.ResponseWriter, title string, cid 
 	if mode == rankOI {
 		name = "contestRankReviewOI"
 	}
-	renderPage(w, http.StatusOK, name, title, &contestRankView{
+	s.renderPage(w, nil, http.StatusOK, name, title, &contestRankView{
 		CID: cid, Title: title, Mode: mode, OI: mode == rankOI,
 		Review: true, BackURL: reviewBackURL(mode, cid),
 	})

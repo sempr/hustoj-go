@@ -46,7 +46,7 @@ func (s *Server) handleAdminProblemExport(w http.ResponseWriter, r *http.Request
 		s.adminLoginRequired(w)
 		return
 	}
-	renderPage(w, http.StatusOK, "adminProblemExportPage", "题目导出", struct {
+	s.renderPage(w, r, http.StatusOK, "adminProblemExportPage", "题目导出", struct {
 		Token *http.Request
 	}{Token: r})
 }
@@ -258,7 +258,7 @@ func (s *Server) handleAdminProblemCopy(w http.ResponseWriter, r *http.Request) 
 	type src struct {
 		Action, Placeholder string
 	}
-	renderPage(w, http.StatusOK, "adminProblemCopyPage", "复制题目", struct {
+	s.renderPage(w, r, http.StatusOK, "adminProblemCopyPage", "复制题目", struct {
 		Sources []src
 		Token   *http.Request
 	}{

@@ -235,7 +235,7 @@ func (s *Server) handleAdminWatch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	renderPage(w, http.StatusOK, "adminWatchPage", "系统负荷监控", watchVM{
+	s.renderPage(w, r, http.StatusOK, "adminWatchPage", "系统负荷监控", watchVM{
 		CPU: last[0], FreeMem: int(last[1]), Swap: int(last[2]), TCP: int(last[3]),
 		Disk: int(last[5]), Total: int(last[6]),
 	})

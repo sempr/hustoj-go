@@ -50,7 +50,7 @@ func (s *Server) handleAdminHelp(w http.ResponseWriter, r *http.Request) {
 	vm.UserNum, _ = s.queries().CountUsers(ctx)
 	vm.SubmitNum, _ = s.queries().CountSolutions(ctx)
 
-	renderPage(w, http.StatusOK, "adminHelpPage", "后台管理", vm)
+	s.renderPage(w, r, http.StatusOK, "adminHelpPage", "后台管理", vm)
 }
 
 // toFloat 把 avg() 返回的 interface{}（float64/[]byte/string）转成 float64。
@@ -161,7 +161,7 @@ func (s *Server) handleAdminSuspectList(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
-	renderPage(w, http.StatusOK, "adminSuspectPage", "查重", vm)
+	s.renderPage(w, r, http.StatusOK, "adminSuspectPage", "查重", vm)
 }
 
 func (s *Server) registerAdminMiscRoutes(mux *http.ServeMux) {

@@ -37,12 +37,12 @@ type AdminHeaderVM struct {
 func (s *Server) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 	if !s.hasAdminPrivilege(identity) {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">Please Login First!</a>",
 		})
 		return
 	}
-	renderPage(w, http.StatusOK, "adminIndexPage", "后台管理", AdminIndexVM{
+	s.renderPage(w, r, http.StatusOK, "adminIndexPage", "后台管理", AdminIndexVM{
 		Title: "后台管理", OJName: s.cfg.OJName,
 	})
 }
@@ -50,12 +50,12 @@ func (s *Server) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdminMenu(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 	if !s.hasAdminPrivilege(identity) {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">Please Login First!</a>",
 		})
 		return
 	}
-	renderPage(w, http.StatusOK, "adminMenuPage", "后台管理", AdminMenuVM{
+	s.renderPage(w, r, http.StatusOK, "adminMenuPage", "后台管理", AdminMenuVM{
 		Title: "后台管理", OJName: s.cfg.OJName,
 		IsAdmin:          identity.Admin,
 		IsContestCreator: identity.ContestCreator,
@@ -68,12 +68,12 @@ func (s *Server) handleAdminMenu(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleAdminHeader(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 	if !s.hasAdminPrivilege(identity) {
-		renderPage(w, http.StatusOK, "errorPage", "需要登录", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "需要登录", map[string]string{
 			"Message": "<a href=\"/loginpage.php\">Please Login First!</a>",
 		})
 		return
 	}
-	renderPage(w, http.StatusOK, "adminHeaderPage", "后台管理", AdminHeaderVM{
+	s.renderPage(w, r, http.StatusOK, "adminHeaderPage", "后台管理", AdminHeaderVM{
 		Title: "后台管理", OJName: s.cfg.OJName,
 	})
 }
@@ -172,7 +172,7 @@ func (s *Server) handleProblemBatchDelete(w http.ResponseWriter, r *http.Request
 	}
 	_, _ = s.db.ExecContext(ctx, "ALTER TABLE problem AUTO_INCREMENT = ?", nextID)
 
-	renderPage(w, http.StatusOK, "problemBatchDeleteResultPage", "批量删除题目", ProblemBatchDeleteResultVM{
+	s.renderPage(w, r, http.StatusOK, "problemBatchDeleteResultPage", "批量删除题目", ProblemBatchDeleteResultVM{
 		Title: "批量删除题目", OJName: s.cfg.OJName, Count: deleted, Success: true,
 	})
 }

@@ -173,7 +173,7 @@ func (s *Server) handleAdminPrivilegeList(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	renderPage(w, http.StatusOK, "adminPrivilegeListPage", "权限列表", vm)
+	s.renderPage(w, r, http.StatusOK, "adminPrivilegeListPage", "权限列表", vm)
 }
 
 // ── admin/privilege_add.php ──────────────────────────────────────────
@@ -225,7 +225,7 @@ func (s *Server) handleAdminPrivilegeAdd(w http.ResponseWriter, r *http.Request)
 	if vm.UserID == "" {
 		vm.UserID = r.URL.Query().Get("uid")
 	}
-	renderPage(w, http.StatusOK, "adminPrivilegeAddPage", "添加权限", vm)
+	s.renderPage(w, r, http.StatusOK, "adminPrivilegeAddPage", "添加权限", vm)
 }
 
 // ── admin/privilege_delete.php ───────────────────────────────────────
@@ -319,7 +319,7 @@ func (s *Server) handleAdminChangePass(w http.ResponseWriter, r *http.Request) {
 	if vm.UserID == "" {
 		vm.UserID = r.URL.Query().Get("uid")
 	}
-	renderPage(w, http.StatusOK, "adminChangePassPage", "设置密码", vm)
+	s.renderPage(w, r, http.StatusOK, "adminChangePassPage", "设置密码", vm)
 }
 
 // ── admin/user_df_change.php ─────────────────────────────────────────
@@ -335,7 +335,7 @@ func (s *Server) handleAdminUserDefunctChange(w http.ResponseWriter, r *http.Req
 	userID := r.URL.Query().Get("cid")
 	// PHP：不能封禁自己。
 	if userID == "" || userID == identity.UserID {
-		renderPage(w, http.StatusOK, "errorPage", "操作被拒绝", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "操作被拒绝", map[string]string{
 			"Message": "Can't defunct yourself!",
 		})
 		return
@@ -343,7 +343,7 @@ func (s *Server) handleAdminUserDefunctChange(w http.ResponseWriter, r *http.Req
 
 	defunct, err := s.queries().GetUserDefunct(ctx, userID)
 	if errors.Is(err, sql.ErrNoRows) {
-		renderPage(w, http.StatusOK, "errorPage", "无此用户", map[string]string{
+		s.renderPage(w, r, http.StatusOK, "errorPage", "无此用户", map[string]string{
 			"Message": "No Such User!",
 		})
 		return
@@ -405,7 +405,7 @@ func (s *Server) handleAdminUserSetIP(w http.ResponseWriter, r *http.Request) {
 	if vm.UserID == "" {
 		vm.UserID = r.URL.Query().Get("uid")
 	}
-	renderPage(w, http.StatusOK, "adminUserSetIPPage", "设置登录 IP", vm)
+	s.renderPage(w, r, http.StatusOK, "adminUserSetIPPage", "设置登录 IP", vm)
 }
 
 func (s *Server) registerAdminUserRoutes(mux *http.ServeMux) {

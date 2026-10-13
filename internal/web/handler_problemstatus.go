@@ -226,7 +226,7 @@ func (s *Server) handleProblemStatus(w http.ResponseWriter, r *http.Request) {
 		view.Recommends = s.problemStatusRecommends(ctx, int32(id))
 	}
 
-	renderPage(w, http.StatusOK, "problemStatus",
+	s.renderPage(w, r, http.StatusOK, "problemStatus",
 		msgProblems+" "+msgStatistics+" - "+s.cfg.OJName, view)
 }
 

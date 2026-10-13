@@ -436,7 +436,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !access.OK() {
-			renderPage(w, http.StatusOK, "contestError", "比赛准入失败",
+			s.renderPage(w, r, http.StatusOK, "contestError", "比赛准入失败",
 				newContestErrorView(fullContest.ContestID, &fullContest, access.Deny, access.Deny == ContestSubnet))
 			return
 		}
@@ -448,7 +448,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		//
 		// 必须放在查询之前：既然整页都不会渲染，就没必要去查提交表。
 		if isNOIPContest(&contest, s.cfg.NoIPKeyword, now) && !statusNOIPExempt(identity, filter.CID) {
-			renderPage(w, http.StatusOK, "errorPage", "比赛进行中", map[string]string{
+			s.renderPage(w, r, http.StatusOK, "errorPage", "比赛进行中", map[string]string{
 				"Message": "比赛进行中，暂不提供提交状态查询",
 			})
 			return
@@ -485,7 +485,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		}
 
 		title := fmt.Sprintf("比赛 #%d 提交状态", filter.CID)
-		renderPage(w, http.StatusOK, "statusPage", title, newStatusPage(rows, filter))
+		s.renderPage(w, r, http.StatusOK, "statusPage", title, newStatusPage(rows, filter))
 		return
 	}
 
@@ -503,7 +503,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		title = fmt.Sprintf("题目 %d 提交状态", filter.ProblemID)
 	}
 
-	renderPage(w, http.StatusOK, "statusPage", title, newStatusPage(rows, filter))
+	s.renderPage(w, r, http.StatusOK, "statusPage", title, newStatusPage(rows, filter))
 }
 
 // 以下辅助函数保持不变...

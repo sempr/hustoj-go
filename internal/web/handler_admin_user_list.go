@@ -196,7 +196,7 @@ func (s *Server) handleAdminUserList(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	renderPage(w, http.StatusOK, "adminUserListPage", "用户列表", vm)
+	s.renderPage(w, r, http.StatusOK, "adminUserListPage", "用户列表", vm)
 }
 
 func (s *Server) registerAdminAjaxRoutes(mux *http.ServeMux) {
