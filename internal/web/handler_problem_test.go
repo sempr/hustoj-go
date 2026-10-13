@@ -658,3 +658,33 @@ func TestProblemDetailRendersSampleText(t *testing.T) {
 		t.Errorf("来源应显示文本:\n%s", got)
 	}
 }
+
+// 题目标题只由 layout 渲染一次；时限/内存排在同一行、位于描述上方。
+func TestProblemDetailTitleOnceAndMetaAboveDescription(t *testing.T) {
+	d := ProblemDetail{
+		ProblemID:   1,
+		Title:       "标题X",
+		Description: "<p>desc</p>",
+		TimeLimit:   1,
+		MemoryLimit: 128,
+	}
+	got := mustRenderDetail(t, d)
+
+	if strings.Contains(got, "<h1") {
+		t.Errorf("题面模板不应再输出 <h1>（标题由 layout 统一渲染）:\n%s", got)
+	}
+
+	ti := strings.Index(got, "Time Limit")
+	mi := strings.Index(got, "Memory Limit")
+	di := strings.Index(got, "problem-description")
+	if ti < 0 || mi < 0 || di < 0 {
+		t.Fatalf("缺少时限/内存/描述：ti=%d mi=%d di=%d\n%s", ti, mi, di, got)
+	}
+	if ti > di || mi > di {
+		t.Errorf("时限/内存应在题目描述之上:\n%s", got)
+	}
+	// 同一行 = 同一个容器：两者之间不应出现结束标签。
+	if strings.Contains(got[ti:mi], "</div>") {
+		t.Errorf("时限与内存被拆到了不同行/容器:\n%s", got)
+	}
+}

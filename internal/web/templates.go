@@ -280,19 +280,22 @@ const pageContentTmpls = `
 {{if .Contest}}<div class="ui message">
 本题目来自比赛 <a href="contest.php?cid={{.Contest.CID}}">{{.Contest.Title}}</a> 第 {{.Contest.PID}} 题
 </div>{{end}}
-<h1 class="ui header">{{.Title}}</h1>
+{{/* 标题由 layout 统一渲染 <h1>{{.Title}}</h1>，这里不再重复，否则题目标题出现两次。 */}}
 <div class="ui label">命题人：<span id="creator"></span></div>
 {{if eq .Defunct "Y"}}
 <div class="ui warning message">该题目已被删除或尚未公开</div>
 {{else}}
+{{/* 时限/内存（含 Special Judge）排成一行，放在描述上方、命题人下方。 */}}
+<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0;">
+<span class="ui label">Time Limit：{{trimFloat .TimeLimit}} 秒</span>
+<span class="ui label">Memory Limit：{{.MemoryLimit}} KB</span>
+{{if .SPJ}}<span class="ui label">Special Judge：{{.SPJ}}</span>{{end}}
+</div>
+<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0;">
+<span class="ui label">提交：{{if .StatsHidden}}?{{else}}{{if .SubmitStat.Valid}}{{.SubmitStat.Int32}}{{else}}0{{end}}{{end}}</span>
+<span class="ui label">通过：{{if .StatsHidden}}?{{else}}{{if .AcceptedStat.Valid}}{{.AcceptedStat.Int32}}{{else}}0{{end}}{{end}}</span>
+</div>
 {{if .Description}}<div class="problem-description">{{raw .Description}}</div>{{end}}
-<table class="ui very basic table">
-<tr><td class="one wide">Time Limit</td><td>{{trimFloat .TimeLimit}} 秒</td></tr>
-<tr><td class="one wide">Memory Limit</td><td>{{.MemoryLimit}} KB</td></tr>
-{{if .SPJ}}<tr><td class="one wide">Special Judge</td><td>{{.SPJ}}</td></tr>{{end}}
-<tr><td class="one wide">Submit</td><td>{{if .StatsHidden}}?{{else}}{{if .SubmitStat.Valid}}{{.SubmitStat.Int32}}{{else}}0{{end}}{{end}}</td></tr>
-<tr><td class="one wide">Accepted</td><td>{{if .StatsHidden}}?{{else}}{{if .AcceptedStat.Valid}}{{.AcceptedStat.Int32}}{{else}}0{{end}}{{end}}</td></tr>
-</table>
 {{if .Input}}<h3 class="ui header">输入</h3><div>{{raw .Input}}</div>{{end}}
 {{if .Output}}<h3 class="ui header">输出</h3><div>{{raw .Output}}</div>{{end}}
 {{if .SampleInput.Valid}}<h3 class="ui header">样例输入</h3><pre>{{.SampleInput.String}}</pre>{{end}}
