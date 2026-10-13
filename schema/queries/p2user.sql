@@ -49,3 +49,9 @@ SELECT email FROM users WHERE user_id = sqlc.arg(user_id) AND defunct = 'N';
 
 -- name: UpdateUserPasswordByKey :exec
 UPDATE users SET password = sqlc.arg(password) WHERE user_id = sqlc.arg(user_id);
+
+-- ── 账户激活（active.php）────────────────────────────────────────────
+
+-- name: ActivateUserByCode :exec
+UPDATE users SET defunct = 'N', activecode = ''
+WHERE activecode = sqlc.arg(code) AND activecode != '' AND defunct = 'Y';

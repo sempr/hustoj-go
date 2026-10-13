@@ -1356,3 +1356,13 @@ func (f *fakeQuerier) DeleteCustomInput(_ context.Context, _ int32) error {
 	f.note("DeleteCustomInput")
 	return f.fail()
 }
+
+func (f *fakeQuerier) InsertLoginLog(_ context.Context, _ dbgen.InsertLoginLogParams) error {
+	f.note("InsertLoginLog")
+	return f.fail()
+}
+
+func (f *fakeQuerier) ActivateUserByCode(_ context.Context, _ string) error {
+	f.note("ActivateUserByCode")
+	return f.fail()
+}

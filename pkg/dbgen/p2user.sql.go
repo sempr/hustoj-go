@@ -10,6 +10,18 @@ import (
 	"database/sql"
 )
 
+const activateUserByCode = `-- name: ActivateUserByCode :exec
+
+UPDATE users SET defunct = 'N', activecode = ''
+WHERE activecode = ? AND activecode != '' AND defunct = 'Y'
+`
+
+// ── 账户激活（active.php）────────────────────────────────────────────
+func (q *Queries) ActivateUserByCode(ctx context.Context, code string) error {
+	_, err := q.db.ExecContext(ctx, activateUserByCode, code)
+	return err
+}
+
 const checkMailPrivilege = `-- name: CheckMailPrivilege :many
 SELECT 1 FROM privilege
 WHERE (rightstr = 'source_browser' OR rightstr = 'administrator')

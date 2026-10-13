@@ -16,6 +16,10 @@ SELECT user_id, password, ip, time FROM loginlog
 WHERE user_id != sqlc.arg(uid)
 ORDER BY log_id DESC LIMIT 50;
 
+-- name: InsertLoginLog :exec
+INSERT INTO loginlog (user_id, password, ip, time)
+VALUES (?, ?, ?, NOW());
+
 -- ── 最近比赛（recent-contest.php）────────────────────────────────────
 
 -- name: GetRecentContestsList :many

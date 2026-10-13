@@ -1288,6 +1288,45 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </div>
 {{end}}
 
+{{/* userSetIPPage 是设置登录 IP 页，对应 template/syzoj/user_set_ip.php。 */}}
+{{define "userSetIPPage"}}
+<div class="ui container">
+<h2 class="ui header">设置登录 IP</h2>
+<p>比赛: {{.ContestName}} (CID: {{.CID}})</p>
+<p>{{.Description}}</p>
+<p>开始时间: {{.StartTime}} | 结束时间: {{.EndTime}}</p>
+<p>状态:
+{{if .IsOver}}已结束{{else if .IsNotYet}}未开始{{else}}进行中{{end}}
+| 类型: {{if .Private}}私有{{else}}公开{{end}}
+</p>
+{{if .Changed}}
+<div class="ui positive message">已将用户 {{.UserID}} 的登录 IP 设置为 {{.IP}}</div>
+{{end}}
+<form method="post" class="ui form">
+<input type="hidden" name="do" value="do">
+<div class="field"><label>用户 ID</label><input name="user_id" value="{{.UserID}}" required></div>
+<div class="field"><label>新 IP</label><input name="ip" value="{{.IP}}" placeholder="?.?.?.?" required></div>
+<button class="ui button" type="submit">保存</button>
+<button class="ui button" type="reset">重置</button>
+</form>
+</div>
+{{end}}
+
+{{/* reinfoPage 是运行错误信息页，对应 template/syzoj/reinfo.php。 */}}
+{{define "reinfoPage"}}
+<div class="ui container">
+<h2 class="ui header">运行错误信息</h2>
+<p>提交 ID: {{.SID}} | 得分: {{.Mark}}</p>
+{{if .ErrorMsg}}
+<div class="ui segment">
+<pre>{{.ErrorMsg}}</pre>
+</div>
+{{else}}
+<div class="ui message">无错误信息</div>
+{{end}}
+</div>
+{{end}}
+
 {{/* adminIndexPage 是后台首页，对应 admin/index.php。 */}}
 {{define "adminIndexPage"}}
 <!DOCTYPE html>

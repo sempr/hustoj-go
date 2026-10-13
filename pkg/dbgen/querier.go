@@ -10,6 +10,8 @@ import (
 )
 
 type Querier interface {
+	// ── 账户激活（active.php）────────────────────────────────────────────
+	ActivateUserByCode(ctx context.Context, code string) error
 	CheckMailPrivilege(ctx context.Context, arg CheckMailPrivilegeParams) ([]int32, error)
 	// 被降级后需要重算题目计数。submit.php:337-341 用一条
 	// `UPDATE problem p INNER JOIN (SELECT count(1) ...) s` 同时算和写。
@@ -261,6 +263,7 @@ type Querier interface {
 	// 取件，拆开就会出现"行已可判、源码还没写"的窗口，编译出空程序。
 	// 题目提交计数。PHP 只在非 test_run 时 +1。
 	IncrementProblemSubmit(ctx context.Context, problemID int32) error
+	InsertLoginLog(ctx context.Context, arg InsertLoginLogParams) error
 	// contest_locked($cid, $level)（my_func.inc.php:210）。
 	// 命中条件：比赛进行中，且（contest_type 含 level 位 或 标题含关键字）。
 	// submit.php 用它判断 128（延时）与 16（NOIP 只留最后一次提交）两种模式。

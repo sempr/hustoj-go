@@ -395,9 +395,114 @@ func generateToken(length int) string {
 	return string(b)
 }
 
+// ── setlang.php ───────────────────────────────────────────────────────
+
+var allowedLangs = map[string]bool{"cn": true, "ug": true, "en": true, "fa": true, "ko": true, "th": true}
+
+func (s *Server) handleSetLang(w http.ResponseWriter, r *http.Request) {
+	lang := r.URL.Query().Get("lang")
+	if allowedLangs[lang] {
+		http.SetCookie(w, &http.Cookie{
+			Name:     "lang",
+			Value:    lang,
+			Path:     "/",
+			MaxAge:   604800,
+			HttpOnly: false,
+			SameSite: http.SameSiteLaxMode,
+		})
+	}
+	http.Redirect(w, r, r.Referer(), http.StatusFound)
+}
+
+// ── refresh-privilege.php ────────────────────────────────────────────
+
+func (s *Server) handleRefreshPrivilege(w http.ResponseWriter, r *http.Request) {
+	identity := s.resolveIdentity(w, r)
+	if !identity.LoggedIn {
+		http.Redirect(w, r, "/loginpage.php", http.StatusFound)
+		return
+	}
+	http.Redirect(w, r, r.Referer(), http.StatusFound)
+}
+
+// ── reinfo.php ────────────────────────────────────────────────────────
+
+// ReinfoPageVM 是运行错误信息页的视图模型。
+type ReinfoPageVM struct {
+	Title    string
+	OJName   string
+	SID      int32
+	Mark     float64
+	ErrorMsg string
+}
+
+func (s *Server) handleReinfo(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	identity := s.resolveIdentity(w, r)
+
+	if !identity.LoggedIn {
+		http.Redirect(w, r, "/loginpage.php", http.StatusFound)
+		return
+	}
+
+	sid := int32(parseInt(r.URL.Query().Get("sid")))
+	if sid <= 0 {
+		renderPage(w, http.StatusOK, "errorPage", "无此代码", map[string]string{
+			"Message": "No such code!",
+		})
+		return
+	}
+
+	sol, err := s.queries().GetSolutionStatusByID(ctx, uint32(sid))
+	if err != nil {
+		renderPage(w, http.StatusOK, "errorPage", "无此代码", map[string]string{
+			"Message": "No such code!",
+		})
+		return
+	}
+
+	if sol.UserID != identity.UserID && !identity.SourceBrowser {
+		renderPage(w, http.StatusOK, "errorPage", "访问被拒绝", map[string]string{
+			"Message": "Access Denied",
+		})
+		return
+	}
+
+	mark := sol.PassRate * 100
+	if sol.Result == 4 {
+		mark = 100
+	}
+
+	runtimeErr, _ := s.queries().GetRuntimeError(ctx, sid)
+	errorMsg := ""
+	if runtimeErr.Valid {
+		errorMsg = runtimeErr.String
+	}
+
+	renderPage(w, http.StatusOK, "reinfoPage", "运行错误信息", ReinfoPageVM{
+		Title: "运行错误信息", OJName: s.cfg.OJName,
+		SID: sid, Mark: mark, ErrorMsg: errorMsg,
+	})
+}
+
+// ── active.php ────────────────────────────────────────────────────────
+
+func (s *Server) handleActive(w http.ResponseWriter, r *http.Request) {
+	code := strings.TrimSpace(r.URL.Query().Get("code"))
+	if len(code) == 18 {
+		_ = s.queries().ActivateUserByCode(r.Context(), code)
+	}
+	http.Redirect(w, r, "/loginpage.php", http.StatusFound)
+}
+
 func (s *Server) registerP2UserRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/mail.php", s.handleMail)
 	mux.HandleFunc("/modify.php", s.handleModify)
+	mux.HandleFunc("/modifypage.php", s.handleModify)
 	mux.HandleFunc("/lostpassword.php", s.handleLostPassword)
 	mux.HandleFunc("/lostpassword2.php", s.handleLostPassword2)
+	mux.HandleFunc("/setlang.php", s.handleSetLang)
+	mux.HandleFunc("/refresh-privilege.php", s.handleRefreshPrivilege)
+	mux.HandleFunc("/reinfo.php", s.handleReinfo)
+	mux.HandleFunc("/active.php", s.handleActive)
 }

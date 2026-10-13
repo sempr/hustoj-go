@@ -798,6 +798,94 @@ func changeResult(result int16) int {
 	}
 }
 
+// ── user_set_ip.php ─────────────────────────────────────────────────
+
+// UserSetIPPageVM 是设置登录 IP 页的视图模型。
+type UserSetIPPageVM struct {
+	Title       string
+	OJName      string
+	CID         int32
+	ContestName string
+	Description string
+	StartTime   string
+	EndTime     string
+	Private     bool
+	IsOver      bool
+	IsNotYet    bool
+	IsRunning   bool
+	Changed     bool
+	UserID      string
+	IP          string
+}
+
+func (s *Server) handleUserSetIP(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	cid := int32(parseInt(r.URL.Query().Get("cid")))
+	if cid <= 0 {
+		http.Error(w, "缺少 cid", http.StatusBadRequest)
+		return
+	}
+
+	identity := s.resolveIdentity(w, r)
+	contest, err := s.queries().GetContestByID(ctx, cid)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			renderPage(w, http.StatusOK, "errorPage", "比赛不存在",
+				map[string]string{"Message": "没有这场比赛"})
+			return
+		}
+		s.log.Error("查询比赛失败", "err", err)
+		http.Error(w, "比赛信息暂时不可用", http.StatusInternalServerError)
+		return
+	}
+
+	now := time.Now()
+	start := contest.StartTime.Time
+	end := contest.EndTime.Time
+	isOver := now.After(end)
+	isNotYet := now.Before(start)
+	isRunning := !isOver && !isNotYet
+
+	if r.Method == http.MethodPost && r.FormValue("do") != "" {
+		if identity.Admin || identity.ContestCreator {
+			userID := strings.TrimSpace(r.FormValue("user_id"))
+			ip := strings.TrimSpace(r.FormValue("ip"))
+			if userID != "" && ip != "" {
+				err := s.queries().InsertLoginLog(ctx, dbgen.InsertLoginLogParams{
+					UserID:   userID,
+					Password: sql.NullString{String: "set ip by " + identity.UserID, Valid: true},
+					Ip:       sql.NullString{String: ip, Valid: true},
+				})
+				if err != nil {
+					s.log.Error("插入 loginlog 失败", "err", err)
+				} else {
+					renderPage(w, http.StatusOK, "userSetIPPage", "设置登录 IP", UserSetIPPageVM{
+						Title: "设置登录 IP", OJName: s.cfg.OJName,
+						CID: cid, ContestName: contest.Title.String,
+						Description: contest.Description.String,
+						StartTime: start.Format("2006-01-02 15:04:05"),
+						EndTime:   end.Format("2006-01-02 15:04:05"),
+						Private:   contest.Private != 0,
+						IsOver:    isOver, IsNotYet: isNotYet, IsRunning: isRunning,
+						Changed:   true, UserID: userID, IP: ip,
+					})
+					return
+				}
+			}
+		}
+	}
+
+	renderPage(w, http.StatusOK, "userSetIPPage", "设置登录 IP", UserSetIPPageVM{
+		Title: "设置登录 IP", OJName: s.cfg.OJName,
+		CID: cid, ContestName: contest.Title.String,
+		Description: contest.Description.String,
+		StartTime: start.Format("2006-01-02 15:04:05"),
+		EndTime:   end.Format("2006-01-02 15:04:05"),
+		Private:   contest.Private != 0,
+		IsOver:    isOver, IsNotYet: isNotYet, IsRunning: isRunning,
+	})
+}
+
 func (s *Server) registerP1Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /online.php", s.handleOnline)
 	mux.HandleFunc("GET /recent-contest.php", s.handleRecentContest)
@@ -808,4 +896,5 @@ func (s *Server) registerP1Routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /showsource2.php", s.handleShowSource2)
 	mux.HandleFunc("GET /contestrank2.php", s.handleContestRank2)
 	mux.HandleFunc("GET /contestrank3.php", s.handleContestRank3)
+	mux.HandleFunc("/user_set_ip.php", s.handleUserSetIP)
 }

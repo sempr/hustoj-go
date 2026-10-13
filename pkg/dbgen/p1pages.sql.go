@@ -455,3 +455,19 @@ func (q *Queries) GetRecentContestsList(ctx context.Context) ([]GetRecentContest
 	}
 	return items, nil
 }
+
+const insertLoginLog = `-- name: InsertLoginLog :exec
+INSERT INTO loginlog (user_id, password, ip, time)
+VALUES (?, ?, ?, NOW())
+`
+
+type InsertLoginLogParams struct {
+	UserID   string         `json:"user_id"`
+	Password sql.NullString `json:"password"`
+	Ip       sql.NullString `json:"ip"`
+}
+
+func (q *Queries) InsertLoginLog(ctx context.Context, arg InsertLoginLogParams) error {
+	_, err := q.db.ExecContext(ctx, insertLoginLog, arg.UserID, arg.Password, arg.Ip)
+	return err
+}
