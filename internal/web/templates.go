@@ -302,8 +302,6 @@ alert({{.Message}});
 history.go(-1);
 </script>{{end}}
 
-{{define "notImplemented"}}<div class="ui warning message">{{.Message}}</div>{{end}}
-
 {{define "submitPage"}}<center>
 <form id="frmSolution" action="submit.php{{if .Ajax}}?ajax{{end}}" method="post" enctype="multipart/form-data">
 <input type="hidden" name="csrf_token" value="{{csrfToken .Token}}">
@@ -1439,6 +1437,769 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </html>
 {{end}}
 
+{{/* adminNewsListPage 对应 admin/news_list.php。 */}}
+{{define "adminNewsListPage"}}
+<hr>
+<center><h3>新闻-列表</h3></center>
+<div class="padding">
+<center>
+<form action="/admin/news_list.php" method="get" class="form-search form-inline">
+<input type="text" name="keyword" class="form-control search-query" value="{{.Keyword}}" placeholder="标题, 内容">
+<button type="submit" class="form-control">搜索</button>
+</form>
+</center>
+<center>
+<table width="100%" border="1" style="text-align:center;">
+<tr style="height:22px;">
+<td>ID</td><td>TITLE</td><td>UPDATE</td><td>NOW</td><td>COPY</td><td>IMPORTANCE</td><td>MENU</td>
+</tr>
+{{range .Rows}}
+<tr style="height:22px;" news_id="{{.NewsID}}">
+<td>{{.NewsID}}</td>
+<td><a href="/admin/news_edit.php?id={{.NewsID}}">{{.Title}}</a></td>
+<td>{{.Time}}</td>
+<td><a href="/admin/news_df_change.php?id={{.NewsID}}">{{if .On}}<span class="green">On</span>{{else}}<span class="red">Off</span>{{end}}</a></td>
+<td><a href="/admin/news_add_page.php?cid={{.NewsID}}">Copy</a></td>
+<td fd="importance">{{.Importance}}</td>
+<td fd="menu">{{if .MenuYes}}YES{{else}}NO{{end}}</td>
+</tr>
+{{end}}
+</table>
+</center>
+{{if .ShowPagination}}
+<div style="display:inline;">
+<nav class="center">
+<ul class="pagination pagination-sm">
+<li class="page-item"><a href="/admin/news_list.php?page=1">&lt;&lt;</a></li>
+<li class="page-item"><a href="/admin/news_list.php?page={{.PrevPage}}">&lt;</a></li>
+{{range .Pages}}<li class="{{if .Active}}active {{end}}page-item"><a title="go to page" href="/admin/news_list.php?page={{.Num}}">{{.Num}}</a></li>{{end}}
+<li class="page-item"><a href="/admin/news_list.php?page={{.NextPage}}">&gt;</a></li>
+<li class="page-item"><a href="/admin/news_list.php?page={{.TotalPages}}">&gt;&gt;</a></li>
+</ul>
+</nav>
+</div>
+{{end}}
+</div>
+{{end}}
+
+{{/* adminNewsAddPage 对应 admin/news_add_page.php。 */}}
+{{define "adminNewsAddPage"}}
+<hr>
+<center><h3>新闻-添加</h3></center>
+<div class="padding">
+<form method="post" action="/admin/news_add.php">
+{{template "csrfInput" .}}
+<p align="left">
+<label class="col control-label">标题</label>
+<input class="input input-large" style="width:100%;" size="71" value="{{.Title}}" type="text" name="title" id="title">
+<input type="submit" class="btn btn-success" value="保存" name="submit">
+</p>
+<p align="left">
+<label class="col control-label">首页菜单显示
+<input style="display:inline-block;" type="checkbox" name="showInMenu">
+</label>
+</p>
+<p align="left">
+<textarea class="kindeditor" name="content" rows="41" style="width:100%;">{{.Content}}</textarea>
+</p>
+<p><center><input type="submit" value="保存" name="submit"></center></p>
+</form>
+</div>
+{{end}}
+
+{{/* adminNewsEditPage 对应 admin/news_edit.php。 */}}
+{{define "adminNewsEditPage"}}
+<hr>
+<center><h3>新闻-编辑</h3></center>
+<div class="padding">
+<form method="post" action="/admin/news_edit.php">
+{{template "csrfInput" .}}
+<input type="hidden" name="news_id" value="{{.NewsID}}">
+<p align="left">
+<label class="col control-label">标题</label>
+<input type="text" name="title" size="71" value="{{.Title}}">
+</p>
+<p align="left">
+<label class="col control-label">首页菜单显示
+<input style="display:inline-block;" type="checkbox" name="showInMenu" {{if .ShowInMenu}}checked{{end}}>
+</label>
+</p>
+<p align="left">
+<textarea class="kindeditor" name="content" rows="41" style="width:100%;">{{.Content}}</textarea>
+</p>
+<p><center><input type="submit" value="保存" name="submit"></center></p>
+</form>
+</div>
+{{end}}
+
+{{/* adminPrivilegeListPage 对应 admin/privilege_list.php。 */}}
+{{define "adminPrivilegeListPage"}}
+<hr><center><h3>用户-权限-列表</h3></center>
+<div class="padding" data-csrf="{{csrfToken .Token}}">
+<center>
+<form action="/admin/privilege_list.php" method="get" class="form-search form-inline">
+<input type="text" name="keyword" class="form-control search-query" value="{{.Keyword}}" placeholder="用户ID, 权限">
+<button type="submit" class="form-control">搜索</button>
+</form>
+</center>
+<center>
+<table width="100%" border="1" style="text-align:center;">
+<tr><td>ID</td><td>PRIVILEGE</td><td>REMOVE</td></tr>
+{{range .Rows}}
+<tr>
+<td>{{.UserID}}</td>
+<td>{{.RightText}}</td>
+<td>{{if .CanDelete}}<button type="button" class="privilege-delete btn btn-link" data-uid="{{.UserID}}" data-rightstr="{{.RightText}}">Delete</button>{{else}}Can't suicide{{end}}</td>
+</tr>
+{{end}}
+</table>
+</center>
+{{if .ShowPagination}}
+<div style="display:inline;"><nav class="center"><ul class="pagination pagination-sm">
+<li class="page-item"><a href="/admin/privilege_list.php?page=1">&lt;&lt;</a></li>
+<li class="page-item"><a href="/admin/privilege_list.php?page={{.PrevPage}}">&lt;</a></li>
+{{range .Pages}}<li class="{{if .Active}}active {{end}}page-item"><a title="go to page" href="/admin/privilege_list.php?page={{.Num}}">{{.Num}}</a></li>{{end}}
+<li class="page-item"><a href="/admin/privilege_list.php?page={{.NextPage}}">&gt;</a></li>
+<li class="page-item"><a href="/admin/privilege_list.php?page={{.TotalPages}}">&gt;&gt;</a></li>
+</ul></nav></div>
+{{end}}
+</div>
+<script>
+document.querySelectorAll('.privilege-delete').forEach(function (btn) {
+  btn.addEventListener('click', function () {
+    if (!window.confirm('Delete this privilege?')) return;
+    var token = document.querySelector('.padding[data-csrf]').getAttribute('data-csrf');
+    var body = new URLSearchParams({ uid: btn.dataset.uid, rightstr: btn.dataset.rightstr, csrf_token: token });
+    fetch('/admin/privilege_delete.php', { method: 'POST', body: body }).then(function (resp) {
+      if (resp.ok) { window.location.reload(); }
+      else { resp.text().then(function (t) { window.alert(t || 'Delete failed'); }); }
+    }).catch(function () { window.alert('Delete failed'); });
+  });
+});
+</script>
+{{end}}
+
+{{/* adminPrivilegeAddPage 对应 admin/privilege_add.php。 */}}
+{{define "adminPrivilegeAddPage"}}
+<hr><center><h3>用户-权限-添加</h3></center>
+<div class="padding">
+{{if .Message}}<center><h4 class="text-danger">{{.Message}}</h4></center>{{end}}
+<form method="post" action="/admin/privilege_add.php" class="form-horizontal">
+{{template "csrfInput" .}}
+<div class="form-group">
+<label>用户ID</label>
+<input name="user_id" class="form-control" value="{{.UserID}}" type="text" required>
+</div>
+<div class="form-group">
+<label>权限类型</label>
+<select name="rightstr">
+{{range .Options}}<option value="{{.}}">{{.}}</option>{{end}}
+</select>
+<input type="text" class="form-control" name="valuestr" value="true">
+</div>
+<input type="hidden" name="do" value="do">
+<center><button type="submit" class="btn btn-default">保存</button></center>
+</form>
+<br>
+<form method="post" action="/admin/privilege_add.php" class="form-horizontal">
+{{template "csrfInput" .}}
+<div class="form-group"><label>用户ID</label><input name="user_id" class="form-control" value="{{.UserID}}" type="text" required></div>
+<div class="form-group"><label>比赛ID</label><input name="rightstr" class="form-control" placeholder="比赛ID*"></div>
+<input type="hidden" name="do" value="do">
+<center><button type="submit" name="contest" value="do" class="btn btn-default">保存</button></center>
+</form>
+<br>
+<form method="post" action="/admin/privilege_add.php" class="form-horizontal">
+{{template "csrfInput" .}}
+<div class="form-group"><label>用户ID</label><input name="user_id" class="form-control" value="{{.UserID}}" type="text" required></div>
+<div class="form-group"><label>题目ID</label><input name="rightstr" class="form-control" placeholder="题目ID*"></div>
+<input type="hidden" name="do" value="do">
+<center><button type="submit" name="psv" value="do" class="btn btn-default">保存</button></center>
+</form>
+</div>
+{{end}}
+
+{{/* adminChangePassPage 对应 admin/changepass.php。 */}}
+{{define "adminChangePassPage"}}
+<hr><center><h3>用户-设置密码</h3></center>
+<div class="padding">
+{{if .Message}}<center><h4 class="text-danger">{{.Message}}</h4></center>{{end}}
+<form action="/admin/changepass.php" method="post" class="form-horizontal">
+{{template "csrfInput" .}}
+<div class="form-group"><label>用户ID</label><input name="user_id" class="form-control" value="{{.UserID}}" type="text" required></div>
+<div class="form-group"><label>密码</label><input name="passwd" class="form-control" type="password" autocomplete="off" required></div>
+<input type="hidden" name="do" value="do">
+<center><button type="submit" class="btn btn-default">保存</button></center>
+</form>
+</div>
+{{end}}
+
+{{/* adminUserSetIPPage 对应 admin/user_set_ip.php。 */}}
+{{define "adminUserSetIPPage"}}
+<hr><center><h3>设置登录 IP</h3></center>
+<div class="container">
+{{if .Message}}<center><h4 class="text-danger">{{.Message}}</h4></center>{{end}}
+<form action="/admin/user_set_ip.php" method="post" class="form-horizontal">
+{{template "csrfInput" .}}
+<div class="form-group"><label>用户ID</label><input name="user_id" class="form-control" value="{{.UserID}}" type="text" required></div>
+<div class="form-group"><label>New IP</label><input name="ip" class="form-control" type="text" autocomplete="off" required></div>
+<input type="hidden" name="do" value="do">
+<center><button type="submit" class="btn btn-default">保存</button></center>
+</form>
+</div>
+{{end}}
+
+{{/* adminUserListPage 对应 admin/user_list.php。 */}}
+{{define "adminUserListPage"}}
+<hr><center><h3>用户-列表</h3></center>
+<div style="overflow:auto" data-csrf="{{csrfToken .Token}}">
+<center>
+<form action="/admin/user_list.php" method="get" class="form-search form-inline">
+<input type="text" name="keyword" value="{{.Keyword}}" class="form-control search-query" placeholder="用户ID, 昵称, 学校">
+<button type="submit" class="form-control">搜索</button>
+<a href="/admin/user_list.php?trash" title="查看已删除用户">已删除</a>
+</form>
+</center>
+<center>
+<table width="100%" border="1" style="text-align:center;">
+<thead>
+<tr>
+<th>用户ID</th><th>昵称</th><th>IP</th><th>EMAIL</th><th>学校</th><th>分组</th><th>家长电话</th>
+<th>最后登录</th><th>注册时间</th><th>到期日</th><th>获得金币</th><th>奖励金币</th><th>消耗金币</th><th>金币余额</th>
+<th>状态</th><th>管理</th><th>重置密码</th><th>添加权限</th>
+</tr>
+</thead>
+<tbody>
+{{range .Rows}}
+<tr>
+<td><a href="/userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
+<td><span fd="nick" user_id="{{.UserID}}">{{if .Nick}}{{.Nick}}{{else}}{{raw "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}}{{end}}</span></td>
+<td><a href="{{.IPHref}}">{{.IP}}</a></td>
+<td>{{.Email}}</td>
+<td><span fd="school" user_id="{{.UserID}}">{{if .School}}{{.School}}{{else}}{{raw "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}}{{end}}</span></td>
+<td><span fd="group_name" user_id="{{.UserID}}">{{if .GroupName}}{{.GroupName}}{{else}}{{raw "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}}{{end}}</span></td>
+<td><span fd="parent_phone" user_id="{{.UserID}}">{{if .ParentPhone}}{{.ParentPhone}}{{else}}{{raw "&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;"}}{{end}}</span></td>
+<td>{{.AcceTime}}</td>
+<td>{{.RegTime}}</td>
+<td><span fd="expiry_date" user_id="{{.UserID}}" class="{{.ExpiryClass}}">{{.ExpiryDate}}</span></td>
+<td>{{.CoinEarned}}</td>
+<td><span fd="coin_bonus" user_id="{{.UserID}}">{{.CoinBonus}}</span></td>
+<td><span fd="coin_spent" user_id="{{.UserID}}">{{.CoinSpent}}</span></td>
+<td>{{.CoinBalance}}</td>
+<td>{{if .Normal}}<span class="green">Normal</span>{{else}}<span class="red">Deleted</span>{{end}}</td>
+<td>{{if .CanManage}}<a href="/admin/user_df_change.php?cid={{.UserID}}">{{if .Normal}}<span class="label label-danger">Click to Delete</span>{{else}}<span class="label label-success">Click to Recover</span>{{end}}</a>{{else}}&nbsp;{{end}}</td>
+<td><a class="label label-warning" href="/admin/changepass.php?uid={{.UserID}}">Reset</a></td>
+<td><a class="label label-success" href="/admin/privilege_add.php?uid={{.UserID}}">Add</a></td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</center>
+{{if .ShowPagination}}
+<div style="display:inline;"><nav class="center"><ul class="pagination pagination-sm">
+<li class="page-item"><a href="/admin/user_list.php?page=1{{.TrashSuffix}}">&lt;&lt;</a></li>
+<li class="page-item"><a href="/admin/user_list.php?page={{.PrevPage}}{{.TrashSuffix}}">&lt;</a></li>
+{{range .Pages}}<li class="{{if .Active}}active {{end}}page-item"><a title="go to page" href="/admin/user_list.php?page={{.Num}}{{$.TrashSuffix}}">{{.Num}}</a></li>{{end}}
+<li class="page-item"><a href="/admin/user_list.php?page={{.NextPage}}{{.TrashSuffix}}">&gt;</a></li>
+<li class="page-item"><a href="/admin/user_list.php?page={{.TotalPages}}{{.TrashSuffix}}">&gt;&gt;</a></li>
+</ul></nav></div>
+{{end}}
+</div>
+<script>
+(function () {
+  var root = document.querySelector('[data-csrf]');
+  var token = root ? root.getAttribute('data-csrf') : '';
+  var NBSP = '&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;';
+  document.querySelectorAll('span[fd]').forEach(function (span) {
+    span.addEventListener('dblclick', function () {
+      var userID = span.getAttribute('user_id');
+      var fd = span.getAttribute('fd');
+      var old = span.textContent.trim();
+      var input = document.createElement('input');
+      input.type = fd === 'expiry_date' ? 'date' : (fd === 'coin_bonus' || fd === 'coin_spent' ? 'number' : 'text');
+      input.value = old;
+      span.textContent = '';
+      span.appendChild(input);
+      input.focus();
+      input.select();
+      input.addEventListener('change', function () {
+        var val = input.value;
+        var body = new URLSearchParams({ m: 'user_update_' + fd, user_id: userID, csrf_token: token });
+        body.set(fd, val);
+        fetch('/admin/ajax.php', { method: 'POST', body: body }).then(function (resp) {
+          if (!resp.ok) { window.alert('更新失败'); return; }
+          span.textContent = val || '';
+        });
+      });
+    });
+  });
+})();
+</script>
+{{end}}
+
+{{/* adminUserAddPage 对应 admin/user_add.php。 */}}
+{{define "adminUserAddPage"}}
+<hr><center><h3>用户-添加</h3></center>
+<div class="container">
+{{range .Messages}}<div>{{.}}</div>{{end}}
+<form action="/admin/user_add.php" method="post" class="form-horizontal">
+{{template "csrfInput" .}}
+<div class="form-group">
+<label class="col-sm">用户ID 密码</label>
+</div>
+<div>
+( 每行一个 "userid password"，以换行分隔 )
+<table width="100%">
+<tr><td height="*">
+<textarea name="ulist" rows="10" style="width:100%;" placeholder="userid1 password1
+userid2 password2
+userid3 password3">{{.UList}}</textarea>
+</td></tr>
+</table>
+</div>
+<div class="form-group">
+<center><button name="do" value="do" class="btn btn-default">保存</button></center>
+</div>
+</form>
+</div>
+{{end}}
+
+{{/* adminUserImportPage 对应 admin/user_import.php。 */}}
+{{define "adminUserImportPage"}}
+<br><br>
+<h1>导入用户 csv 文件</h1>
+{{range .Messages}}<div>{{.}}</div>{{end}}
+<form class="form-inline" action="/admin/user_import.php" method="post" enctype="multipart/form-data">
+{{template "csrfInput" .}}
+<div class="form-group">
+<input class="form-control" type="file" name="fps">
+</div>
+<br><br>
+<center><div class="form-group">
+<button class="btn btn-default btn-sm" type="submit">Upload to HUSTOJ</button>
+</div></center>
+</form>
+<h2><a href="/admin/users.csv">下载模板</a></h2>
+<h3>请用下载的模板填写，保存为UTF-8编码。</h3>
+{{end}}
+
+{{/* adminProblemListPage 对应 admin/problem_list.php。 */}}
+{{define "adminProblemListPage"}}
+<hr><center><h3>题目-列表</h3></center>
+<div class="container" data-csrf="{{csrfToken .Token}}">
+<center>
+<form action="/admin/problem_list.php" method="get" class="form-search form-inline">
+<input type="text" name="keyword" value="{{.Keyword}}" class="form-control search-query" placeholder="题号, 标题, 描述, 来源">
+<button type="submit" class="form-control">搜索</button>
+</form>
+</center>
+<center>
+<table width="100%" border="1" style="text-align:center;">
+<thead>
+<tr>
+<th>题号</th><th>标题</th><th>AC</th><th>入库时间</th><th>来源</th>
+{{if .CanEdit}}<th>状态</th><th>金币</th>{{end}}
+</tr>
+</thead>
+<tbody>
+{{range .Rows}}
+<tr>
+<td>{{.ProblemID}}</td>
+<td><a href="/problem.php?id={{.ProblemID}}">{{.Title}}</a>{{if .HasRemote}}&nbsp;<a href="{{.RemoteHref}}" target="_blank">{{.RemoteLabel}}</a>{{end}}</td>
+<td>{{.Accepted}}</td>
+<td>{{.InDate}}</td>
+<td>{{range .Tags}}<a title="{{.Title}}" class="label label-{{.Theme}}" style="display:inline-block;" href="{{.Href}}">{{.Label}}</a>&nbsp;{{end}}</td>
+{{if $.CanEdit}}
+<td><a href="/admin/problem_df_change.php?id={{.ProblemID}}">{{if eq .Defunct "N"}}<span class="green">可用</span>{{else}}<span class="red">保留</span>{{end}}</a></td>
+<td><span fd="coin" problem_id="{{.ProblemID}}">{{.Coin}}</span></td>
+{{end}}
+</tr>
+{{end}}
+</tbody>
+</table>
+</center>
+{{if .ShowPagination}}
+<div style="display:inline;"><nav class="center"><ul class="pagination pagination-sm">
+<li class="page-item"><a href="/admin/problem_list.php?page=1">&lt;&lt;</a></li>
+<li class="page-item"><a href="/admin/problem_list.php?page={{.PrevPage}}">&lt;</a></li>
+{{range .Pages}}<li class="{{if .Active}}active {{end}}page-item"><a title="go to page" href="/admin/problem_list.php?page={{.Num}}">{{.Num}}</a></li>{{end}}
+<li class="page-item"><a href="/admin/problem_list.php?page={{.NextPage}}">&gt;</a></li>
+<li class="page-item"><a href="/admin/problem_list.php?page={{.TotalPages}}">&gt;&gt;</a></li>
+</ul></nav></div>
+{{end}}
+</div>
+<script>
+(function () {
+  var root = document.querySelector('[data-csrf]');
+  var token = root ? root.getAttribute('data-csrf') : '';
+  document.querySelectorAll('span[fd=coin]').forEach(function (span) {
+    span.addEventListener('dblclick', function () {
+      var pid = span.getAttribute('problem_id');
+      var old = span.textContent.trim();
+      var input = document.createElement('input');
+      input.type = 'number';
+      input.value = old;
+      span.textContent = '';
+      span.appendChild(input);
+      input.focus();
+      input.select();
+      input.addEventListener('change', function () {
+        var val = input.value;
+        var body = new URLSearchParams({ m: 'problem_update_coin', problem_id: pid, csrf_token: token });
+        body.set('coin', val);
+        fetch('/admin/ajax.php', { method: 'POST', body: body }).then(function (resp) {
+          if (resp.ok) { span.textContent = val; } else { window.alert('更新失败'); }
+        });
+      });
+    });
+  });
+})();
+</script>
+{{end}}
+
+{{/* adminProblemChangeIDPage 对应 admin/problem_changeid.php。 */}}
+{{define "adminProblemChangeIDPage"}}
+<hr><center><h3>修改题号</h3></center>
+{{if .Message}}<center><h4 class="text-danger">{{.Message}}</h4></center>{{end}}
+{{if .ShowForm}}
+<div class="padding">
+<b>Change ProblemID</b>
+<ol>
+<li>Problem
+<form action="/admin/problem_changeid.php" method="post">
+{{template "csrfInput" .}}
+Move <input type="text" name="from"> -&gt; <input type="text" name="to">
+<input type="hidden" name="do" value="do">
+<input type="submit" value="submit">
+</form>
+</li>
+</ol>
+</div>
+{{else}}
+<center><h4 class="text-danger">你需要在 php.ini 的 open_basedir 里加入 OJ_DATA，或执行 chmod 775 -R $OJ_DATA</h4></center>
+{{end}}
+{{end}}
+
+{{/* adminProblemAddPage 对应 admin/problem_add_page.php。 */}}
+{{define "adminProblemAddPage"}}
+<center><h3>题目-添加</h3></center>
+<hr>
+<div id="main" class="padding">
+<form method="post" action="/admin/problem_add.php">
+{{template "csrfInput" .}}
+<input type="hidden" name="problem_id" value="New Problem">
+<h3>标题</h3>
+<input class="input input-large" style="width:100%;" type="text" name="title" id="title">
+<p align="left">
+时限 <input class="input input-mini" type="number" min="0.001" max="300" step="0.001" name="time_limit" size="20" value="1"> sec
+内存 <input class="input input-mini" type="number" min="1" max="2048" step="1" name="memory_limit" size="20" value="128"> MiB<br><br>
+{{if .ShowCoin}}金币 <input class="input input-mini" type="number" min="0" max="9999" step="1" name="coin" size="20" value="1"><br><br>{{end}}
+</p>
+<h4>描述(&lt;64kB)</h4>
+<textarea class="kindeditor" rows="33" name="description" cols="80"></textarea><br>
+<h4>输入(&lt;64kB)</h4>
+<textarea class="kindeditor" rows="13" name="input" cols="80"></textarea><br>
+<h4>输出(&lt;64kB)</h4>
+<textarea class="kindeditor" rows="13" name="output" cols="80"></textarea><br>
+<h4>样例输入(&lt;64kB)</h4>
+<textarea style="width:100%;" rows="13" name="sample_input"></textarea><br><br>
+<h4>样例输出(&lt;64kB)</h4>
+<textarea style="width:100%;" rows="13" name="sample_output"></textarea><br><br>
+<h4>测试输入</h4>
+<textarea style="width:100%;" rows="13" name="test_input"></textarea><br><br>
+<h4>测试输出</h4>
+<textarea style="width:100%;" rows="13" name="test_output"></textarea><br><br>
+<h4>提示(&lt;64kB)</h4>
+<textarea class="kindeditor" rows="13" name="hint" cols="80"></textarea><br>
+<h4>评测方式</h4>
+<input type="radio" name="spj" value="0" checked>普通<br>
+<input type="radio" name="spj" value="1">特殊评测(SPJ)<br>
+<input type="radio" name="spj" value="2">判断题(Raw Text)<br>
+<input type="radio" name="spj" value="3">交互题<br>
+<h4>来源</h4>
+<textarea name="source" style="width:100%;" rows="1">{{.Source}}</textarea><br><br>
+<h4>比赛</h4>
+<select name="contest_id">
+<option value="">none</option>
+{{range .Contests}}<option value="{{.ContestID}}">{{.ContestID}} {{.Title}}</option>{{end}}
+</select>
+<div align="center"><input type="submit" value="保存" name="submit"></div>
+</form>
+</div>
+{{end}}
+
+{{/* adminProblemAddResultPage 是新增题目的结果页。 */}}
+{{define "adminProblemAddResultPage"}}
+<center><h3>题目已添加</h3></center>
+<p>New Problem: <a href="/problem.php?id={{.PID}}">{{.PID}} {{.Title}}</a></p>
+{{end}}
+
+{{/* adminProblemEditPage 对应 admin/problem_edit.php。 */}}
+{{define "adminProblemEditPage"}}
+<center><h3>编辑题目</h3></center>
+<hr>
+<div id="main" class="container">
+<form method="post" action="/admin/problem_edit.php">
+{{template "csrfInput" .}}
+<input type="hidden" name="problem_id" value="{{.ProblemID}}">
+<p align="left"><center><h3>{{.ProblemID}}: <input class="input input-xxlarge" style="width:90%" type="text" name="title" value="{{.Title}}"></h3></center></p>
+<p align="left">
+时限 <input class="input input-mini" type="number" min="0.001" max="300" step="0.001" name="time_limit" size="20" value="{{.TimeLimit}}"> sec
+内存 <input class="input input-mini" type="number" min="1" max="1024" step="1" name="memory_limit" size="20" value="{{.MemoryLimit}}"> MiB
+{{if .ShowCoin}}金币 <input class="input input-mini" type="number" min="0" max="9999" step="1" name="coin" size="20" value="{{.Coin}}">{{end}}
+</p>
+<h4>描述</h4>
+<textarea class="kindeditor" rows="33" name="description" cols="80">{{.Description}}</textarea><br>
+<h4>输入</h4>
+<textarea class="kindeditor" rows="13" name="input" cols="80">{{.Input}}</textarea><br>
+<h4>输出</h4>
+<textarea class="kindeditor" rows="13" name="output" cols="80">{{.Output}}</textarea><br>
+<h4>样例输入</h4>
+<textarea style="width:100%;" rows="13" name="sample_input">{{.SampleInput}}</textarea><br><br>
+<h4>样例输出</h4>
+<textarea style="width:100%;" rows="13" name="sample_output">{{.SampleOut}}</textarea><br><br>
+<h4>提示</h4>
+<textarea class="kindeditor" rows="13" name="hint" cols="80">{{.Hint}}</textarea><br>
+<h4>评测方式</h4>
+<input type="radio" name="spj" value="0" {{if eq .Spj "0"}}checked{{end}}>普通<br>
+<input type="radio" name="spj" value="1" {{if eq .Spj "1"}}checked{{end}}>特殊评测(SPJ)<br>
+<input type="radio" name="spj" value="2" {{if eq .Spj "2"}}checked{{end}}>判断题(Raw Text)<br>
+<input type="radio" name="spj" value="3" {{if eq .Spj "3"}}checked{{end}}>交互题<br>
+<h4>来源</h4>
+<textarea name="source" style="width:100%;" rows="1">{{.Source}}</textarea><br>
+<h4>远程 OJ</h4>
+<input name="remote_oj" value="{{.RemoteOj}}">
+<input name="remote_id" value="{{.RemoteID}}"><br>
+<div align="center"><input class="btn btn-success" type="submit" value="保存" name="submit"></div>
+</form>
+</div>
+{{end}}
+
+{{/* adminProblemExportPage 对应 admin/problem_export.php。 */}}
+{{define "adminProblemExportPage"}}
+<center><h3>题目-导出</h3></center>
+<hr>
+<div class="container">
+<br><br>
+- Export Problem XML<br><br>
+<form class="form-inline" action="/admin/problem_export_xml.php" method="post">
+{{template "csrfInput" .}}
+<div class="form-group"><label>1) 连续题号：</label>
+<input class="form-control" name="start" type="text" placeholder="1001"> ~
+<input class="form-control" name="end" type="text" placeholder="1009"></div>
+<br><br>
+<div class="form-group"><label>2) 任选题号：</label>
+<input class="form-control" name="in" type="text" placeholder="1001,1003,1005, ... "></div>
+<br><br>
+<div class="form-group"><label>3) 远程判题导出填远程别名，正常导出留空：</label>
+<input class="form-control" name="remote_name" type="text" placeholder="my"></div>
+<br><br>
+<center><div class="form-group">
+<input type="checkbox" name="zip">ZIP
+<input type="hidden" name="do" value="do">
+<button class="btn btn-default btn-sm" type="submit">Download to XML File</button>
+</div></center>
+</form>
+<br><br>
+- 连续题号与任选题号二选一：任选题号为空时用连续题号，反之亦然。<br>
+</div>
+{{end}}
+
+{{/* adminProblemCopyPage 对应 admin/problem_copy.php。 */}}
+{{define "adminProblemCopyPage"}}
+<center><h3>复制题目</h3></center>
+<ol>
+{{range .Sources}}
+<li>
+<form method="post" action="/admin/{{.Action}}">
+<input name="url" type="text" size="100" class="input input-xxlarge" value="{{.Placeholder}}">
+<input type="submit">
+</form>
+</li>
+{{end}}
+</ol>
+{{end}}
+
+{{/* adminRejudgePage 对应 admin/rejudge.php。 */}}
+{{define "adminRejudgePage"}}
+<div class="container">
+<b>Rejudge</b>
+<ol>
+<li>题目
+<form action="/admin/rejudge.php" method="post">
+{{template "csrfInput" .}}
+<input type="text" name="rjpid" placeholder="1001">
+<input type="hidden" name="do" value="do">
+<input type="submit" value="submit">
+</form>
+<li>提交
+<form action="/admin/rejudge.php" method="post">
+{{template "csrfInput" .}}
+<input type="text" name="rjsid" placeholder="1002">
+<input type="hidden" name="do" value="do">
+<input type="submit" value="submit">
+</form>
+<li>手动
+<form action="/admin/rejudge.php" method="post">
+{{template "csrfInput" .}}
+<select name="result">
+{{range .FromResults}}<option value="{{.}}"{{if eq . 3}} selected{{end}}>{{judgeResultLabel .}}</option>{{end}}
+</select>
+<input type="hidden" name="do" value="do"> -&gt;
+<select name="to">
+{{range .ToResults}}<option value="{{.}}"{{if eq . 6}} selected{{end}}>{{judgeResultLabel .}}</option>{{end}}
+</select>
+<input type="submit" value="submit">
+</form>
+<li>比赛
+<form action="/admin/rejudge.php" method="post">
+{{template "csrfInput" .}}
+<input type="text" name="rjcid" placeholder="1003" value="1003">
+<input type="hidden" name="do" value="do">
+<input type="submit" value="submit">
+</form>
+<form action="/admin/rejudge.php" method="post">
+{{template "csrfInput" .}}
+<input type="text" name="rjcid" placeholder="1004">
+<select name="pid">
+{{range $i, $l := .Letters}}<option value="{{$i}}">{{$l}}</option>{{end}}
+</select>
+<input type="hidden" name="do" value="do">
+<input type="submit" value="submit">
+</form>
+</ol>
+</div>
+{{end}}
+
+{{/* adminSolutionStatsPage 对应 admin/solution_statistics.php。 */}}
+{{define "adminSolutionStatsPage"}}
+<hr><center><h3>Report</h3></center>
+<div class="container">
+{{if .Problems}}
+<center>
+<table width="100%" border="1" style="text-align:center;">
+<tr><td>USER_ID</td><td>NICK</td>{{range .Problems}}<td class="pid" value="{{.}}">P{{.}}</td>{{end}}</tr>
+{{range .Rows}}
+<tr><td>{{.UserID}}</td><td>{{.Nick}}</td>
+{{range .Cells}}<td>{{if eq .Kind "AC"}}<span class="label label-success label-sm">AC</span>{{else if eq .Kind "WA"}}<span class="label label-danger label-sm">WA</span>{{else}}&nbsp;{{end}}</td>{{end}}
+</tr>
+{{end}}
+</table>
+<a href="javascript:history.go(-1);">Back</a>
+</center>
+{{else}}
+<center>
+<form action="/admin/solution_statistics.php" method="post" class="form-search form-inline">
+{{template "csrfInput" .}}
+<input type="text" name="pids" class="form-control" placeholder="1000,1001" size="128">
+<textarea name="ulist" rows="10" style="width:100%;" placeholder="user1
+user2
+user3"></textarea>
+<button type="submit" class="form-control">搜索</button>
+</form>
+</center>
+{{end}}
+<form action="/admin/solution_statistics.php" method="get" class="form-search form-inline">
+<select name="cid">
+{{range .Contests}}<option value="{{.ContestID}}"{{if eq .ContestID $.CID}} selected{{end}}>{{.Title}}</option>{{end}}
+</select>
+<button type="submit" class="form-control">搜索</button>
+</form>
+</div>
+{{end}}
+
+{{/* adminContestListPage 对应 admin/contest_list.php。 */}}
+{{define "adminContestListPage"}}
+<hr><center><h3>比赛-列表</h3></center>
+<div class="padding">
+<center>
+<form action="/admin/contest_list.php" method="get" class="form-search form-inline">
+<input type="text" name="keyword" class="form-control search-query" value="{{.Keyword}}" placeholder="比赛名, 说明">
+<button type="submit" class="form-control">搜索</button>
+</form>
+</center>
+<center>
+<table width="100%" border="1" style="text-align:center;">
+<tr>
+<td>比赛ID</td><td>比赛名</td><td>开始</td><td>结束</td><td>公开</td><td>状态</td>
+<td>编辑</td><td>复制</td><td>导出</td><td>日志</td><td>查重</td>
+</tr>
+{{range .Rows}}
+<tr>
+<td>{{.ContestID}}</td>
+<td><a href="/contest.php?cid={{.ContestID}}">{{.Title}}</a></td>
+<td>{{.StartTime}}</td>
+<td>{{.EndTime}}</td>
+<td><a href="/admin/contest_pr_change.php?cid={{.ContestID}}">{{if .Private}}<span class="red">私有</span>{{else}}<span class="green">公开</span>{{end}}</a></td>
+<td><a href="/admin/contest_df_change.php?cid={{.ContestID}}">{{if eq .Defunct "N"}}<span class="green">可用</span>{{else}}<span class="red">保留</span>{{end}}</a></td>
+<td><a href="/admin/contest_edit.php?cid={{.ContestID}}">编辑</a></td>
+<td><a href="/admin/contest_add.php?cid={{.ContestID}}">复制</a></td>
+<td><a href="/admin/problem_export_xml.php?cid={{.ContestID}}">导出</a></td>
+<td><a href="/export_contest_code.php?cid={{.ContestID}}">日志</a></td>
+<td><a href="/admin/suspect_list.php?cid={{.ContestID}}">查重</a></td>
+</tr>
+{{end}}
+</table>
+</center>
+{{if .ShowPagination}}
+<div style="display:inline;"><nav class="center"><ul class="pagination pagination-sm">
+<li class="page-item"><a href="/admin/contest_list.php?page=1">&lt;&lt;</a></li>
+<li class="page-item"><a href="/admin/contest_list.php?page={{.PrevPage}}">&lt;</a></li>
+{{range .Pages}}<li class="{{if .Active}}active {{end}}page-item"><a title="go to page" href="/admin/contest_list.php?page={{.Num}}">{{.Num}}</a></li>{{end}}
+<li class="page-item"><a href="/admin/contest_list.php?page={{.NextPage}}">&gt;</a></li>
+<li class="page-item"><a href="/admin/contest_list.php?page={{.TotalPages}}">&gt;&gt;</a></li>
+</ul></nav></div>
+{{end}}
+</div>
+{{end}}
+
+{{/* adminContestFormPage 对应 admin/contest_add.php 与 contest_edit.php。 */}}
+{{define "adminContestFormPage"}}
+<hr><center><h3>{{if .Editing}}编辑{{else}}添加{{end}}比赛</h3></center>
+<div class="padding">
+<form method="post">
+{{template "csrfInput" .}}
+{{if .Editing}}<input type="hidden" name="cid" value="{{.CID}}">{{end}}
+<p align="left"><h3>比赛-标题</h3>
+<input class="input input-xxlarge" style="width:100%;" type="text" name="title" value="{{.Title}}"></p>
+<p align="left">
+比赛-开始：<input type="date" name="startdate" value="{{.StartDate}}">
+时 <input type="text" name="shour" size="2" value="{{.SHour}}">
+分 <input type="text" name="sminute" size="2" value="{{.SMinute}}">
+</p>
+<p align="left">
+比赛-结束：<input type="date" name="enddate" value="{{.EndDate}}">
+时 <input type="text" name="ehour" size="2" value="{{.EHour}}">
+分 <input type="text" name="eminute" size="2" value="{{.EMinute}}">
+</p>
+<p align="left"><h4>比赛-题号（英文逗号分隔）</h4>
+<input class="input input-xxlarge" type="text" style="width:100%" name="cproblem" value="{{.PList}}"></p>
+<p align="left">子网 <input class="input input-xxlarge" type="text" style="width:100%" name="subnet" value="{{.Subnet}}" placeholder="0.0.0.0/0"></p>
+<p align="left"><h4>比赛-说明</h4>
+<textarea class="kindeditor" rows="13" name="description" cols="80">{{.Description}}</textarea></p>
+<table width="100%"><tr>
+<td rowspan="2"><p align="left">比赛-语言（Ctrl 多选）<br>
+<select name="lang[]" multiple="multiple" style="height:220px">
+{{range .Langs}}<option value="{{.ID}}"{{if .Selected}} selected{{end}}>{{.Name}}</option>{{end}}
+</select></p></td>
+<td rowspan="2"><p align="left">禁止选项<br>
+{{range .Locks}}<input type="checkbox" name="contest_type[]" value="{{.Index}}"{{if .Checked}} checked{{end}}>{{.Name}}<br>{{end}}
+</p></td>
+<td height="10px"><p align="left">公开：
+<select name="private" style="width:150px;">
+<option value="0"{{if not .Private}} selected{{end}}>公开</option>
+<option value="1"{{if .Private}} selected{{end}}>私有</option>
+</select>
+密码：<input type="text" name="password" style="width:150px;" value="{{.Password}}"></p></td>
+</tr><tr>
+<td height="*"><p align="left">比赛-私有用户（每行一个）<br>
+<textarea name="ulist" rows="10" style="width:100%;">{{.UList}}</textarea></p></td>
+</tr></table>
+<div align="center"><input type="submit" value="保存" name="submit"></div>
+</form>
+</div>
+{{end}}
+
 `
 
 // renderPage 渲染具名页面模板并套上外壳，写出响应。
@@ -1485,9 +2246,4 @@ type contestProblemsView struct {
 	CID      int32
 	Problems []ContestProblemItem
 	Flags    contestProblemFlags
-}
-
-// notImplementedView 是尚未迁移到 Go 的页面统一占位响应。
-type notImplementedView struct {
-	Message string
 }

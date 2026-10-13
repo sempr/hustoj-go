@@ -863,11 +863,11 @@ func (s *Server) handleUserSetIP(w http.ResponseWriter, r *http.Request) {
 						Title: "设置登录 IP", OJName: s.cfg.OJName,
 						CID: cid, ContestName: contest.Title.String,
 						Description: contest.Description.String,
-						StartTime: start.Format("2006-01-02 15:04:05"),
-						EndTime:   end.Format("2006-01-02 15:04:05"),
-						Private:   contest.Private != 0,
-						IsOver:    isOver, IsNotYet: isNotYet, IsRunning: isRunning,
-						Changed:   true, UserID: userID, IP: ip,
+						StartTime:   start.Format("2006-01-02 15:04:05"),
+						EndTime:     end.Format("2006-01-02 15:04:05"),
+						Private:     contest.Private != 0,
+						IsOver:      isOver, IsNotYet: isNotYet, IsRunning: isRunning,
+						Changed: true, UserID: userID, IP: ip,
 					})
 					return
 				}
@@ -879,10 +879,10 @@ func (s *Server) handleUserSetIP(w http.ResponseWriter, r *http.Request) {
 		Title: "设置登录 IP", OJName: s.cfg.OJName,
 		CID: cid, ContestName: contest.Title.String,
 		Description: contest.Description.String,
-		StartTime: start.Format("2006-01-02 15:04:05"),
-		EndTime:   end.Format("2006-01-02 15:04:05"),
-		Private:   contest.Private != 0,
-		IsOver:    isOver, IsNotYet: isNotYet, IsRunning: isRunning,
+		StartTime:   start.Format("2006-01-02 15:04:05"),
+		EndTime:     end.Format("2006-01-02 15:04:05"),
+		Private:     contest.Private != 0,
+		IsOver:      isOver, IsNotYet: isNotYet, IsRunning: isRunning,
 	})
 }
 

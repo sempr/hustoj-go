@@ -239,10 +239,11 @@ func TestInsertSubmissionWritesResultAndSourceAtomically(t *testing.T) {
 	}
 }
 
-// TestInsertSubmissionTestRunStaysPending 验证测试运行停在 14 且不计数。
+// TestInsertSubmissionTestRunStaysPending 验证测试运行进判题队列、problem_id=0 且不计数。
 //
-// 判题机按 result<2 取件，测试运行一旦是 0 就会被取走；而 judged-go 不读
-// custominput，取走也只是拿题目自带数据跑一遍，给用户一个假的"运行成功"。
+// 测试运行写 custominput 并把 result 推进到 0（进队列）：judged-go 取件后
+// 检测到 custominput 行会走"只跑自定义输入、不比对"的路径。problem_id 存 0
+// （PHP 对无题号自测即如此），从而与所有 `problem_id>0` 的统计口径隔离。
 func TestInsertSubmissionTestRunStaysPending(t *testing.T) {
 	db := rollbackDB(t)
 	seedRollbackUser(t, db)
@@ -262,11 +263,8 @@ func TestInsertSubmissionTestRunStaysPending(t *testing.T) {
 	if err != nil {
 		t.Fatalf("测试运行入库失败: %v", err)
 	}
-	if out.FinalResult != 14 {
-		t.Errorf("FinalResult = %d，期望 14（OJ_MC，不进判题队列）", out.FinalResult)
-	}
-	if out.FinalResult < 2 {
-		t.Errorf("FinalResult = %d < 2，判题机会取走测试运行", out.FinalResult)
+	if out.FinalResult != 0 {
+		t.Errorf("FinalResult = %d，期望 0（进判题队列）", out.FinalResult)
 	}
 
 	var storedPID int32
@@ -274,8 +272,8 @@ func TestInsertSubmissionTestRunStaysPending(t *testing.T) {
 		Scan(&storedPID); err != nil {
 		t.Fatalf("读取 problem_id 失败: %v", err)
 	}
-	if storedPID != int32(pid) {
-		t.Errorf("problem_id = %d，期望 %d（测试运行也写真实 id；存 0 会让判题机去找 data/0）", storedPID, pid)
+	if storedPID != 0 {
+		t.Errorf("problem_id = %d，期望 0（测试运行与统计口径隔离）", storedPID)
 	}
 
 	if n := countRows(t, db, `SELECT count(1) FROM custominput WHERE solution_id = ?`, out.SolutionID); n != 1 {

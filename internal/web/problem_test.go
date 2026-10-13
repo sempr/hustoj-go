@@ -168,8 +168,116 @@ type fakeQuerier struct {
 	contestProblemMap  []dbgen.GetContestProblemMapRow
 	newsByID           []dbgen.GetNewsByIDRow
 	userByID           dbgen.GetUserByIDRow
+	userByIDErr        error
 	userEmail          sql.NullString
+
+	// 后台公告管理（admin/news_*.php）
+	newsCount       int64
+	newsAdminList   []dbgen.ListNewsAdminRow
+	newsAdminSearch []dbgen.SearchNewsAdminRow
+	newsAdminGet    dbgen.GetNewsAdminRow
+	newsAdminGetErr error
+	lastNewsInsert  dbgen.InsertNewsParams
+	lastNewsUpdate  dbgen.UpdateNewsParams
+	lastNewsDefunct dbgen.SetNewsDefunctParams
+
+	// 后台用户/权限管理（admin/privilege_*.php、changepass.php、user_df_change.php）
+	privCount      int64
+	privList       []dbgen.Privilege
+	privSearch     []dbgen.Privilege
+	userDefunct    string
+	userDefunctErr error
+	lastInsertPriv dbgen.InsertPrivilegeParams
+	lastDeletePriv dbgen.DeletePrivilegeParams
+	lastSetDefunct dbgen.SetUserDefunctParams
+	lastUpdatePw   dbgen.UpdateUserPasswordAdminParams
+	updatePwRows   int64
+	lastLoginLog   dbgen.InsertLoginLogParams
+
+	// 用户列表（admin/user_list.php）与内联编辑（admin/ajax.php）
+	usersCount            int64
+	usersActive           []dbgen.ListUsersActiveRow
+	usersTrash            []dbgen.ListUsersTrashRow
+	usersSearch           []dbgen.SearchUsersRow
+	problemTitleSource    dbgen.GetProblemTitleSourceRow
+	problemTitleSourceErr error
+	contestPrivilegeUsers []string
+	lastSetProblemSource  dbgen.SetProblemSourceParams
+	lastSetProblemTime    dbgen.SetProblemTimeLimitParams
+	lastSetProblemMem     dbgen.SetProblemMemoryLimitParams
+	lastSetProblemCoin    dbgen.SetProblemCoinParams
+	lastSetUserNick       dbgen.SetUserNickParams
+	lastSetUserExpiry     dbgen.SetUserExpiryDateParams
+	lastSetUserSchool     dbgen.SetUserSchoolParams
+	lastSetUserGroup      dbgen.SetUserGroupNameParams
+	lastSetUserPhone      dbgen.SetUserParentPhoneParams
+	lastSetUserCoinBonus  dbgen.SetUserCoinBonusParams
+	lastSetUserCoinSpent  dbgen.SetUserCoinSpentParams
+	lastSetNewsImportance dbgen.SetNewsImportanceParams
+
+	// 批量建号 / 导入 / 导出
+	lastBulkUser     dbgen.InsertBulkUserParams
+	lastImportUser   dbgen.UpsertImportUserParams
+	exportRows       []dbgen.RanklistExportRow
+	lastExportFilter dbgen.RanklistExportFilter
+	lastExportSince  string
+
+	// 题目管理（admin/problem_*.php）
+	problemsCount         int64
+	problemsAdminList     []dbgen.ListProblemsAdminListRow
+	problemsSearch        []dbgen.SearchProblemsAdminListRow
+	problemDefunct        string
+	problemIDExistsCount  int64
+	lastSetProblemDefunct dbgen.SetProblemDefunctByIDParams
+	lastUpdateProblemID   dbgen.UpdateProblemIDParams
+	lastUpdateSolutionPID dbgen.UpdateSolutionProblemIDParams
+	lastUpdateContestPID  dbgen.UpdateContestProblemProblemIDParams
+	lastUpdateTopicPID    dbgen.UpdateTopicPIDParams
+
+	// 题目新增/编辑
+	lastInsertProblem        dbgen.InsertProblemParams
+	lastUpdateProblemFull    dbgen.UpdateProblemFullParams
+	lastInsertContestProblem dbgen.InsertContestProblemParams
+	lastProblemSource        sql.NullString
+	nextProblemID            int64
+	futureContests           []dbgen.ListFutureContestsRow
+
+	// 导出
+	rangeProblems []dbgen.ListProblemsByRangeRow
+	contestTitle  sql.NullString
+
+	// 系统页：重新判题 / 解题统计
+	lastRejudgeProblem     int32
+	rejudgedSID            uint32
+	solutionContestID      sql.NullInt32
+	lastRejudgeByResult    dbgen.RejudgeByResultParams
+	lastRejudgeContest     int32
+	lastRejudgeContestProb dbgen.RejudgeContestProblemParams
+	statMinContest         []dbgen.SolutionMinByContestRow
+	statMinUsers           []dbgen.SolutionMinByUsersRow
+	recentContests50       []dbgen.ListRecentContests50Row
+
+	// 比赛管理（admin/contest_*.php）
+	contestsCount         int64
+	contestsAdminList     []dbgen.ListContestsAdminRow
+	contestsSearch        []dbgen.SearchContestsAdminRow
+	contestDefunct        string
+	contestPrivate        int8
+	contestPassword       string
+	lastSetContestDefunct dbgen.SetContestDefunctParams
+	lastSetContestPrivate dbgen.SetContestPrivateParams
+	lastInsertContest     dbgen.InsertContestParams
+	lastUpdateContest     dbgen.UpdateContestParams
+	contestProblemIDsOrd  []int32
+	contestUserIDs        []string
+	lastSetSolutionNum    dbgen.SetSolutionNumParams
+	nextContestID         int64
 }
+
+type fakeResult struct{ id int64 }
+
+func (r fakeResult) LastInsertId() (int64, error) { return r.id, nil }
+func (r fakeResult) RowsAffected() (int64, error) { return 1, nil }
 
 type fakeRow struct {
 	ID       int32
@@ -1303,6 +1411,9 @@ func (f *fakeQuerier) SendMail(_ context.Context, _ dbgen.SendMailParams) error 
 
 func (f *fakeQuerier) GetUserByID(_ context.Context, _ string) (dbgen.GetUserByIDRow, error) {
 	f.note("GetUserByID")
+	if f.userByIDErr != nil {
+		return dbgen.GetUserByIDRow{}, f.userByIDErr
+	}
 	return f.userByID, f.fail()
 }
 
@@ -1357,12 +1468,458 @@ func (f *fakeQuerier) DeleteCustomInput(_ context.Context, _ int32) error {
 	return f.fail()
 }
 
-func (f *fakeQuerier) InsertLoginLog(_ context.Context, _ dbgen.InsertLoginLogParams) error {
+func (f *fakeQuerier) InsertLoginLog(_ context.Context, a dbgen.InsertLoginLogParams) error {
 	f.note("InsertLoginLog")
+	f.lastLoginLog = a
 	return f.fail()
 }
 
 func (f *fakeQuerier) ActivateUserByCode(_ context.Context, _ string) error {
 	f.note("ActivateUserByCode")
+	return f.fail()
+}
+
+// ── 批量删除题目（admin/problem_batch_delete.php）───────────────────────
+
+func (f *fakeQuerier) DeleteContestProblemByPID(_ context.Context, _ int32) error {
+	f.note("DeleteContestProblemByPID")
+	return f.fail()
+}
+func (f *fakeQuerier) DeleteProblemByID(_ context.Context, _ int32) error {
+	f.note("DeleteProblemByID")
+	return f.fail()
+}
+func (f *fakeQuerier) DeleteProblemPrivilege(_ context.Context, _ string) error {
+	f.note("DeleteProblemPrivilege")
+	return f.fail()
+}
+func (f *fakeQuerier) GetMaxProblemID(context.Context) (interface{}, error) {
+	f.note("GetMaxProblemID")
+	return nil, f.fail()
+}
+func (f *fakeQuerier) UpdateSolutionProblemToZero(_ context.Context, _ int32) error {
+	f.note("UpdateSolutionProblemToZero")
+	return f.fail()
+}
+
+// ── 后台公告管理（admin/news_*.php）─────────────────────────────────────
+
+func (f *fakeQuerier) CountNewsAdmin(context.Context) (int64, error) {
+	f.note("CountNewsAdmin")
+	return f.newsCount, f.fail()
+}
+func (f *fakeQuerier) ListNewsAdmin(_ context.Context, _ dbgen.ListNewsAdminParams) ([]dbgen.ListNewsAdminRow, error) {
+	f.note("ListNewsAdmin")
+	return f.newsAdminList, f.fail()
+}
+func (f *fakeQuerier) SearchNewsAdmin(_ context.Context, _ dbgen.SearchNewsAdminParams) ([]dbgen.SearchNewsAdminRow, error) {
+	f.note("SearchNewsAdmin")
+	return f.newsAdminSearch, f.fail()
+}
+func (f *fakeQuerier) GetNewsAdmin(_ context.Context, id int32) (dbgen.GetNewsAdminRow, error) {
+	f.note("GetNewsAdmin")
+	if f.newsAdminGetErr != nil {
+		return dbgen.GetNewsAdminRow{}, f.newsAdminGetErr
+	}
+	if err := f.fail(); err != nil {
+		return dbgen.GetNewsAdminRow{}, err
+	}
+	row := f.newsAdminGet
+	if row.NewsID == 0 {
+		row.NewsID = id
+	}
+	return row, nil
+}
+func (f *fakeQuerier) InsertNews(_ context.Context, a dbgen.InsertNewsParams) error {
+	f.note("InsertNews")
+	f.lastNewsInsert = a
+	return f.fail()
+}
+func (f *fakeQuerier) UpdateNews(_ context.Context, a dbgen.UpdateNewsParams) error {
+	f.note("UpdateNews")
+	f.lastNewsUpdate = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetNewsDefunct(_ context.Context, a dbgen.SetNewsDefunctParams) error {
+	f.note("SetNewsDefunct")
+	f.lastNewsDefunct = a
+	return f.fail()
+}
+
+// ── 后台用户/权限管理（admin/privilege_*、changepass、user_df_change）─────
+
+func (f *fakeQuerier) CountPrivileges(context.Context) (int64, error) {
+	f.note("CountPrivileges")
+	return f.privCount, f.fail()
+}
+func (f *fakeQuerier) ListPrivileges(_ context.Context, _ dbgen.ListPrivilegesParams) ([]dbgen.Privilege, error) {
+	f.note("ListPrivileges")
+	return f.privList, f.fail()
+}
+func (f *fakeQuerier) SearchPrivileges(_ context.Context, _ dbgen.SearchPrivilegesParams) ([]dbgen.Privilege, error) {
+	f.note("SearchPrivileges")
+	return f.privSearch, f.fail()
+}
+func (f *fakeQuerier) InsertPrivilege(_ context.Context, a dbgen.InsertPrivilegeParams) error {
+	f.note("InsertPrivilege")
+	f.lastInsertPriv = a
+	return f.fail()
+}
+func (f *fakeQuerier) DeletePrivilege(_ context.Context, a dbgen.DeletePrivilegeParams) error {
+	f.note("DeletePrivilege")
+	f.lastDeletePriv = a
+	return f.fail()
+}
+func (f *fakeQuerier) GetUserDefunct(_ context.Context, _ string) (string, error) {
+	f.note("GetUserDefunct")
+	if f.userDefunctErr != nil {
+		return "", f.userDefunctErr
+	}
+	return f.userDefunct, f.fail()
+}
+func (f *fakeQuerier) SetUserDefunct(_ context.Context, a dbgen.SetUserDefunctParams) error {
+	f.note("SetUserDefunct")
+	f.lastSetDefunct = a
+	return f.fail()
+}
+func (f *fakeQuerier) UpdateUserPasswordAdmin(_ context.Context, a dbgen.UpdateUserPasswordAdminParams) (int64, error) {
+	f.note("UpdateUserPasswordAdmin")
+	f.lastUpdatePw = a
+	return f.updatePwRows, f.fail()
+}
+
+// ── 用户列表（admin/user_list.php）───────────────────────────────────────
+
+func (f *fakeQuerier) CountUsers(context.Context) (int64, error) {
+	f.note("CountUsers")
+	return f.usersCount, f.fail()
+}
+func (f *fakeQuerier) ListUsersActive(_ context.Context, _ dbgen.ListUsersActiveParams) ([]dbgen.ListUsersActiveRow, error) {
+	f.note("ListUsersActive")
+	return f.usersActive, f.fail()
+}
+func (f *fakeQuerier) ListUsersTrash(_ context.Context, _ dbgen.ListUsersTrashParams) ([]dbgen.ListUsersTrashRow, error) {
+	f.note("ListUsersTrash")
+	return f.usersTrash, f.fail()
+}
+func (f *fakeQuerier) SearchUsers(_ context.Context, _ dbgen.SearchUsersParams) ([]dbgen.SearchUsersRow, error) {
+	f.note("SearchUsers")
+	return f.usersSearch, f.fail()
+}
+
+// ── 内联编辑（admin/ajax.php）────────────────────────────────────────────
+
+func (f *fakeQuerier) GetProblemTitleSource(_ context.Context, _ int32) (dbgen.GetProblemTitleSourceRow, error) {
+	f.note("GetProblemTitleSource")
+	if f.problemTitleSourceErr != nil {
+		return dbgen.GetProblemTitleSourceRow{}, f.problemTitleSourceErr
+	}
+	return f.problemTitleSource, f.fail()
+}
+func (f *fakeQuerier) SetProblemSource(_ context.Context, a dbgen.SetProblemSourceParams) error {
+	f.note("SetProblemSource")
+	f.lastSetProblemSource = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetProblemTimeLimit(_ context.Context, a dbgen.SetProblemTimeLimitParams) error {
+	f.note("SetProblemTimeLimit")
+	f.lastSetProblemTime = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetProblemMemoryLimit(_ context.Context, a dbgen.SetProblemMemoryLimitParams) error {
+	f.note("SetProblemMemoryLimit")
+	f.lastSetProblemMem = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetProblemCoin(_ context.Context, a dbgen.SetProblemCoinParams) error {
+	f.note("SetProblemCoin")
+	f.lastSetProblemCoin = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetUserNick(_ context.Context, a dbgen.SetUserNickParams) error {
+	f.note("SetUserNick")
+	f.lastSetUserNick = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetUserExpiryDate(_ context.Context, a dbgen.SetUserExpiryDateParams) error {
+	f.note("SetUserExpiryDate")
+	f.lastSetUserExpiry = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetUserSchool(_ context.Context, a dbgen.SetUserSchoolParams) error {
+	f.note("SetUserSchool")
+	f.lastSetUserSchool = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetUserGroupName(_ context.Context, a dbgen.SetUserGroupNameParams) error {
+	f.note("SetUserGroupName")
+	f.lastSetUserGroup = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetUserParentPhone(_ context.Context, a dbgen.SetUserParentPhoneParams) error {
+	f.note("SetUserParentPhone")
+	f.lastSetUserPhone = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetUserCoinBonus(_ context.Context, a dbgen.SetUserCoinBonusParams) error {
+	f.note("SetUserCoinBonus")
+	f.lastSetUserCoinBonus = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetUserCoinSpent(_ context.Context, a dbgen.SetUserCoinSpentParams) error {
+	f.note("SetUserCoinSpent")
+	f.lastSetUserCoinSpent = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetNewsImportance(_ context.Context, a dbgen.SetNewsImportanceParams) error {
+	f.note("SetNewsImportance")
+	f.lastSetNewsImportance = a
+	return f.fail()
+}
+func (f *fakeQuerier) ListContestPrivilegeUsers(_ context.Context, _ string) ([]string, error) {
+	f.note("ListContestPrivilegeUsers")
+	return f.contestPrivilegeUsers, f.fail()
+}
+
+// ── 批量建号 / 导入 / 导出 ───────────────────────────────────────────────
+
+func (f *fakeQuerier) InsertBulkUser(_ context.Context, a dbgen.InsertBulkUserParams) error {
+	f.note("InsertBulkUser")
+	f.lastBulkUser = a
+	return f.fail()
+}
+func (f *fakeQuerier) UpsertImportUser(_ context.Context, a dbgen.UpsertImportUserParams) error {
+	f.note("UpsertImportUser")
+	f.lastImportUser = a
+	return f.fail()
+}
+func (f *fakeQuerier) ExportRanklistUsers(_ context.Context, a dbgen.RanklistExportFilter, _, _ int32) ([]dbgen.RanklistExportRow, error) {
+	f.note("ExportRanklistUsers")
+	f.lastExportFilter = a
+	return f.exportRows, f.fail()
+}
+func (f *fakeQuerier) ExportRanklistScoped(_ context.Context, since string, _, _ int32) ([]dbgen.RanklistExportRow, error) {
+	f.note("ExportRanklistScoped")
+	f.lastExportSince = since
+	return f.exportRows, f.fail()
+}
+
+// ── 题目管理（admin/problem_*.php）───────────────────────────────────────
+
+func (f *fakeQuerier) CountProblemsAll(context.Context) (int64, error) {
+	f.note("CountProblemsAll")
+	return f.problemsCount, f.fail()
+}
+func (f *fakeQuerier) ListProblemsAdminList(_ context.Context, _ dbgen.ListProblemsAdminListParams) ([]dbgen.ListProblemsAdminListRow, error) {
+	f.note("ListProblemsAdminList")
+	return f.problemsAdminList, f.fail()
+}
+func (f *fakeQuerier) SearchProblemsAdminList(_ context.Context, _ dbgen.SearchProblemsAdminListParams) ([]dbgen.SearchProblemsAdminListRow, error) {
+	f.note("SearchProblemsAdminList")
+	return f.problemsSearch, f.fail()
+}
+func (f *fakeQuerier) GetProblemDefunct(_ context.Context, _ int32) (string, error) {
+	f.note("GetProblemDefunct")
+	return f.problemDefunct, f.fail()
+}
+func (f *fakeQuerier) SetProblemDefunctByID(_ context.Context, a dbgen.SetProblemDefunctByIDParams) error {
+	f.note("SetProblemDefunctByID")
+	f.lastSetProblemDefunct = a
+	return f.fail()
+}
+func (f *fakeQuerier) ProblemIDExists(_ context.Context, _ int32) (int64, error) {
+	f.note("ProblemIDExists")
+	return f.problemIDExistsCount, f.fail()
+}
+func (f *fakeQuerier) UpdateProblemID(_ context.Context, a dbgen.UpdateProblemIDParams) error {
+	f.note("UpdateProblemID")
+	f.lastUpdateProblemID = a
+	return f.fail()
+}
+func (f *fakeQuerier) UpdateSolutionProblemID(_ context.Context, a dbgen.UpdateSolutionProblemIDParams) error {
+	f.note("UpdateSolutionProblemID")
+	f.lastUpdateSolutionPID = a
+	return f.fail()
+}
+func (f *fakeQuerier) UpdateContestProblemProblemID(_ context.Context, a dbgen.UpdateContestProblemProblemIDParams) error {
+	f.note("UpdateContestProblemProblemID")
+	f.lastUpdateContestPID = a
+	return f.fail()
+}
+func (f *fakeQuerier) UpdateTopicPID(_ context.Context, a dbgen.UpdateTopicPIDParams) error {
+	f.note("UpdateTopicPID")
+	f.lastUpdateTopicPID = a
+	return f.fail()
+}
+
+// ── 题目新增/编辑（admin/problem_add*.php、problem_edit.php）─────────────
+
+func (f *fakeQuerier) InsertProblem(_ context.Context, a dbgen.InsertProblemParams) (sql.Result, error) {
+	f.note("InsertProblem")
+	f.lastInsertProblem = a
+	return fakeResult{id: f.nextProblemID}, f.fail()
+}
+func (f *fakeQuerier) UpdateProblemFull(_ context.Context, a dbgen.UpdateProblemFullParams) error {
+	f.note("UpdateProblemFull")
+	f.lastUpdateProblemFull = a
+	return f.fail()
+}
+func (f *fakeQuerier) InsertContestProblem(_ context.Context, a dbgen.InsertContestProblemParams) error {
+	f.note("InsertContestProblem")
+	f.lastInsertContestProblem = a
+	return f.fail()
+}
+func (f *fakeQuerier) ListFutureContests(context.Context) ([]dbgen.ListFutureContestsRow, error) {
+	f.note("ListFutureContests")
+	return f.futureContests, f.fail()
+}
+func (f *fakeQuerier) GetLastProblemSource(context.Context) (sql.NullString, error) {
+	f.note("GetLastProblemSource")
+	return f.lastProblemSource, f.fail()
+}
+
+// ── 题目导出（admin/problem_export*.php）─────────────────────────────────
+
+func (f *fakeQuerier) ListProblemsByRange(_ context.Context, _ dbgen.ListProblemsByRangeParams) ([]dbgen.ListProblemsByRangeRow, error) {
+	f.note("ListProblemsByRange")
+	return f.rangeProblems, f.fail()
+}
+func (f *fakeQuerier) GetContestTitle(_ context.Context, _ int32) (sql.NullString, error) {
+	f.note("GetContestTitle")
+	return f.contestTitle, f.fail()
+}
+
+// ── 系统页：重新判题（admin/rejudge.php）─────────────────────────────────
+
+func (f *fakeQuerier) RejudgeProblemSolutions(_ context.Context, problemID int32) error {
+	f.note("RejudgeProblemSolutions")
+	f.lastRejudgeProblem = problemID
+	return f.fail()
+}
+func (f *fakeQuerier) ResetProblemAccepted(_ context.Context, _ int32) error {
+	f.note("ResetProblemAccepted")
+	return f.fail()
+}
+func (f *fakeQuerier) DeleteSimByProblem(_ context.Context, _ int32) error {
+	f.note("DeleteSimByProblem")
+	return f.fail()
+}
+func (f *fakeQuerier) DeleteSimBySolution(_ context.Context, _ int32) error {
+	f.note("DeleteSimBySolution")
+	return f.fail()
+}
+func (f *fakeQuerier) RejudgeSolution(_ context.Context, solutionID uint32) error {
+	f.note("RejudgeSolution")
+	f.rejudgedSID = solutionID
+	return f.fail()
+}
+func (f *fakeQuerier) GetSolutionContestID(_ context.Context, _ uint32) (sql.NullInt32, error) {
+	f.note("GetSolutionContestID")
+	return f.solutionContestID, f.fail()
+}
+func (f *fakeQuerier) RejudgeByResult(_ context.Context, a dbgen.RejudgeByResultParams) error {
+	f.note("RejudgeByResult")
+	f.lastRejudgeByResult = a
+	return f.fail()
+}
+func (f *fakeQuerier) RejudgeContest(_ context.Context, contestID sql.NullInt32) error {
+	f.note("RejudgeContest")
+	f.lastRejudgeContest = contestID.Int32
+	return f.fail()
+}
+func (f *fakeQuerier) RejudgeContestProblem(_ context.Context, a dbgen.RejudgeContestProblemParams) error {
+	f.note("RejudgeContestProblem")
+	f.lastRejudgeContestProb = a
+	return f.fail()
+}
+
+// ── 系统页：解题统计（admin/solution_statistics.php）──────────────────────
+
+func (f *fakeQuerier) SolutionMinByContest(_ context.Context, _ sql.NullInt32) ([]dbgen.SolutionMinByContestRow, error) {
+	f.note("SolutionMinByContest")
+	return f.statMinContest, f.fail()
+}
+func (f *fakeQuerier) SolutionMinByUsers(_ context.Context, _ []string) ([]dbgen.SolutionMinByUsersRow, error) {
+	f.note("SolutionMinByUsers")
+	return f.statMinUsers, f.fail()
+}
+func (f *fakeQuerier) ListRecentContests50(context.Context) ([]dbgen.ListRecentContests50Row, error) {
+	f.note("ListRecentContests50")
+	return f.recentContests50, f.fail()
+}
+
+// ── 比赛管理（admin/contest_*.php）───────────────────────────────────────
+
+func (f *fakeQuerier) CountContestsAdmin(context.Context) (int64, error) {
+	f.note("CountContestsAdmin")
+	return f.contestsCount, f.fail()
+}
+func (f *fakeQuerier) ListContestsAdmin(_ context.Context, _ dbgen.ListContestsAdminParams) ([]dbgen.ListContestsAdminRow, error) {
+	f.note("ListContestsAdmin")
+	return f.contestsAdminList, f.fail()
+}
+func (f *fakeQuerier) SearchContestsAdmin(_ context.Context, _ dbgen.SearchContestsAdminParams) ([]dbgen.SearchContestsAdminRow, error) {
+	f.note("SearchContestsAdmin")
+	return f.contestsSearch, f.fail()
+}
+func (f *fakeQuerier) GetContestDefunct(_ context.Context, _ int32) (string, error) {
+	f.note("GetContestDefunct")
+	return f.contestDefunct, f.fail()
+}
+func (f *fakeQuerier) GetContestPrivate(_ context.Context, _ int32) (int8, error) {
+	f.note("GetContestPrivate")
+	return f.contestPrivate, f.fail()
+}
+func (f *fakeQuerier) GetContestPassword(_ context.Context, _ int32) (string, error) {
+	f.note("GetContestPassword")
+	return f.contestPassword, f.fail()
+}
+func (f *fakeQuerier) SetContestDefunct(_ context.Context, a dbgen.SetContestDefunctParams) error {
+	f.note("SetContestDefunct")
+	f.lastSetContestDefunct = a
+	return f.fail()
+}
+func (f *fakeQuerier) SetContestPrivate(_ context.Context, a dbgen.SetContestPrivateParams) error {
+	f.note("SetContestPrivate")
+	f.lastSetContestPrivate = a
+	return f.fail()
+}
+func (f *fakeQuerier) InsertContest(_ context.Context, a dbgen.InsertContestParams) (sql.Result, error) {
+	f.note("InsertContest")
+	f.lastInsertContest = a
+	return fakeResult{id: f.nextContestID}, f.fail()
+}
+func (f *fakeQuerier) UpdateContest(_ context.Context, a dbgen.UpdateContestParams) error {
+	f.note("UpdateContest")
+	f.lastUpdateContest = a
+	return f.fail()
+}
+func (f *fakeQuerier) DeleteContestProblems(_ context.Context, _ sql.NullInt32) error {
+	f.note("DeleteContestProblems")
+	return f.fail()
+}
+func (f *fakeQuerier) ListContestProblemIDsOrdered(context.Context, sql.NullInt32) ([]int32, error) {
+	f.note("ListContestProblemIDsOrdered")
+	return f.contestProblemIDsOrd, f.fail()
+}
+func (f *fakeQuerier) ListContestUserIDs(context.Context, string) ([]string, error) {
+	f.note("ListContestUserIDs")
+	return f.contestUserIDs, f.fail()
+}
+func (f *fakeQuerier) ResetSolutionNum(_ context.Context, _ sql.NullInt32) error {
+	f.note("ResetSolutionNum")
+	return f.fail()
+}
+func (f *fakeQuerier) SetSolutionNum(_ context.Context, a dbgen.SetSolutionNumParams) error {
+	f.note("SetSolutionNum")
+	f.lastSetSolutionNum = a
+	return f.fail()
+}
+func (f *fakeQuerier) RecomputeContestProblemAccepted(_ context.Context, _ dbgen.RecomputeContestProblemAcceptedParams) error {
+	f.note("RecomputeContestProblemAccepted")
+	return f.fail()
+}
+func (f *fakeQuerier) RecomputeContestProblemSubmit(_ context.Context, _ dbgen.RecomputeContestProblemSubmitParams) error {
+	f.note("RecomputeContestProblemSubmit")
 	return f.fail()
 }

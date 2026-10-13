@@ -22,15 +22,11 @@ import (
 
 // SubmitParams 是一次提交的完整参数。
 type SubmitParams struct {
-	// ProblemID 是目标题目的**正** id。
+	// ProblemID 是目标题目的**正** id（练习/比赛模式）。
 	//
-	// 注意：测试运行也写真实 id，不靠符号编码。PHP 在 submit.php:254
-	// 把测试运行的 $id 置 0，于是库里存的是 problem_id=0；配合
-	// submit.php:359 跳过 `UPDATE problem SET submit=submit+1`，
-	// 计数不会被污染。但 judged-go 的取件条件是 `result<2`，PHP 结尾
-	// 又把 result 推回 0，判题机会取到 problem_id=0 的记录并去找
-	// data/0 —— 该目录不存在，判题必然失败。这里改为存真实 id 并
-	// 停在 result=14（见 TestRun），既不污染计数也不会被取走。
+	// 测试运行（TestRun）落库时会被改写成 0（见 insertSolutionRow）：
+	// 与所有 `problem_id>0` 的统计口径隔离，且和 Go status-ajax 的
+	// `problem_id==0` 测试运行分支对齐。
 	ProblemID int32
 
 	// TestRun 标记这是一次测试运行（提交页的"测试运行"按钮）。
@@ -40,10 +36,8 @@ type SubmitParams struct {
 	// 显式传标志而不是从 ProblemID 的符号推：比赛模式下 ProblemID
 	// 与练习模式无关，任何"靠符号推断"的写法都会在比赛提交上判错。
 	//
-	// 语义差异（已知且刻意）：PHP 让测试运行进判题队列等判题机跑，
-	// 但 judged-go 不读 custominput，即便判题成功也是拿题目自带的
-	// 测试数据跑，结果与用户预期不符。停在 14 至少不会给出一个假的
-	// "运行成功"。等 judged-go 支持 custominput 后再放开。
+	// 测试运行写 custominput 并把 result 推进到 0（进判题队列）。judged-go
+	// 取件后检测到 custominput 行，走"只跑自定义输入、不比对"的测试运行路径。
 	TestRun bool
 
 	// UserID 是提交者。
@@ -138,17 +132,17 @@ func InsertSubmission(ctx context.Context, db *sql.DB, p SubmitParams) (SubmitRe
 		return SubmitResult{}, fmt.Errorf("写入送判源码失败: %w", err)
 	}
 
-	// 测试运行才写自定义输入。判罚码固定 14：停在 OJ_MC 等人工确认，
-	// 判题机按 result<2 取件时不会取到它。
+	// 测试运行才写自定义输入。判罚码推进到 0（进判题队列）：judged-go 据此
+	// 取件，检测到 custominput 行后走"只跑自定义输入、不比对"的测试运行路径。
+	// PHP 是无条件插入 custominput（input_text 可为空），这里保持一致。
 	final := 14
 	if p.TestRun {
-		if p.InputText != "" {
-			if _, err := tx.ExecContext(ctx,
-				`INSERT INTO custominput (solution_id, input_text) VALUES (?, ?)`,
-				solutionID, p.InputText); err != nil {
-				return SubmitResult{}, fmt.Errorf("写入自定义输入失败: %w", err)
-			}
+		if _, err := tx.ExecContext(ctx,
+			`INSERT INTO custominput (solution_id, input_text) VALUES (?, ?)`,
+			solutionID, p.InputText); err != nil {
+			return SubmitResult{}, fmt.Errorf("写入自定义输入失败: %w", err)
 		}
+		final = 0
 	} else {
 		// 非测试运行才计入题目/比赛题目的提交数。
 		// PHP 的 `if ($test_run) {...} else { UPDATE problem SET submit=submit+1 }`
@@ -193,14 +187,22 @@ func insertSolutionRow(ctx context.Context, tx *sql.Tx, p SubmitParams) (int64, 
 	  (problem_id, user_id, nick, in_date, language, ip, code_length, contest_id, num, result)
 	  VALUES (?, ?, ?, NOW(), ?, ?, ?, ?, ?, 14)`
 
+	// 测试运行存 problem_id=0（PHP 对无题号的自测即如此）。这样它与真实提交
+	// 的统计口径天然隔离：所有计数 SQL 都带 `problem_id>0`，0 不会被计入
+	// problem.accepted / users.solved。判题侧靠 custominput 行识别测试运行。
+	pid := p.ProblemID
+	if p.TestRun {
+		pid = 0
+	}
+
 	var res sql.Result
 	var err error
 	if p.IsContest {
 		res, err = tx.ExecContext(ctx, contest,
-			p.ProblemID, p.UserID, p.Nick, p.Language, p.IP, p.CodeLength, p.ContestID, p.Num)
+			pid, p.UserID, p.Nick, p.Language, p.IP, p.CodeLength, p.ContestID, p.Num)
 	} else {
 		res, err = tx.ExecContext(ctx, base,
-			p.ProblemID, p.UserID, p.Nick, p.Language, p.IP, p.CodeLength)
+			pid, p.UserID, p.Nick, p.Language, p.IP, p.CodeLength)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("写入提交记录失败: %w", err)

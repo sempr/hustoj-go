@@ -31,8 +31,25 @@ type Querier interface {
 	// 用参数绑定而非拼字符串，cid 来自用户输入，拼字符串等于把 rightstr
 	// 的内容交给用户构造。
 	CountContestInvites(ctx context.Context, arg CountContestInvitesParams) (int64, error)
+	// 后台比赛管理（admin/contest_list.php、contest_df_change.php、contest_pr_change.php、
+	// contest_add.php、contest_edit.php）。
+	//
+	// langmask 由 Go 侧按 `((1<<len(languageExt))-1) & ^selected` 算好后传入；
+	// contest_type 是各复选框 1<<i 的按位或，同样在 Go 侧算好。
+	CountContestsAdmin(ctx context.Context) (int64, error)
 	// 新闻计数（分页用）
 	CountNews(ctx context.Context, faqsTitle string) (int64, error)
+	// 后台公告管理查询（admin/news_list.php、news_add_page.php、news_add.php、
+	// news_edit.php、news_df_change.php）。
+	//
+	// 与 PHP 等价要点：
+	//   - news_list 的计数是 COUNT('news_id')（字符串常量等值于 COUNT(*)）。
+	//   - 列表固定 25 条/页，按 news_id DESC；带关键词时 PHP **不加 LIMIT**（全量返回），
+	//     这里保持一致，否则搜索结果会被截断。
+	//   - 搜索是裸 LIKE：用户输入的 % 与 _ 就是通配符（PHP 的 `like ?` 未转义）。
+	//   - 详情查询**不能在 SQL 层过滤 defunct**：管理员要能编辑已停用(Off)的公告，
+	//     因此不使用 homepage.sql 的 GetNewsByID（那条带 defunct!='Y' OR menu=1 过滤）。
+	CountNewsAdmin(ctx context.Context) (int64, error)
 	// 提交入库相关查询
 	//
 	// 对应 phpweb/submit.php。这些写入必须与 PHP 逐条等价，原因有三：
@@ -49,10 +66,23 @@ type Querier interface {
 	// `select count(1) cnt FROM solution WHERE result<4`，超过 50 就开验证码。
 	// 这是队列堆积时的自保护，Go 侧等价实现。
 	CountPendingJudges(ctx context.Context) (int64, error)
+	// 后台用户/权限管理查询（admin/privilege_list.php、privilege_add.php、
+	// privilege_delete.php、changepass.php、user_df_change.php、user_set_ip.php）。
+	//
+	// 可管理权限白名单与 PHP privilege_list.php 的 $privileges 逐字一致：
+	// 列表只展示这些 rightstr，避免把 c<cid>/s<pid> 之类的海量授权也铺出来。
+	CountPrivileges(ctx context.Context) (int64, error)
 	// AC 过的不同用户数（problemstatus.php:70-75）。
 	CountProblemACUsers(ctx context.Context, problemID int32) (int64, error)
 	// 提交过的不同用户数（problemstatus.php:63-67）。
 	CountProblemUsers(ctx context.Context, problemID int32) (int64, error)
+	// 后台题目管理：列表与变更（admin/problem_list.php、problem_df_change.php、
+	// problem_del.php、problem_changeid.php）。
+	//
+	// 列表计数是 COUNT('problem_id')（等值 COUNT(*)），**不过滤** problem_id>0 也不过滤
+	// defunct —— 与 problem_list.php 一致（不同于 problemset.php 的管理员列表）。
+	// 搜索命中 5 列（problem_id/title/description/source/hint），不加 LIMIT，按 problem_id ASC。
+	CountProblemsAll(ctx context.Context) (int64, error)
 	CountProblemsForAdmin(ctx context.Context) (int64, error)
 	CountProblemsForMember(ctx context.Context, now sql.NullTime) (int64, error)
 	CountProblemsFreePractice(ctx context.Context) (int64, error)
@@ -67,12 +97,24 @@ type Querier interface {
 	// 投毒计数（$OJ_POISON_BOT_COUNT）。submit.php:392 统计该用户该题的 AC 数，
 	// 达到阈值后判题机开始返回随机结果，把算力让给真人。
 	CountUserAccepted(ctx context.Context, arg CountUserAcceptedParams) (int64, error)
+	// 后台用户列表查询（admin/user_list.php）。
+	//
+	// 与 PHP 等价要点：
+	//   - 计数是 COUNT('user_id')（字符串常量等值于 COUNT(*)），且不区分 defunct。
+	//   - 默认只看 defunct='N'（?trash 则只看 'Y'），按 accesstime DESC，25 条/页。
+	//   - 搜索命中 6 列（user_id/nick/school/group_name/parent_phone/ip），**不加 LIMIT**，
+	//     按 user_id DESC。搜索是裸 LIKE（% 与 _ 通配）。
+	CountUsers(ctx context.Context) (int64, error)
 	// ── 批量删除题目（admin/problem_batch_delete.php）───────────────────
 	DeleteContestProblemByPID(ctx context.Context, pid int32) error
+	DeleteContestProblems(ctx context.Context, contestID sql.NullInt32) error
 	// 判题信息被查看后清掉自定义输入（status-ajax.php:54-55）。
 	DeleteCustomInput(ctx context.Context, solutionID int32) error
+	DeletePrivilege(ctx context.Context, arg DeletePrivilegeParams) error
 	DeleteProblemByID(ctx context.Context, pid int32) error
 	DeleteProblemPrivilege(ctx context.Context, rightstr string) error
+	DeleteSimByProblem(ctx context.Context, problemID int32) error
+	DeleteSimBySolution(ctx context.Context, solutionID int32) error
 	// ── 导出 AC 代码（export_ac_code.php）───────────────────────────────
 	GetACCodeByUser(ctx context.Context, uid string) ([]GetACCodeByUserRow, error)
 	// 运行中的比赛
@@ -101,12 +143,15 @@ type Querier interface {
 	GetContestByID(ctx context.Context, contestID int32) (GetContestByIDRow, error)
 	// ── 导出比赛代码（export_contest_code.php）──────────────────────────
 	GetContestCode(ctx context.Context, cid sql.NullInt32) ([]GetContestCodeRow, error)
+	GetContestDefunct(ctx context.Context, contestID int32) (string, error)
 	GetContestForRank(ctx context.Context, contestID int32) (GetContestForRankRow, error)
 	// 比赛信息，用于时间窗、私有性与语言掩码。submit.php:99 要求比赛正在进行
 	// （start_time<=now AND end_time>now），查不到即"不在比赛中"。
 	GetContestForSubmit(ctx context.Context, arg GetContestForSubmitParams) (GetContestForSubmitRow, error)
 	// ── 比赛排名（contestrank2.php、contestrank3.php）───────────────────
 	GetContestInfo(ctx context.Context, cid int32) (GetContestInfoRow, error)
+	GetContestPassword(ctx context.Context, contestID int32) (string, error)
+	GetContestPrivate(ctx context.Context, contestID int32) (int8, error)
 	GetContestProblemCount(ctx context.Context, cid sql.NullInt32) (int64, error)
 	GetContestProblemID(ctx context.Context, arg GetContestProblemIDParams) (int32, error)
 	GetContestProblemMap(ctx context.Context, cid sql.NullInt32) ([]GetContestProblemMapRow, error)
@@ -117,12 +162,14 @@ type Querier interface {
 	// （原 SQL 字面量写死），因此这里不返回 defunct。
 	GetContestSubmitProblem(ctx context.Context, arg GetContestSubmitProblemParams) (int32, error)
 	GetContestTeams(ctx context.Context, cid sql.NullInt32) ([]GetContestTeamsRow, error)
+	GetContestTitle(ctx context.Context, contestID int32) (sql.NullString, error)
 	// 比赛标题与类型，用于 NOIP 屏蔽（status-ajax.php:66-69）。
 	GetContestTitleType(ctx context.Context, contestID int32) (GetContestTitleTypeRow, error)
 	// 提交所属比赛的起止时间（showsource.php:32-33）。
 	// 比赛不存在时返回 sql.ErrNoRows，按 PHP 的 $result 为空处理。
 	GetContestWindow(ctx context.Context, contestID int32) (GetContestWindowRow, error)
 	GetFirstBlood(ctx context.Context, cid sql.NullInt32) ([]GetFirstBloodRow, error)
+	GetLastProblemSource(ctx context.Context) (sql.NullString, error)
 	// 提交冷却。submit.php:286：
 	//   select in_date, solution_id from solution
 	//    where user_id=? and in_date>? order by in_date desc limit 1
@@ -140,6 +187,7 @@ type Querier interface {
 	GetMonthStarBoundary(ctx context.Context) (uint32, error)
 	// 本月之星排名（排除隐藏用户）
 	GetMonthStarRank(ctx context.Context, arg GetMonthStarRankParams) ([]GetMonthStarRankRow, error)
+	GetNewsAdmin(ctx context.Context, newsID int32) (GetNewsAdminRow, error)
 	// ── 新闻详情（viewnews.php）─────────────────────────────────────────
 	// 新闻详情
 	GetNewsByID(ctx context.Context, newsID int32) ([]GetNewsByIDRow, error)
@@ -166,6 +214,7 @@ type Querier interface {
 	// problem-ajax.php:17 按 rightstr='p<pid>' 取 privilege 表里的第一个用户，
 	// 作为题目命题人展示；无命中时 PHP 输出 $MSG_IMPORTED（"外部导入"）。
 	GetProblemCreator(ctx context.Context, rightstr string) (string, error)
+	GetProblemDefunct(ctx context.Context, problemID int32) (string, error)
 	// ── 详情页的三模式可见性 ──────────────────────────────────────────────
 	//
 	// 详情页的过滤比列表页更严，多一条 private='1'（problem.php:44）：
@@ -190,6 +239,14 @@ type Querier interface {
 	GetProblemSPJ(ctx context.Context, problemID int32) (string, error)
 	// 推荐题目：先取本题 source，再按 source LIKE 找相关题（problemstatus.php:243-248）。
 	GetProblemSource(ctx context.Context, problemID int32) (sql.NullString, error)
+	// admin/ajax.php 的内联编辑端点查询。
+	//
+	// 表格内联编辑（news_list / user_list / problem_list）把改动 POST 到这个端点。
+	// 迁移期改用 nosurf（非消费式双提交 Cookie），因此单页连续多次编辑不会像
+	// PHP 的消费式 token 那样第二次 403。
+	//
+	// 列更新一律走显式查询（不做动态拼接列名），既安全又便于测试替身覆盖。
+	GetProblemTitleSource(ctx context.Context, problemID int32) (GetProblemTitleSourceRow, error)
 	GetRankList(ctx context.Context, contestID sql.NullInt32) ([]GetRankListRow, error)
 	// 最近比赛
 	GetRecentContests(ctx context.Context) ([]GetRecentContestsRow, error)
@@ -203,6 +260,7 @@ type Querier interface {
 	// 按 solution_id 取提交行（showsource.php:17-19 的 SELECT *）。
 	// 只取权限判断与页头注释需要的列。
 	GetSolutionByID(ctx context.Context, solutionID uint32) (GetSolutionByIDRow, error)
+	GetSolutionContestID(ctx context.Context, solutionID uint32) (sql.NullInt32, error)
 	// 状态页 AJAX（status-ajax.php）的查询。
 	// 按 solution_id 取整行（status-ajax.php:24-25 的 SELECT *）。
 	// :one 配 LIMIT 1，与 PHP 一致：查不到即无行。
@@ -238,6 +296,7 @@ type Querier interface {
 	GetUserByID(ctx context.Context, userID string) (GetUserByIDRow, error)
 	// 用户参加的比赛
 	GetUserContests(ctx context.Context, userID string) ([]sql.NullInt32, error)
+	GetUserDefunct(ctx context.Context, userID string) (string, error)
 	// ── 密码重置（lostpassword.php、lostpassword2.php）──────────────────
 	GetUserEmail(ctx context.Context, userID string) (sql.NullString, error)
 	// 取用户昵称，写入 solution.nick 以便列表页免 JOIN users。
@@ -268,7 +327,22 @@ type Querier interface {
 	// 取件，拆开就会出现"行已可判、源码还没写"的窗口，编译出空程序。
 	// 题目提交计数。PHP 只在非 test_run 时 +1。
 	IncrementProblemSubmit(ctx context.Context, problemID int32) error
+	// 后台批量建号（admin/user_add.php）与 CSV 导入（admin/user_import.php）。
+	//
+	// user_add：每行 "userid password"，逐行建号（已存在则报错），并写一条 loginlog。
+	// user_import：CSV 行 → upsert（存在则覆盖 email/ip/password/nick/school/group/expiry）。
+	// 到期日由 Go 按 OJ_EXPIRY_DAYS（默认 365）算好后作为日期传入，不在 SQL 里算 INTERVAL。
+	InsertBulkUser(ctx context.Context, arg InsertBulkUserParams) error
+	InsertContest(ctx context.Context, arg InsertContestParams) (sql.Result, error)
+	InsertContestProblem(ctx context.Context, arg InsertContestProblemParams) error
 	InsertLoginLog(ctx context.Context, arg InsertLoginLogParams) error
+	InsertNews(ctx context.Context, arg InsertNewsParams) error
+	InsertPrivilege(ctx context.Context, arg InsertPrivilegeParams) error
+	// 后台题目新增/编辑（admin/problem_add_page.php、problem_add.php、problem_edit.php）。
+	//
+	// addproblem() 的 INSERT 以 defunct='Y' 落库（新题先隐藏，补完测试数据再启用）；
+	// 需要 LastInsertId，故用 :execresult。编辑页 UPDATE 带 in_date=NOW() 与 coin。
+	InsertProblem(ctx context.Context, arg InsertProblemParams) (sql.Result, error)
 	// contest_locked($cid, $level)（my_func.inc.php:210）。
 	// 命中条件：比赛进行中，且（contest_type 含 level 位 或 标题含关键字）。
 	// submit.php 用它判断 128（延时）与 16（NOIP 只留最后一次提交）两种模式。
@@ -277,9 +351,22 @@ type Querier interface {
 	// 命中时隐藏 AC 数与提交数（problem.php:158），NOIP 考试期间防止泄题。
 	//
 	IsProblemLocked(ctx context.Context, arg IsProblemLockedParams) (bool, error)
+	ListContestPrivilegeUsers(ctx context.Context, rightstr string) ([]string, error)
+	ListContestProblemIDsOrdered(ctx context.Context, contestID sql.NullInt32) ([]int32, error)
+	ListContestUserIDs(ctx context.Context, rightstr string) ([]string, error)
 	// ── 比赛列表与题目 ────────────────────────────────────────────────
 	ListContests(ctx context.Context) ([]ListContestsRow, error)
+	ListContestsAdmin(ctx context.Context, arg ListContestsAdminParams) ([]ListContestsAdminRow, error)
+	ListFutureContests(ctx context.Context) ([]ListFutureContestsRow, error)
+	ListNewsAdmin(ctx context.Context, arg ListNewsAdminParams) ([]ListNewsAdminRow, error)
+	ListPrivileges(ctx context.Context, arg ListPrivilegesParams) ([]Privilege, error)
 	ListProblemIDsBySource(ctx context.Context, arg ListProblemIDsBySourceParams) ([]int32, error)
+	ListProblemsAdminList(ctx context.Context, arg ListProblemsAdminListParams) ([]ListProblemsAdminListRow, error)
+	// 题目导出（admin/problem_export_xml.php）。
+	//
+	// 按题号区间取题（后端最常用的一种）。按 id 列表导出用 GetProblemByID 循环，
+	// 按比赛导出用 ListContestProblemIDs（按 num 排序）。
+	ListProblemsByRange(ctx context.Context, arg ListProblemsByRangeParams) ([]ListProblemsByRangeRow, error)
 	// 题目列表/详情查询
 	//
 	// 这些查询刻意保持与 phpweb/problemset.php、phpweb/problem.php 的 SQL 等价，
@@ -309,7 +396,11 @@ type Querier interface {
 	ListProblemsForMember(ctx context.Context, arg ListProblemsForMemberParams) ([]ListProblemsForMemberRow, error)
 	// ── 自由练习：只看 defunct='N'，不排除比赛题 ────────────────────────────
 	ListProblemsFreePractice(ctx context.Context, arg ListProblemsFreePracticeParams) ([]ListProblemsFreePracticeRow, error)
+	ListRecentContests50(ctx context.Context) ([]ListRecentContests50Row, error)
+	ListUsersActive(ctx context.Context, arg ListUsersActiveParams) ([]ListUsersActiveRow, error)
+	ListUsersTrash(ctx context.Context, arg ListUsersTrashParams) ([]ListUsersTrashRow, error)
 	MarkMailRead(ctx context.Context, mailID int32) error
+	ProblemIDExists(ctx context.Context, problemID int32) (int64, error)
 	// 题目是否被进行中的比赛占用（problemstatus.php:122-124）。
 	// 命中时内存/耗时/代码长度列显示 ------。
 	ProblemInRunningContest(ctx context.Context, arg ProblemInRunningContestParams) (bool, error)
@@ -317,6 +408,26 @@ type Querier interface {
 	// 无命中时返回 sql.ErrNoRows，调用方按 0 处理。
 	// contest_type & level > 0 的运算符优先级在 MySQL 里等同于 (contest_type & level) > 0。
 	ProblemLockedContestID(ctx context.Context, arg ProblemLockedContestIDParams) (int32, error)
+	RecomputeContestProblemAccepted(ctx context.Context, arg RecomputeContestProblemAcceptedParams) error
+	RecomputeContestProblemSubmit(ctx context.Context, arg RecomputeContestProblemSubmitParams) error
+	RejudgeByResult(ctx context.Context, arg RejudgeByResultParams) error
+	RejudgeContest(ctx context.Context, contestID sql.NullInt32) error
+	RejudgeContestProblem(ctx context.Context, arg RejudgeContestProblemParams) error
+	// 后台重新判题（admin/rejudge.php）与解题统计（admin/solution_statistics.php）。
+	//
+	// rejudge 把 solution.result 置 1（等待重判）并清 pass_rate；judged-go 轮询
+	// result<2 会自动取件，因此 Go 侧不复刻 PHP 的 Redis lpush / UDP trigger_judge。
+	//
+	// solution_statistics 需要在 Go 侧做透视（每用户 × 每题的 min(result)），
+	// PHP 用动态 case 列实现；这里取回 (user,problem,min) 明细后由 Go 透视。
+	RejudgeProblemSolutions(ctx context.Context, problemID int32) error
+	RejudgeSolution(ctx context.Context, solutionID uint32) error
+	ResetProblemAccepted(ctx context.Context, problemID int32) error
+	ResetSolutionNum(ctx context.Context, contestID sql.NullInt32) error
+	SearchContestsAdmin(ctx context.Context, arg SearchContestsAdminParams) ([]SearchContestsAdminRow, error)
+	SearchNewsAdmin(ctx context.Context, arg SearchNewsAdminParams) ([]SearchNewsAdminRow, error)
+	SearchPrivileges(ctx context.Context, arg SearchPrivilegesParams) ([]Privilege, error)
+	SearchProblemsAdminList(ctx context.Context, arg SearchProblemsAdminListParams) ([]SearchProblemsAdminListRow, error)
 	SearchProblemsForAdmin(ctx context.Context, arg SearchProblemsForAdminParams) ([]SearchProblemsForAdminRow, error)
 	// 注意：下面两条查询的列必须写成 `p.xxx` 限定形式。
 	// sqlc 的 MySQL 分析器在"title/source 的 OR 谓词"与"含子查询"同时出现时
@@ -327,14 +438,46 @@ type Querier interface {
 	// 别图省事去掉别名限定，那样 codegen 会直接失败。
 	SearchProblemsForMember(ctx context.Context, arg SearchProblemsForMemberParams) ([]SearchProblemsForMemberRow, error)
 	SearchProblemsFreePractice(ctx context.Context, arg SearchProblemsFreePracticeParams) ([]SearchProblemsFreePracticeRow, error)
+	SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error)
 	SendMail(ctx context.Context, arg SendMailParams) error
+	SetContestDefunct(ctx context.Context, arg SetContestDefunctParams) error
+	SetContestPrivate(ctx context.Context, arg SetContestPrivateParams) error
+	SetNewsDefunct(ctx context.Context, arg SetNewsDefunctParams) error
+	SetNewsImportance(ctx context.Context, arg SetNewsImportanceParams) error
 	SetProblemAccepted(ctx context.Context, arg SetProblemAcceptedParams) error
+	SetProblemCoin(ctx context.Context, arg SetProblemCoinParams) error
+	SetProblemDefunctByID(ctx context.Context, arg SetProblemDefunctByIDParams) error
+	SetProblemMemoryLimit(ctx context.Context, arg SetProblemMemoryLimitParams) error
+	SetProblemSource(ctx context.Context, arg SetProblemSourceParams) error
 	SetProblemSubmit(ctx context.Context, arg SetProblemSubmitParams) error
+	SetProblemTimeLimit(ctx context.Context, arg SetProblemTimeLimitParams) error
+	SetSolutionNum(ctx context.Context, arg SetSolutionNumParams) error
+	SetUserCoinBonus(ctx context.Context, arg SetUserCoinBonusParams) error
+	SetUserCoinSpent(ctx context.Context, arg SetUserCoinSpentParams) error
+	SetUserDefunct(ctx context.Context, arg SetUserDefunctParams) error
+	SetUserExpiryDate(ctx context.Context, arg SetUserExpiryDateParams) error
+	SetUserGroupName(ctx context.Context, arg SetUserGroupNameParams) error
+	SetUserNick(ctx context.Context, arg SetUserNickParams) error
+	SetUserParentPhone(ctx context.Context, arg SetUserParentPhoneParams) error
+	SetUserSchool(ctx context.Context, arg SetUserSchoolParams) error
+	// ── 解题统计（solution_statistics.php）──────────────────────────────
+	SolutionMinByContest(ctx context.Context, contestID sql.NullInt32) ([]SolutionMinByContestRow, error)
+	SolutionMinByUsers(ctx context.Context, userIds []string) ([]SolutionMinByUsersRow, error)
+	UpdateContest(ctx context.Context, arg UpdateContestParams) error
+	UpdateContestProblemProblemID(ctx context.Context, arg UpdateContestProblemProblemIDParams) error
+	UpdateNews(ctx context.Context, arg UpdateNewsParams) error
+	UpdateProblemFull(ctx context.Context, arg UpdateProblemFullParams) error
+	UpdateProblemID(ctx context.Context, arg UpdateProblemIDParams) error
+	UpdateSolutionProblemID(ctx context.Context, arg UpdateSolutionProblemIDParams) error
 	UpdateSolutionProblemToZero(ctx context.Context, pid int32) error
+	UpdateTopicPID(ctx context.Context, arg UpdateTopicPIDParams) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
+	// changepass.php：只能改非管理员账号，返回受影响行数供调用方判断是否命中。
+	UpdateUserPasswordAdmin(ctx context.Context, arg UpdateUserPasswordAdminParams) (int64, error)
 	UpdateUserPasswordByKey(ctx context.Context, arg UpdateUserPasswordByKeyParams) error
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error
 	UpdateUserSolutionNick(ctx context.Context, arg UpdateUserSolutionNickParams) error
+	UpsertImportUser(ctx context.Context, arg UpsertImportUserParams) error
 	// $OJ_AUTO_SHARE 开启时，某个用户是否已 AC 该题（problemstatus.php:131-133）。
 	UserSolvedProblem(ctx context.Context, arg UserSolvedProblemParams) (bool, error)
 }

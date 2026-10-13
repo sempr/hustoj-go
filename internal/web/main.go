@@ -120,6 +120,10 @@ func (s *Server) handler() http.Handler {
 		_, _ = w.Write([]byte("ready\n"))
 	})
 
+	// 业务路由：首页/门户/新闻详情。
+	// 根路径 / 交给 handleIndex（PHP 的 nginx index 指令内部走 index.php，URL 不变）。
+	s.registerHomepageRoutes(mux)
+
 	// 业务路由：题目列表与详情。
 	// 路径与 PHP 一致，便于 nginx 按路径切流。
 	s.registerProblemRoutes(mux)
@@ -163,11 +167,9 @@ func (s *Server) handler() http.Handler {
 	// 业务路由：认证相关。
 	s.registerAuthRoutes(mux)
 
-	mux.HandleFunc("GET /{$}", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		renderPage(w, http.StatusOK, "notImplemented", "Go Web",
-			notImplementedView{Message: "Go Web 服务骨架已就绪，业务路由尚未挂载。"})
-	})
+	// 根路径 /：PHP 的 nginx index 指令内部走 index.php 且 URL 保持 /，
+	// 因此这里直接渲染首页，不做 302 重定向，保持 URL 与内容一致。
+	mux.HandleFunc("GET /{$}", s.handleIndex)
 
 	// CSRF 校验包在最外层：nosurf 只拦不安全方法，
 	// 所以读接口无感，POST 在进入任何 handler 前就已被验过一遍。

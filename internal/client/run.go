@@ -21,6 +21,14 @@ import (
 func (jc *JudgeClient) Run() error {
 	slog.Info("Starting judge process", "runner_id", jc.runnerID)
 
+	// 测试运行：有 custominput 行时只跑自定义输入、不与标准输出比对。
+	// 必须在读 problem 之前分流 —— 测试运行的 problem_id 是 0，读不到题目。
+	if jc.db != nil {
+		if input, ok, err := jc.db.GetCustomInput(jc.solutionID); err == nil && ok {
+			return jc.runTestRun(input)
+		}
+	}
+
 	ctx, err := jc.prepareJudgeContext()
 	if err != nil {
 		return err
@@ -177,6 +185,75 @@ func (jc *JudgeClient) handleExecution(ctx *JudgeContext, workDir string) error 
 	}
 
 	return jc.runTestCases(ctx.Solution, ctx.Problem, workDir, ctx.LangConfig, ctx.SpjProgram)
+}
+
+// 测试运行的默认资源限制（problem_id=0 时读不到题目，用固定值）。
+const (
+	testRunTimeLimitMS = 10000
+	testRunMemoryKB    = 262144
+)
+
+// runTestRun 执行一次测试运行：编译 → 用 custominput 作 stdin 跑一次 →
+// 把程序 stdout 写入 runtimeinfo（供 status-ajax 的 tr 分支展示）。
+//
+// 不比对标准输出、不计入任何统计（problem_id=0）。
+func (jc *JudgeClient) runTestRun(input string) error {
+	solution, err := jc.db.GetSolution(jc.solutionID)
+	if err != nil {
+		return fmt.Errorf("failed to get solution info: %w", err)
+	}
+	langConfig, err := jc.langManager.GetLanguageConfig(solution.Language)
+	if err != nil {
+		return fmt.Errorf("failed to get language config: %w", err)
+	}
+
+	ctx := &JudgeContext{Solution: solution, LangConfig: langConfig}
+	workDir, cleanup, err := jc.setupEnvironment(ctx)
+	if err != nil {
+		return err
+	}
+	if cleanup != nil {
+		defer cleanup()
+	}
+
+	os.Chown(workDir, 1536, 1536)
+
+	if err := jc.handleCompilation(ctx, workDir); err != nil {
+		return err
+	}
+
+	// 自定义输入落成临时文件，交给 runAndCompare 复制为 data.in。
+	tmp, err := os.CreateTemp("", "hustoj-testrun-*.in")
+	if err != nil {
+		return fmt.Errorf("failed to create temp input: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(input); err != nil {
+		tmp.Close()
+		return fmt.Errorf("failed to write temp input: %w", err)
+	}
+	tmp.Close()
+
+	rc := RunConfig{
+		Lang:        solution.Language,
+		Rootdir:     workDir,
+		Workdir:     filepath.Join(workDir, "code"),
+		InFile:      tmp.Name(),
+		Timelimit:   testRunTimeLimitMS,
+		MemoryLimit: testRunMemoryKB,
+		TestRun:     true,
+	}
+	result, timeUsed, memUsed := jc.runAndCompare(rc)
+
+	// 程序 stdout 被写到 rootfs 内 /code/data.usr（见 runAndCompare 的 stdoutName）。
+	out, _ := os.ReadFile(filepath.Join(workDir, "code", "data.usr"))
+	if err := jc.db.AddRuntimeInfo(jc.solutionID, string(out)); err != nil {
+		slog.Warn("Failed to add runtime info", "error", err)
+	}
+	if err := jc.db.UpdateSolution(jc.solutionID, result, timeUsed, memUsed, 1.0); err != nil {
+		return fmt.Errorf("failed to update solution: %w", err)
+	}
+	return nil
 }
 
 // determineOIMode determines whether to use OI scoring mode

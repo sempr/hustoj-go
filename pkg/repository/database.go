@@ -180,6 +180,24 @@ func (d *Database) GetSolutionSource(solutionID int) (string, error) {
 	return source, nil
 }
 
+// GetCustomInput 取测试运行的自定义输入。
+//
+// 返回 ok=false 表示这不是一次测试运行（无 custominput 行）。判题机据此在
+// 取到 solution 之后、读 problem 之前分流到测试运行路径。
+func (d *Database) GetCustomInput(solutionID int) (string, bool, error) {
+	query := "SELECT input_text FROM custominput WHERE solution_id = ?"
+
+	var input sql.NullString
+	err := d.db.QueryRow(query, solutionID).Scan(&input)
+	if err == sql.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("failed to get custom input: %w", err)
+	}
+	return input.String, true, nil
+}
+
 // UpdateSolution updates solution status and results
 func (d *Database) UpdateSolution(solutionID, result, timeUsed, memoryUsed int, passRate float64) error {
 	query := "UPDATE solution SET result=?, time=?, memory=?, pass_rate=?, judger=?, judgetime=now() WHERE solution_id=?"

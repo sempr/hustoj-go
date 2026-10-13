@@ -86,6 +86,13 @@ type ManualQuerier interface {
 	//
 	// 实现见 problemstatus_manual.go。
 	ListProblemBestACSolutions(ctx context.Context, problemID int32, offset, limit int32) ([]ProblemBestACSolRow, error)
+
+	// ── 排行榜导出（admin/ranklist_export.php）────────────────────────
+	//
+	// 实现见 ranklist_export_manual.go：where 子句随 prefix 变化，
+	// scope 用 in_date 窗口而非 solution_id 区间，不能静态生成。
+	ExportRanklistUsers(ctx context.Context, f RanklistExportFilter, offset, limit int32) ([]RanklistExportRow, error)
+	ExportRanklistScoped(ctx context.Context, since string, offset, limit int32) ([]RanklistExportRow, error)
 }
 
 // FullQuerier 是 sqlc 生成的 Querier 与手写 ManualQuerier 的合集。

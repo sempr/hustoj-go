@@ -502,6 +502,14 @@ func (s *Server) handleViewNews(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// registerHomepageRoutes 挂载首页/门户/新闻详情路由。
+// 路径与 PHP 完全一致，便于 nginx 按路径切流。
+func (s *Server) registerHomepageRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("GET /index.php", s.handleIndex)
+	mux.HandleFunc("GET /portal.php", s.handlePortal)
+	mux.HandleFunc("GET /viewnews.php", s.handleViewNews)
+}
+
 // bbcodeToHTML 将 BBCode 转换为 HTML。
 // 简化实现，支持常见标签。
 func bbcodeToHTML(input string) string {

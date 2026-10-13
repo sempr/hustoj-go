@@ -3,7 +3,12 @@
 package web
 
 import (
+	"database/sql"
 	"net/http"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
 )
 
 // AdminIndexVM 是后台首页的视图模型。
@@ -177,4 +182,35 @@ func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/menu.php", s.handleAdminMenu)
 	mux.HandleFunc("GET /admin/admin-header.php", s.handleAdminHeader)
 	mux.HandleFunc("/admin/problem_batch_delete.php", s.handleProblemBatchDelete)
+
+	// 公告管理（admin/news_*.php）。
+	s.registerAdminNewsRoutes(mux)
+
+	// 用户/权限管理（admin/privilege_*、changepass、user_df_change、user_set_ip、user_list）。
+	s.registerAdminUserRoutes(mux)
+
+	// 表格内联编辑端点（admin/ajax.php）。
+	s.registerAdminAjaxRoutes(mux)
+
+	// 批量建号 / CSV 导入（admin/user_add.php、user_import.php）。
+	s.registerAdminUserImportRoutes(mux)
+
+	// 排行榜导出（admin/ranklist_export.php）。
+	s.registerAdminRanklistExportRoutes(mux)
+
+	// 题目管理（admin/problem_list.php、problem_df_change.php、problem_del.php、
+	// problem_changeid.php）。problem_batch_delete.php 在下方单独注册。
+	s.registerAdminProblemRoutes(mux)
+
+	// 题目新增/编辑（admin/problem_add_page.php、problem_add.php、problem_edit.php）。
+	s.registerAdminProblemEditRoutes(mux)
+
+	// 题目导出与复制入口（admin/problem_export*.php、problem_copy.php）。
+	s.registerAdminProblemExportRoutes(mux)
+
+	// 系统页：重新判题、解题统计（admin/rejudge.php、solution_statistics.php）。
+	s.registerAdminSystemRoutes(mux)
+
+	// 比赛管理（admin/contest_*.php）。
+	s.registerAdminContestRoutes(mux)
 }

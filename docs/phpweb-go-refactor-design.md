@@ -12,7 +12,7 @@
 
 | 路径 | 性质 | 说明 |
 |---|---|---|
-| `/root/gojudge/phpweb` | git 工作树 | 开发用。`git ls-files phpweb` 当前为 0，`phpweb/` 整体未被 git 跟踪 |
+| `/root/gojudge/phpweb` | git 工作树 | 开发用。`phpweb/` 现已纳入 git 跟踪（约 1913 个文件） |
 | `/home/judge/src/web` | 生产部署树 | nginx `root` 指向此处。非 git 目录 |
 
 **修改仓库树不会影响线上。** 生产部署树是独立副本，两者当前有 56 处差异。
@@ -238,8 +238,102 @@ PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lan
 - **命题人接口**：`problem-ajax.php`。按 `rightstr='p<pid>'` 查 `privilege`，
   有则回 `userinfo.php` 链接（转义），无则 `外部导入`。前端在 `problem.php`
   异步填入。
-- **比赛列表**：`contest.php`（含"我的比赛"三路来源）。
-- **后台**：目前仅 `admin/problem_batch_delete.php`（事务化重写）。
+- **首页/门户/新闻详情**：`index.php`、`portal.php`、`viewnews.php`
+  （`handler_homepage.go`，路由见 `registerHomepageRoutes`）。根路径 `/` 与 `index.php`
+  同源渲染（PHP 的 nginx `index` 指令内部走 `index.php`，URL 保持 `/`），不再返回占位页。
+  `handleIndex` 内含 `OnSiteContestID` 重定向，新闻列表/本月之星/最近题目/最近比赛/
+  图表数据均对齐 PHP。此前三个 handler 已实现且有单测，却一直没有注册路由
+  （页面停滞在根占位分支）——已补 `registerHomepageRoutes`，并加 mux 级回归测试
+  `handler_homepage_routes_test.go` 钉住，避免再次"实现未接线"。
+- **后台**：`admin/problem_batch_delete.php`（事务化重写）；公告管理
+  `admin/news_list.php`、`news_add_page.php`、`news_add.php`、`news_edit.php`、
+  `news_df_change.php`（`handler_admin_news.go`，仅 administrator 可用）。
+  列表 25 条/页、搜索是裸 LIKE 且带关键词时**不加 LIMIT**（全量返回）——与 PHP 一致。
+  CSRF 走 nosurf（表单嵌 csrf_token），不复刻 PHP 的 set_post_key/getkey。
+  `setmsg.php` 依赖请求 Host 与 RemoveXSS，仍由 PHP 承担，未迁移。
+- **后台用户/权限（自包含部分）**：`admin/privilege_list.php`、`privilege_add.php`、
+  `privilege_delete.php`、`changepass.php`、`user_df_change.php`、`user_set_ip.php`
+  （`handler_admin_user.go`）。要点：
+  - `privilege_list` 只列可管理白名单内的 rightstr（与 PHP `$privileges` 逐字一致），
+    搜索是 `user_id/rightstr LIKE`；`privilege_delete` 拒绝移除自己的 administrator。
+  - `changepass` 的 UPDATE 带 `user_id NOT IN (SELECT ... administrator)`，返回行数判断是否命中。
+  - `user_df_change` 拒绝封禁自己；`user_set_ip` 写 `loginlog`（password=`set ip by <管理员>`）。
+  - 角色：`privilege_*`/`user_df_change` 仅 administrator；`user_set_ip` 用
+    `hasAdminPrivilege`（PHP 只由 admin-header 把关）。**已知限制**：`Identity` 目前不建模
+    `user_adder`/`password_setter`（见 `session_redis.go` 的 `GoPrivileges`），故 `changepass`
+    暂按仅 administrator 处理，与 `adminMenuPage` 里 `IsPasswordSetter` 恒为 false 的现状一致。
+  - 未迁移：`setmsg.php`（文件 `msg/<host>.txt` 位于 PHP web root 下，且依赖 `RemoveXSS`）。
+- **后台批量建号 / 导入 / 导出（`admin/user_add.php`、`user_import.php`、`ranklist_export.php`）**：
+  - `user_add`：每行 `userid password`（PHP 用 `explode(" ", trim())`，**连续空格会算格式错误**），
+    非 ASCII 字节替换成空格（中文用户名会被打散）；已存在报错；建号后写一条 loginlog。
+    到期日按 `OJ_EXPIRY_DAYS`（默认 365）在 Go 侧算好传入（config 无此值 → 用默认，需与 PHP 同步）。
+  - `user_import`：支持 CSV（UTF-8 / GBK 自动识别，`学号` 表头）与 zip 内多份 CSV；
+    昵称超 20 字符时动态 `ALTER TABLE users MODIFY nick`；逐行 upsert。
+  - `ranklist_export`：带 UTF-8 BOM 的 CSV（非 XLSX）；NOIP 进行中整页拦截（对管理员也不放行）；
+    scope=w 的周起点照抄 PHP 的 `date("d")-(date("w")+7)%8+1`；昵称以 `=+-@` 开头时前置 `'` 防公式注入；
+    非 scope 5000/页，scope 分支外层硬编码 LIMIT 50。手写查询见 `pkg/dbgen/ranklist_export_manual.go`。
+- **后台用户列表与内联编辑（`admin/user_list.php` + `admin/ajax.php`）**：
+  - `user_list.php`：默认 defunct='N'（`?trash` 看 'Y'），按 accesstime DESC，25/页；
+    搜索命中 6 列且**不加 LIMIT**、按 user_id DESC；到期日三色（>now+7d 绿 / >=now 蓝 / 否则红）；
+    金币余额 = earned+bonus-spent。行内编辑字段渲染为 `span[fd][user_id]`，token 放 `data-csrf`。
+  - `admin/ajax.php`：表格内联编辑公共端点。gate = administrator||problem_editor||contest_creator
+    （**tag_adder 未建模**，纯 tag_adder 会被拒 —— 已知限制）；各 `*_update_*` 字段再叠加表级角色。
+    `uniqueSource`（去重空白）、手机号 `/^1[3-9][0-9]{9}$/` 服务端兜底、`problem_get_title`
+    回显（比 PHP 多做了转义）、`get_user_list_of_contest` 回显 `c<id>` 授权用户。
+  - 内联 JS 用浏览器原生 `fetch`（layout 不含 jQuery），因此不再依赖 `$.post`。
+    未复刻：`parent_phone` 悬浮二维码（依赖未迁移的 `xiaoke.php`/`qrcode.min.js`）、SaaS 子域名邮箱链接。
+- **后台题目管理（第一批：`problem_list.php`、`problem_df_change.php`、`problem_del.php`、
+  `problem_changeid.php`）**：
+  - `problem_list`：计数 `COUNT('problem_id')`**不过滤** problem_id>0/defunct；50/页、每帧 25；
+    搜索命中 5 列（`problem_id` 用 `CAST(... AS CHAR) LIKE`）且不加 LIMIT、按 problem_id ASC；
+    来源标签复用 problemset 的 `colorTheme`（md5 取模）；金币 `span[fd=coin]` 内联编辑走已迁移的 `ajax.php`。
+    权限 administrator||problem_editor||contest_creator。
+  - `problem_df_change`：GET 单题切换 + POST 批量（`pid[]` / `hlist`，intval、去重、丢弃非正数；
+    enable→'N'，disable→'Y'）；权限 administrator||problem_editor。
+  - `problem_del`：删 `<OJHome>/data/<id>` 目录 + `problem`/`privilege(p<id>)` 并在 `solution` 里
+    置 problem_id=0/result=13，再重置 AUTO_INCREMENT（≥1000）；仅 administrator。
+  - `problem_changeid`：先挪数据目录再改库（失败回滚目录），并同步 solution/contest_problem/topic；
+    仅 administrator。`dataDirWritable` 对应 PHP 的 `writable($OJ_DATA)`。
+  - **第二批（1.3b）**：`problem_add_page.php`/`problem_add.php`、`problem_edit.php`。
+    `addproblem` 以 defunct='Y' 落库（新题先隐藏），随后写 `coin`、建 `<OJHome>/data/<pid>/`
+    并写 sample/test 数据文件、可选挂到未来比赛、给创建者 `p<pid>` 权限。
+    `problem_add` 对 title/description/input/output/hint 做 `,→&#44;`，对 sample/test 做
+    `normalizeSpaces`（仅 Unicode 空格 + 零宽字符，ASCII 空格不动）。编辑页 UPDATE 带
+    `in_date=NOW()`；仅当 `sample.in` 已存在且新样例非空时才重写样例文件。
+    AI 生成 / 实时预览（kindeditor/marked/iframe）未复刻，表单为静态版本。
+  - **第三批（1.3c）**：`problem_export.php`/`problem_export_xml.php` —— 产物是 FPS XML
+    （可选 zip 打包），含题面字段 + 测试用例 + SPJ 源码。**有意简化**：不复刻 PHP 的
+    临时文件 + session 进度 + `?last_file` 二次下载，改为一次性生成并流式返回；不嵌入图片
+    base64、不导出 solution 与 prepend/template/append（依赖语言扩展名表）。`problem_copy.php`
+    为静态入口，表单 POST 到各导入适配器（仍在 PHP 侧）。
+  - `problem_judge.php` **不迁移**：上游第 2 行即 `exit(1)` 停用，且 judged-go 不走 HTTP 判题
+    （`internal/daemon/fetcher.go` 的 HTTP 分支未实现）。
+  - 未迁移（后续）：各导入适配器（`problem_import_*`/`problem_add_page_*`）。
+- **后台系统页（第一批：`rejudge.php`、`solution_statistics.php`）**：
+  - `rejudge`：把 `solution.result` 置 1、`pass_rate=0`（judged-go 轮询 `result<2` 自动取件，
+    因此**不复刻** PHP 的 Redis lpush / `trigger_judge` UDP）。四种入口：题目、单提交、
+    按结果手动改（`result→to`）、比赛（整场或单个 num）。仅 administrator。
+  - `solution_statistics`：取回 `(user, problem, min(result))` 明细后在 Go 侧透视
+    （PHP 用动态 `case` 列）；比赛模式按 `contest_id`，否则按 `ulist` 用户列表；
+    AC/WA/空白三态。administrator 或 contest_creator。
+  - **仍未迁**（各有依赖，暂不迁）：`settings.php`（改写 `db_info.inc.php` 配置）、
+    `backup.php`（DB dump + 打包全部数据）、`watch.php`（监视）、`phpfm.php`（文件管理器）、
+    `update_db.php`（库结构升级）、`aidba.php`、`suspect_list.php`（依赖 ajax/多表）。
+    `admin/ajax.php` 已迁；`admin/check.php`/`msg.txt`/`help.php` 为静态辅助页。
+- **后台比赛管理（`contest_list.php`、`contest_df_change.php`、`contest_pr_change.php`、
+  `contest_add.php`、`contest_edit.php`）**：
+  - 权限 administrator 或 contest_creator（Identity 未建模 session 里的 `m<cid>`）。
+  - `contest_list`：计数不过滤、25/页、每帧 5；搜索 `title/description LIKE` 不加 LIMIT、
+    按 contest_id DESC；行内给出 公开/状态 切换与 编辑/复制/导出/日志/查重 链接。
+  - `contest_df_change`/`contest_pr_change`：按 cid 切换 `defunct`/`private`。
+  - `contest_add`/`contest_edit`：langmask 由 Go 侧算 `((1<<len(languageExt))-1) & ^selected`；
+    `contest_type` 是复选框 `1<<i` 的按位或；`description` 做 `<p>` 去除、`</p>→<br />`、`,`→`&#44;`；
+    题号列表逐题校验存在性后写 `contest_problem`（编辑还会重算 `c_accepted/c_submit` 与
+    `solution.num`）；写 `c<cid>`（受邀用户）与 `m<cid>`（创建者，仅 add）。未复刻 kindeditor 与
+    依赖 session 的"从比赛复制用户"下拉。
+  - 未迁移（后续）：`suspect_list.php`、`team_generate*.php`、`offline_import.php`、
+    `problem_import_*`/`problem_add_page_*`、`settings.php`、`backup.php`、`watch.php`、
+    `phpfm.php`、`update_db.php`、`aidba.php`、`setmsg.php`。
 
 ---
 
@@ -398,11 +492,38 @@ tar xzf /root/backup/web-<时间戳>.tar.gz -C /home/judge/src
 
 ## 7. 后续工作
 
-1. **补齐后台路径** —— 目前仅 `admin/problem_batch_delete.php` 已迁移，
-   其余 `admin/*` 页面（题目/比赛/用户管理）仍在 PHP 侧。
-2. **MyISAM → InnoDB** —— 21 张表是 MyISAM（`online` 是 MEMORY，
-   `solution_ai_answer` 是 InnoDB）。转换前必须在 MariaDB 11.8.6 影子环境验证
-   锁、deadlock 与 judged-go 取件一致性。当前无影子环境，不要动。
-3. **`admin/problem_batch_delete.php` 非原子** —— 涉及多表与文件删除回滚。
+> 已完成（Phase 0）：首页/门户/新闻详情接线（`index.php`/`portal.php`/`viewnews.php`，
+> 含 mux 级回归测试），根路径 `/` 不再是占位页。
+> 已完成（Phase 1.1）：后台公告管理（`admin/news_*.php`）。
+> 已完成（Phase 1.2a）：后台用户/权限自包含页面（`admin/privilege_*`、`changepass`、
+> `user_df_change`、`user_set_ip`）。
+> 已完成（Phase 1.2b）：`admin/user_list.php` + 内联编辑端点 `admin/ajax.php`。
+> 已完成（Phase 1.2c）：`admin/user_add.php`、`user_import.php`、`ranklist_export.php`。
+> 已完成（Phase 1.3a）：`admin/problem_list.php`、`problem_df_change.php`、
+> `problem_del.php`、`problem_changeid.php`。
+> 已完成（Phase 1.3b）：`admin/problem_add_page.php`、`problem_add.php`、`problem_edit.php`。
+> 已完成（Phase 1.3c）：`admin/problem_export.php`、`problem_export_xml.php`、`problem_copy.php`
+> （`problem_judge.php` 上游停用，不迁移）。
+> 已完成（Phase 1.4a）：`admin/rejudge.php`、`solution_statistics.php`。
+> 已完成（Phase 2）：判题侧 `custominput`/test_run 支持 —— 测试运行进队列（`result=0`、
+> `problem_id=0`），judged-go 检测到 `custominput` 行后走"只跑自定义输入、不比对"路径，
+> 程序 stdout 写入 `runtimeinfo`（status-ajax 的 `tr` 分支展示），结果计入 `solution`、
+> 不计入任何 `problem_id>0` 统计。HTTP fetcher / `trigger_judge` 有意不实现。
+> 已完成（Phase 1.5）：后台比赛管理（`admin/contest_list.php`、`contest_df_change.php`、
+> `contest_pr_change.php`、`contest_add.php`、`contest_edit.php`）。
+
+1. **补齐后台用户管理** —— 已迁 `user_list`/`ajax`/`privilege_*`/`changepass`/
+   `user_df_change`/`user_set_ip`/`user_add`/`user_import`/`ranklist_export`。仅剩
+   `setmsg.php` 未迁（依赖 PHP web root 下的 msg/ 与 RemoveXSS）。
+   再往后是题目/比赛管理（`problem_list` 等用的 `ajax.php` 已迁移）。
+2. **判题侧** —— `custominput`/test_run 已支持（见下）；HTTP fetcher 与
+   远程评测 `trigger_judge` **有意不实现**：`admin/problem_judge.php` 上游停用，
+   judged-go 走数据库轮询（`result<2` 取件），无需 UDP/HTTP 触发。
+3. **MyISAM → InnoDB** —— 本文原述"21 张表是 MyISAM（`online` 是 MEMORY，
+   `solution_ai_answer` 是 InnoDB）"，但 `schema/schema.sql`（mysqldump）显示除
+   `online`(MEMORY) 外均为 InnoDB，二者矛盾，**动手前必须先核对生产库实际引擎**。
+   转换前必须在 MariaDB 11.8.6 影子环境验证锁、deadlock 与 judged-go 取件一致性。
+   当前无影子环境，不要动。
+4. **`admin/problem_batch_delete.php` 非原子** —— 涉及多表与文件删除回滚。
    Go 侧已事务化，但 PHP 侧仍是旧的逐条删除。
-4. **数据库用户缺 `CREATE` 权限** —— 无法建影子库做数据级对拍。
+5. **数据库用户缺 `CREATE` 权限** —— 无法建影子库做数据级对拍。

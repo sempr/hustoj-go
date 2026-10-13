@@ -26,6 +26,9 @@ type RunConfig struct {
 	Spj         int
 	SpjProgram  int
 	Interactive *InteractorInfo
+	// TestRun 表示这是一次测试运行：只跑自定义输入、不与标准输出比对，
+	// 结果一律按程序自身状态返回（AC/RE/TL...）。
+	TestRun bool
 }
 
 type JudgeClient struct {

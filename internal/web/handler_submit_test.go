@@ -216,15 +216,12 @@ func TestSubmitInsertsQueuedThenActivates(t *testing.T) {
 	_ = ctx
 }
 
-// TestSubmitTestRunStaysQueued 验证测试运行不会被判题机取走。
+// TestSubmitTestRunStaysQueued 验证测试运行进队列、存 problem_id=0。
 //
 // 客户端把 id 取负后再 POST（submitpage.php:576），服务端据此判定。
-// 关键不变量：测试运行停在 result=14（OJ_MC），因为判题机按 result<2
-// 取件。result 一旦是 0 就会被取走，而 judged-go 并不读 custominput，
-// 取走也只是拿题目自带数据跑一遍，给用户一个假的"运行成功"。
-//
-// 另一条不变量：problem_id 存真实 id。PHP 在 submit.php:254 把它置 0，
-// 判题机会去找不存在的 data/0。
+// 契约：测试运行写 custominput、result 推进到 0（进队列），problem_id 存 0。
+// judged-go 取件后检测到 custominput 行会走"只跑自定义输入、不比对"的路径；
+// problem_id=0 与所有 `problem_id>0` 的统计口径天然隔离（不会被算进 solved/accepted）。
 func TestSubmitTestRunStaysQueued(t *testing.T) {
 	f := newSubmitFixture(t)
 	seedProblem(t, f.db, 900001, "N")
@@ -243,17 +240,14 @@ func TestSubmitTestRunStaysQueued(t *testing.T) {
 		Scan(&result); err != nil {
 		t.Fatalf("读取 result 失败: %v", err)
 	}
-	if problemID != 900001 {
-		t.Errorf("problem_id = %d，期望 900001（真实 id，PHP 存 0 会让判题机去找 data/0）", problemID)
+	if problemID != 0 {
+		t.Errorf("problem_id = %d，期望 0（测试运行与统计隔离）", problemID)
 	}
-	if result != 14 {
-		t.Errorf("result = %d，期望 14（OJ_MC 等待人工确认）", result)
-	}
-	if result < 2 {
-		t.Errorf("result = %d < 2，会被判题机取走！测试运行不能进队列", result)
+	if result != 0 {
+		t.Errorf("result = %d，期望 0（进判题队列，由 judged-go 跑 custominput）", result)
 	}
 
-	// 自定义输入必须落库（虽然当前判题机不读它，但这是用户唯一的凭证）。
+	// 自定义输入必须落库（判题机据此识别并执行测试运行）。
 	var input string
 	if err := f.db.QueryRow(`SELECT input_text FROM custominput WHERE solution_id =
 		(SELECT MAX(solution_id) FROM solution WHERE user_id = ?)`, submitTestUser).

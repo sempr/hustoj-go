@@ -110,6 +110,11 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 		return result, timeUsed, memUsed
 	}
 
+	// 测试运行：不与标准输出比对，程序自身状态即结果。
+	if config.TestRun {
+		return result, timeUsed, memUsed
+	}
+
 	if config.Spj == 1 {
 		return jc.handleSpecialJudge(config)
 	}
