@@ -216,4 +216,7 @@ func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
 
 	// 零散页：后台落地页/系统状态、查重（admin/help.php、suspect_list.php）。
 	s.registerAdminMiscRoutes(mux)
+
+	// 系统负荷监控（admin/watch.php）。
+	s.registerAdminWatchRoutes(mux)
 }

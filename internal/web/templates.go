@@ -2265,6 +2265,40 @@ user3"></textarea>
 </div>
 {{end}}
 
+{{/* adminWatchPage 对应 admin/watch.php。 */}}
+{{define "adminWatchPage"}}
+<h1>
+<span style="color:rgb(175,216,248)">CPU :<span id="cpu">{{.CPU}}</span>%</span><br>
+<span style="color:rgb(237,194,64)">FREE:<span id="mem">{{.FreeMem}}</span>MB</span><br>
+<span style="color:rgb(77,167,77)">SWAP:<span id="swap">{{.Swap}}</span>MB</span><br>
+<span style="color:rgb(203,75,75)">TCP :<span id="tcp">{{.TCP}}</span></span><br>
+<span style="color:rgb(150,150,150)">DISK:<span id="disk">{{.Disk}}</span>MB (Used)</span><br>
+<span style="color:rgb(150,150,150)">TOTAL:<span id="nas">{{.Total}}</span>GB</span><br>
+</h1>
+<script src="/template/bs3/jquery.min.js"></script>
+<script src="/include/jquery.flot.js"></script>
+<div id="panel" style="width:98%;height:180px" onclick="update()">loading data ...</div>
+<script type="text/javascript">
+function update() {
+  $.getJSON("/admin/watch.php?json", function(result) {
+    var cpu = result[0] || [], mem = result[1] || [], swap = result[2] || [], tcp = result[3] || [];
+    if (!cpu.length) { $("#cpu,#mem,#swap,#tcp").text("N/A"); return; }
+    $.plot($("#panel"), [
+      { label: "MEM%", data: mem, lines: { show: true } },
+      { label: "CPU%", data: cpu, bars: { show: true } },
+      { label: "TCP", data: tcp, lines: { show: true } },
+      { label: "SWAP%", data: swap, lines: { show: true } }
+    ], { xaxis: { mode: "time" }, legend: { position: "nw" } });
+    $("#cpu").text(cpu[cpu.length - 1][1].toFixed(2) + "%");
+    $("#mem").text(mem[mem.length - 1][1].toFixed(0));
+    $("#swap").text(swap[swap.length - 1][1].toFixed(0));
+    $("#tcp").text(tcp[tcp.length - 1][1]);
+  });
+}
+$(document).ready(function() { update(); window.setInterval(update, 2000); });
+</script>
+{{end}}
+
 `
 
 // renderPage 渲染具名页面模板并套上外壳，写出响应。
