@@ -7,13 +7,33 @@
 package web
 
 import (
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"io/fs"
 	"net/http"
 )
 
 //go:embed static/simple.min.css static/hustoj.css
 var assetFS embed.FS
+
+// assetVersion 是样式表内容的短哈希，用于给 /assets 链接加 ?v= 缓存击穿。
+//
+// 静态资源带了长 Cache-Control，改样式后浏览器/Cloudflare 会继续用旧文件，
+// 表现为"改了没生效"。把内容哈希拼进 URL，内容一变 URL 就变，缓存自然失效，
+// 因此无需手动刷新，也不必缩短缓存时间。
+var assetVersion = func() string {
+	sum := sha256.New()
+	for _, name := range []string{"static/simple.min.css", "static/hustoj.css"} {
+		b, err := assetFS.ReadFile(name)
+		if err != nil {
+			// 只有 embed 指令与目录不符时才会发生，属构建期错误。
+			panic("web: 读取静态资源失败: " + err.Error())
+		}
+		_, _ = sum.Write(b)
+	}
+	return hex.EncodeToString(sum.Sum(nil))[:8]
+}()
 
 // registerAssetRoutes 注册 /assets/<file>，文件名即 static/ 下的文件名。
 func (s *Server) registerAssetRoutes(mux *http.ServeMux) {

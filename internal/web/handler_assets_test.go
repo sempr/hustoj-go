@@ -45,10 +45,14 @@ func TestLayoutLinksAssets(t *testing.T) {
 		"errorPage", "错误", map[string]string{"Message": "x"})
 
 	body := rec.Body.String()
-	for _, want := range []string{`href="/assets/simple.min.css"`, `href="/assets/hustoj.css"`, "<main>"} {
+	for _, want := range []string{`href="/assets/simple.min.css?v=`, `href="/assets/hustoj.css?v=`, "<main>"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("页面缺少 %q:\n%s", want, body)
 		}
+	}
+	// 缓存击穿哈希不能为空，否则 ?v= 不起作用。
+	if assetVersion == "" {
+		t.Errorf("assetVersion 为空，缓存击穿失效")
 	}
 }
 

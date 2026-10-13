@@ -29,12 +29,14 @@ var templateFuncs = template.FuncMap{
 	// maskStat 在 NOIP 锁榜时把统计数字替换成问号。
 	"maskStat": maskStat,
 	// contestErrorTitle 让错误原因与页面标题共用同一份文案。
-	"contestErrorTitle":     contestErrorTitle,
-	"contestTypeName":       contestTypeName,
-	"csrfToken":             csrfToken,
-	"judgeResultLabel":      judgeResultLabel,
-	"judgeResultClass":      judgeResultClass,
-	"languageName":          languageName,
+	"contestErrorTitle": contestErrorTitle,
+	"contestTypeName":   contestTypeName,
+	"csrfToken":         csrfToken,
+	"judgeResultLabel":  judgeResultLabel,
+	"judgeResultClass":  judgeResultClass,
+	"languageName":      languageName,
+	// asset 给静态资源 URL 拼上内容哈希（?v=...），用于缓存击穿。
+	"asset":                 func(p string) template.URL { return template.URL(p + "?v=" + assetVersion) },
 	"contestErrorIsLimited": contestErrorIsLimited,
 	"msgContestID":          func() string { return msgContestID },
 	"msgPrivateWarning":     func() string { return msgPrivateWarning },
@@ -171,8 +173,8 @@ const layoutTmpl = `
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
-<link rel="stylesheet" href="/assets/simple.min.css">
-<link rel="stylesheet" href="/assets/hustoj.css">
+<link rel="stylesheet" href="{{asset "/assets/simple.min.css"}}">
+<link rel="stylesheet" href="{{asset "/assets/hustoj.css"}}">
 <title>{{.Title}}</title>
 </head>
 <body>
