@@ -2299,6 +2299,98 @@ $(document).ready(function() { update(); window.setInterval(update, 2000); });
 </script>
 {{end}}
 
+{{/* onlinePage 对应 online.php 的登录日志表（admin 取 50 条，其它取 20 条）。 */}}
+{{define "onlinePage"}}
+<div class="padding">
+<table class="ui very basic center aligned table">
+<thead>
+<tr><th>用户</th><th>Password</th><th>IP</th><th>Time</th></tr>
+</thead>
+<tbody>
+{{range .Users}}
+<tr>
+<td><a href="/userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
+<td>{{.Password}}</td>
+<td>{{.IP}}</td>
+<td>{{.Time}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
+{{/* recentContestPage 对应 recent-contest.php（原页靠外部 JSON 渲染，这里改为服务端列出库内的最近比赛）。 */}}
+{{define "recentContestPage"}}
+<div class="padding">
+<table class="ui very basic center aligned table">
+<thead>
+<tr><th>比赛ID</th><th>比赛名</th><th>开始</th><th>结束</th><th>公开</th></tr>
+</thead>
+<tbody>
+{{range .Contests}}
+<tr>
+<td>{{.ContestID}}</td>
+<td><a href="/contest.php?cid={{.ContestID}}">{{.Title}}</a></td>
+<td>{{.StartTime}}</td>
+<td>{{.EndTime}}</td>
+<td>{{if .Private}}<span class="red">私有</span>{{else}}<span class="green">公开</span>{{end}}</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
+{{/* compareSourcePage 对应 comparesource.php（原页用 mergely 前端对比，这里改为双栏 <pre>）。 */}}
+{{define "compareSourcePage"}}
+<div class="padding">
+<table style="width:100%"><tr>
+<td style="width:50%">{{.LeftInfo.UserID}} / P{{.LeftInfo.ProblemID}}</td>
+<td style="width:50%">{{.RightInfo.UserID}} / P{{.RightInfo.ProblemID}}</td>
+</tr></table>
+<table style="width:100%"><tr>
+<td style="width:50%;vertical-align:top"><pre>{{.LeftSource}}</pre></td>
+<td style="width:50%;vertical-align:top"><pre>{{.RightSource}}</pre></td>
+</tr></table>
+</div>
+{{end}}
+
+{{/* contestRankPage / contestRank3Page：contestrank2.php、contestrank3.php 的服务端榜单。 */}}
+{{define "contestRankPage"}}
+<div class="padding">
+<center><h3>{{.ContestName}}</h3>
+<p>{{.StartTime}} ~ {{.EndTime}}（封榜 {{.LockTime}}）</p></center>
+<table class="ui very basic center aligned table">
+<thead>
+<tr><th>#</th><th>用户</th><th>解决</th><th>罚时</th><th>题目</th></tr>
+</thead>
+<tbody>
+{{range .Rankings}}
+<tr>
+<td>{{.Rank}}</td>
+<td><a href="/userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
+<td>{{.Solved}}</td>
+<td>{{.Time}}</td>
+<td>
+{{range .ProblemResults}}{{if gt .ACTime 0}}<span class="label label-success" title="{{.ACTime}}">{{.Num}}</span>{{else if gt .Attempts 0}}<span class="label label-danger">{{.Num}}</span>{{else}}<span class="label">{{.Num}}</span>{{end}}&nbsp;{{end}}
+</td>
+</tr>
+{{end}}
+</tbody>
+</table>
+</div>
+{{end}}
+
+{{define "contestRank3Page"}}{{template "contestRankPage" .}}{{end}}
+
+{{/* problemBatchDeleteResultPage 对应 admin/problem_batch_delete.php 的结果页。 */}}
+{{define "problemBatchDeleteResultPage"}}
+<center><h3>批量删除题目</h3></center>
+<p>已删除 {{.Count}} 道题目{{if .Success}}（成功）{{else}}（失败）{{end}}。</p>
+<p><a href="/admin/problem_list.php">返回题目列表</a></p>
+{{end}}
+
 `
 
 // renderPage 渲染具名页面模板并套上外壳，写出响应。

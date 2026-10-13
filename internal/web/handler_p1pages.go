@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -296,6 +297,10 @@ func (s *Server) handleCompareSource(w http.ResponseWriter, r *http.Request) {
 
 	leftInfo, leftSource, err := s.getSourceInfo(ctx, leftID, identity)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			return
+		}
 		s.log.Error("查询左侧源码失败", "err", err)
 		http.Error(w, "页面暂时不可用", http.StatusInternalServerError)
 		return
@@ -303,6 +308,10 @@ func (s *Server) handleCompareSource(w http.ResponseWriter, r *http.Request) {
 
 	rightInfo, rightSource, err := s.getSourceInfo(ctx, rightID, identity)
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			return
+		}
 		s.log.Error("查询右侧源码失败", "err", err)
 		http.Error(w, "页面暂时不可用", http.StatusInternalServerError)
 		return
@@ -367,6 +376,10 @@ func (s *Server) handleGetSource(w http.ResponseWriter, r *http.Request) {
 
 	sol, err := s.queries().GetSolutionByID(ctx, uint32(id))
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			return
+		}
 		s.log.Error("查询源码失败", "err", err)
 		http.Error(w, "页面暂时不可用", http.StatusInternalServerError)
 		return
@@ -427,6 +440,10 @@ func (s *Server) handleShowSource2(w http.ResponseWriter, r *http.Request) {
 
 	sol, err := s.queries().GetSolutionByID(ctx, uint32(id))
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			renderPage(w, http.StatusOK, "errorPage", "代码不存在", map[string]string{"Message": "No such code!"})
+			return
+		}
 		s.log.Error("查询源码失败", "err", err)
 		http.Error(w, "页面暂时不可用", http.StatusInternalServerError)
 		return
