@@ -538,8 +538,8 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </thead><tbody>
 {{range .Rows}}<tr{{if not .Masked}} data-sid="{{.SolutionID}}" data-result="{{.Result}}"{{end}}>
 <td>{{.SolutionID}}</td>
-<td>{{.UserID}}</td>
-<td>{{.ProblemID}}</td>
+<td><a href="/userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
+<td>{{if gt .ProblemID 0}}<a href="/problem.php?id={{.ProblemID}}">{{.ProblemID}}</a>{{else}}{{.ProblemID}}{{end}}</td>
 <td><span class="{{.ResultClass}}">{{.ResultLabel}}</span></td>
 <td class="center">{{.MemoryText}}</td>
 <td class="center">{{.TimeText}}</td>

@@ -70,7 +70,17 @@ func RunMain(cfg *models.SandboxArgs) {
 	defer fe.Close()
 	fi, err := os.Open(inputfile)
 	if err != nil {
-		panic(fmt.Errorf("open input file %s: %w", inputfile, err))
+		if os.IsNotExist(err) {
+			// 编译等不需要 stdin 的阶段没有 data.in；退化为 /dev/null，
+			// 否则这里 panic 会让 fd3 收不到 JSON，编译被误判为"成功"、
+			// 产物缺失，最终所有用例都判 WA。
+			if devNull, derr := os.Open("/dev/null"); derr == nil {
+				fi, err = devNull, nil
+			}
+		}
+		if err != nil {
+			panic(fmt.Errorf("open input file %s: %w", inputfile, err))
+		}
 	}
 	defer fi.Close()
 

@@ -39,6 +39,7 @@ func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.L
 	if err != nil {
 		return &models.SandboxOutput{
 			UserStatus:     constants.OJ_SE,
+			SystemError:    true,
 			CombinedOutput: "failed to create pipe for compile",
 		}
 	}
@@ -49,6 +50,7 @@ func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.L
 	if err := cmd.Start(); err != nil {
 		return &models.SandboxOutput{
 			UserStatus:     constants.OJ_SE,
+			SystemError:    true,
 			CombinedOutput: "failed to start compile command",
 		}
 	}
@@ -58,8 +60,11 @@ func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.L
 
 	var output models.SandboxOutput
 	if err := json.NewDecoder(r).Decode(&output); err != nil {
+		// 沙箱没有回传 JSON（如 run 进程 panic）：这是系统错误，绝不能被
+		// 当成"编译成功"（否则产物缺失，后续所有用例都判 WA）。
 		return &models.SandboxOutput{
 			UserStatus:     constants.OJ_SE,
+			SystemError:    true,
 			CombinedOutput: fmt.Sprintf("failed to decode compile output: %v", err),
 		}
 	}
