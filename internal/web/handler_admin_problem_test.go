@@ -25,7 +25,7 @@ func TestAdminProblemListRendersRows(t *testing.T) {
 		t.Fatalf("状态码 = %d, 期望 200", rec.Code)
 	}
 	body := rec.Body.String()
-	for _, want := range []string{"1001", "T1", "tag1", "可用", `fd="coin"`, "problem_df_change.php?id=1001"} {
+	for _, want := range []string{"1001", "T1", "tag1", "可用", `fd="coin"`, "problem_df_change.php?id=1001", "problem_edit.php?id=1001"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("列表缺少 %q", want)
 		}

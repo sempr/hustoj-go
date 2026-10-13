@@ -1856,7 +1856,7 @@ userid3 password3">{{.UList}}</textarea>
 <thead>
 <tr>
 <th>题号</th><th>标题</th><th>AC</th><th>入库时间</th><th>来源</th>
-{{if .CanEdit}}<th>状态</th><th>金币</th>{{end}}
+{{if .CanEdit}}<th>状态</th><th>金币</th><th>编辑</th>{{end}}
 </tr>
 </thead>
 <tbody>
@@ -1870,6 +1870,7 @@ userid3 password3">{{.UList}}</textarea>
 {{if $.CanEdit}}
 <td><a href="/admin/problem_df_change.php?id={{.ProblemID}}">{{if eq .Defunct "N"}}<span class="green">可用</span>{{else}}<span class="red">保留</span>{{end}}</a></td>
 <td><span fd="coin" problem_id="{{.ProblemID}}">{{.Coin}}</span></td>
+<td><a href="/admin/problem_edit.php?id={{.ProblemID}}">编辑</a></td>
 {{end}}
 </tr>
 {{end}}
