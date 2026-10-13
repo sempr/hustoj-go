@@ -385,6 +385,7 @@ func listStatus(ctx context.Context, db *sql.DB, where string, args []interface{
 		INNER JOIN users u ON s.user_id = u.user_id AND u.defunct = 'N'
 		LEFT JOIN contest c ON s.contest_id = c.contest_id
 		LEFT JOIN problem p ON s.problem_id = p.problem_id
+		ORDER BY s.solution_id DESC
 	`, where)
 	args = append(append([]interface{}{}, args...), limit)
 	rows, err := db.QueryContext(ctx, query, args...)
