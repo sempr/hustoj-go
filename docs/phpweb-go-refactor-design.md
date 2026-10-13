@@ -342,8 +342,7 @@ PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lan
   - `suspect_list.php`：查重 —— ①同一 IP 被多个用户使用（`solution` 按 IP 聚合）；②同一用户在
     比赛时段内用多个 IP 登录（`loginlog` 按用户聚合）。权限同 admin-header 角色集合
     （PHP 里该权限检查被注释掉，这里用 `hasAdminPrivilege`）。
-  - 仍未迁：`check.php`（旧 frameset 壳，已被 `admin/index.php`+`menu.php` 取代）、
-    `backup.php`（DB dump + 打包，可迁但需整库导出/大 zip，暂缓）。
+  - **不再迁**：`check.php`（旧 frameset 壳，已被 `admin/index.php`+`menu.php` 取代，无独立价值）。
 - **系统负荷监控（`watch.php`）**：只读，从 `/proc/stat`（两次采样求 CPU%）、`/proc/meminfo`、
   `/proc/net/sockstat`、`unix.Statfs("/")` 取指标，历史点写入 `/dev/shm/watchlog`（JSON，保留 1 周、
   每分钟一点）；`?json` 返回 flot 的四组曲线。用原生 `/proc` 采样**替代 PHP 的 `top -bn1`/exec**；
@@ -352,6 +351,9 @@ PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lan
   - `settings.php`：编辑的是 PHP 的 `include/db_info.inc.php`。Go 侧配置已改为 `web.toml`/环境变量
     （铁律"不解析 db_info.inc.php"），由 Go 改写该文件会**违背迁移模型**——页面级设置应走
     `web.toml`，不属于本迁移范围。
+  - `backup.php`：需要 `mysqldump` 式的整库导出 + 打包 `data/` 与**PHP web root 下的 `upload/`**。
+    Go 侧没有 web root 配置，只备份 `data/` 会**静默漏掉上传资源**；备份工具一旦不完整比不做更危险。
+    保留在 PHP（其 web root 依赖天然满足），或后续用外部 `mysqldump` 脚本替代。
   - `update_db.php`：旧版结构升级脚本，`CREATE TABLE` 写死 `ENGINE=MyISAM`，**在生产运行有风险**，
     建议废弃（见 §7 第 3 条）。
   - `aidba.php`：依赖外部 AI 服务，非 OJ 核心。
@@ -539,8 +541,10 @@ tar xzf /root/backup/web-<时间戳>.tar.gz -C /home/judge/src
 > **MyISAM→InnoDB 已落地，无需迁移**；唯 `admin/update_db.php` 仍写死 MyISAM（勿在生产运行）。
 > 已完成（Phase 1.6）：后台零散页 `admin/help.php`、`suspect_list.php`。
 > 已完成（Phase 1.7）：系统负荷监控 `admin/watch.php`（原生 /proc 采样替代 exec）。
-> 有意不迁：`settings.php`（改写 PHP 配置，违背 Go 配置模型）、`update_db.php`（旧结构升级+写死 MyISAM）、
-> `aidba.php`、`phpfm.php`、远程导入适配器；仅 `check.php`、`backup.php` 等待定。
+> 有意保留在 PHP / 停用：`settings.php`（改写 PHP 配置，违背 Go 配置模型）、`backup.php`
+> （web root 依赖，只备份 data/ 会漏 upload/）、`update_db.php`（旧结构升级+写死 MyISAM）、
+> `aidba.php`、`phpfm.php`、远程导入适配器；`check.php` 为死页不再迁。
+> 后台迁移至此收口。
 
 1. **补齐后台用户管理** —— 已迁 `user_list`/`ajax`/`privilege_*`/`changepass`/
    `user_df_change`/`user_set_ip`/`user_add`/`user_import`/`ranklist_export`。仅剩
