@@ -630,3 +630,31 @@ func TestFakeSupportsDetail(t *testing.T) {
 	_ = context.Background
 	_ = time.Now
 }
+
+// 样例输入/输出必须是题目文本本身，不能把 sql.NullString 结构体打出来。
+//
+// 曾经的 bug：模板写 `{{.SampleInput}}`，而字段是 sql.NullString，
+// 页面会显示成 "{1 2\n true}" 这种结构体字面量。
+func TestProblemDetailRendersSampleText(t *testing.T) {
+	d := ProblemDetail{
+		ProblemID:    1,
+		Title:        "T",
+		SampleInput:  sql.NullString{String: "1 2\n3 4\n", Valid: true},
+		SampleOutput: sql.NullString{String: "3\n7\n", Valid: true},
+		Source:       sql.NullString{String: "POJ", Valid: true},
+	}
+	got := mustRenderDetail(t, d)
+
+	if !strings.Contains(got, "<pre>1 2\n3 4\n</pre>") {
+		t.Errorf("样例输入应保留原文本与换行:\n%s", got)
+	}
+	if !strings.Contains(got, "<pre>3\n7\n</pre>") {
+		t.Errorf("样例输出应保留原文本与换行:\n%s", got)
+	}
+	if strings.Contains(got, "{1 2") || strings.Contains(got, " true}") {
+		t.Errorf("疑似把 sql.NullString 结构体打了出来:\n%s", got)
+	}
+	if !strings.Contains(got, "<div>POJ</div>") {
+		t.Errorf("来源应显示文本:\n%s", got)
+	}
+}

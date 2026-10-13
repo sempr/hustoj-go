@@ -295,10 +295,10 @@ const pageContentTmpls = `
 </table>
 {{if .Input}}<h3 class="ui header">输入</h3><div>{{raw .Input}}</div>{{end}}
 {{if .Output}}<h3 class="ui header">输出</h3><div>{{raw .Output}}</div>{{end}}
-{{if .SampleInput.Valid}}<h3 class="ui header">样例输入</h3><pre>{{.SampleInput}}</pre>{{end}}
-{{if .SampleOutput.Valid}}<h3 class="ui header">样例输出</h3><pre>{{.SampleOutput}}</pre>{{end}}
+{{if .SampleInput.Valid}}<h3 class="ui header">样例输入</h3><pre>{{.SampleInput.String}}</pre>{{end}}
+{{if .SampleOutput.Valid}}<h3 class="ui header">样例输出</h3><pre>{{.SampleOutput.String}}</pre>{{end}}
 {{if .Hint}}{{if not .HintHidden}}<h3 class="ui header">提示</h3><div>{{raw .Hint}}</div>{{end}}{{end}}
-{{if .Source.Valid}}<h3 class="ui header">来源</h3><div>{{.Source}}</div>{{end}}
+{{if .Source.Valid}}<h3 class="ui header">来源</h3><div>{{.Source.String}}</div>{{end}}
 {{template "problemActions" .}}
 {{end}}
 
