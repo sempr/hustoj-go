@@ -67,8 +67,12 @@ type Querier interface {
 	// 投毒计数（$OJ_POISON_BOT_COUNT）。submit.php:392 统计该用户该题的 AC 数，
 	// 达到阈值后判题机开始返回随机结果，把算力让给真人。
 	CountUserAccepted(ctx context.Context, arg CountUserAcceptedParams) (int64, error)
+	// ── 批量删除题目（admin/problem_batch_delete.php）───────────────────
+	DeleteContestProblemByPID(ctx context.Context, pid int32) error
 	// 判题信息被查看后清掉自定义输入（status-ajax.php:54-55）。
 	DeleteCustomInput(ctx context.Context, solutionID int32) error
+	DeleteProblemByID(ctx context.Context, pid int32) error
+	DeleteProblemPrivilege(ctx context.Context, rightstr string) error
 	// ── 导出 AC 代码（export_ac_code.php）───────────────────────────────
 	GetACCodeByUser(ctx context.Context, uid string) ([]GetACCodeByUserRow, error)
 	// 运行中的比赛
@@ -131,6 +135,7 @@ type Querier interface {
 	// P2 用户功能查询（mail.php、modify.php、lostpassword.php、lostpassword2.php）
 	// ── 邮件（mail.php）────────────────────────────────────────────────
 	GetMailList(ctx context.Context, arg GetMailListParams) ([]GetMailListRow, error)
+	GetMaxProblemID(ctx context.Context) (interface{}, error)
 	// 本月之星边界 solution_id（本月第一条提交之前）
 	GetMonthStarBoundary(ctx context.Context) (uint32, error)
 	// 本月之星排名（排除隐藏用户）
@@ -325,6 +330,7 @@ type Querier interface {
 	SendMail(ctx context.Context, arg SendMailParams) error
 	SetProblemAccepted(ctx context.Context, arg SetProblemAcceptedParams) error
 	SetProblemSubmit(ctx context.Context, arg SetProblemSubmitParams) error
+	UpdateSolutionProblemToZero(ctx context.Context, pid int32) error
 	UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) error
 	UpdateUserPasswordByKey(ctx context.Context, arg UpdateUserPasswordByKeyParams) error
 	UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) error

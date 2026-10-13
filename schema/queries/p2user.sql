@@ -55,3 +55,20 @@ UPDATE users SET password = sqlc.arg(password) WHERE user_id = sqlc.arg(user_id)
 -- name: ActivateUserByCode :exec
 UPDATE users SET defunct = 'N', activecode = ''
 WHERE activecode = sqlc.arg(code) AND activecode != '' AND defunct = 'Y';
+
+-- ── 批量删除题目（admin/problem_batch_delete.php）───────────────────
+
+-- name: DeleteContestProblemByPID :exec
+DELETE FROM contest_problem WHERE problem_id = sqlc.arg(pid);
+
+-- name: DeleteProblemByID :exec
+DELETE FROM problem WHERE problem_id = sqlc.arg(pid);
+
+-- name: DeleteProblemPrivilege :exec
+DELETE FROM privilege WHERE rightstr = sqlc.arg(rightstr);
+
+-- name: UpdateSolutionProblemToZero :exec
+UPDATE solution SET problem_id = 0, result = 13 WHERE problem_id = sqlc.arg(pid);
+
+-- name: GetMaxProblemID :one
+SELECT MAX(problem_id) AS max_id FROM problem;

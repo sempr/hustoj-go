@@ -77,8 +77,104 @@ func (s *Server) hasAdminPrivilege(identity Identity) bool {
 	return identity.Admin || identity.ContestCreator || identity.ProblemEditor || identity.SourceBrowser
 }
 
+// ── admin/problem_batch_delete.php ───────────────────────────────────
+
+// ProblemBatchDeleteResultVM 是批量删除题目结果页的视图模型。
+type ProblemBatchDeleteResultVM struct {
+	Title   string
+	OJName  string
+	Count   int
+	Success bool
+}
+
+func (s *Server) handleProblemBatchDelete(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	identity := s.resolveIdentity(w, r)
+
+	if !identity.Admin {
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "Bad Request", http.StatusBadRequest)
+		return
+	}
+
+	ids := make(map[int32]bool)
+	for _, raw := range r.Form["pid"] {
+		if id := int32(parseInt(raw)); id > 0 {
+			ids[id] = true
+		}
+	}
+	if hlist := r.FormValue("hlist"); hlist != "" {
+		for _, raw := range strings.Split(hlist, ",") {
+			if id := int32(parseInt(raw)); id > 0 {
+				ids[id] = true
+			}
+		}
+	}
+
+	if len(ids) == 0 {
+		http.Redirect(w, r, "/admin/problem_list.php", http.StatusFound)
+		return
+	}
+
+	idList := make([]int32, 0, len(ids))
+	for id := range ids {
+		idList = append(idList, id)
+	}
+	if len(idList) > 200 {
+		idList = idList[:200]
+	}
+
+	deleted := 0
+	for _, id := range idList {
+		var exists int32
+		err := s.db.QueryRowContext(ctx, "SELECT problem_id FROM problem WHERE problem_id=? LIMIT 1", id).Scan(&exists)
+		if err != nil {
+			continue
+		}
+
+		dataDir := filepath.Join(s.cfg.OJHome, "data", strconv.Itoa(int(id)))
+		if info, err := os.Stat(dataDir); err == nil && info.IsDir() {
+			_ = os.RemoveAll(dataDir)
+		}
+
+		_ = s.queries().DeleteContestProblemByPID(ctx, id)
+		_ = s.queries().DeleteProblemByID(ctx, id)
+		_ = s.queries().DeleteProblemPrivilege(ctx, "p"+strconv.Itoa(int(id)))
+		_ = s.queries().UpdateSolutionProblemToZero(ctx, id)
+
+		var gone int32
+		err = s.db.QueryRowContext(ctx, "SELECT problem_id FROM problem WHERE problem_id=? LIMIT 1", id).Scan(&gone)
+		if err != nil {
+			deleted++
+		}
+	}
+
+	maxRow := s.db.QueryRowContext(ctx, "SELECT MAX(problem_id) FROM problem")
+	var maxID sql.NullInt32
+	_ = maxRow.Scan(&maxID)
+	nextID := int32(1000)
+	if maxID.Valid && maxID.Int32 >= 1000 {
+		nextID = maxID.Int32 + 1
+	}
+	_, _ = s.db.ExecContext(ctx, "ALTER TABLE problem AUTO_INCREMENT = ?", nextID)
+
+	renderPage(w, http.StatusOK, "problemBatchDeleteResultPage", "批量删除题目", ProblemBatchDeleteResultVM{
+		Title: "批量删除题目", OJName: s.cfg.OJName, Count: deleted, Success: true,
+	})
+}
+
 func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/index.php", s.handleAdminIndex)
 	mux.HandleFunc("GET /admin/menu.php", s.handleAdminMenu)
 	mux.HandleFunc("GET /admin/admin-header.php", s.handleAdminHeader)
+	mux.HandleFunc("/admin/problem_batch_delete.php", s.handleProblemBatchDelete)
 }

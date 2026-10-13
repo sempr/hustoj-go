@@ -56,6 +56,35 @@ func (q *Queries) CheckMailPrivilege(ctx context.Context, arg CheckMailPrivilege
 	return items, nil
 }
 
+const deleteContestProblemByPID = `-- name: DeleteContestProblemByPID :exec
+
+DELETE FROM contest_problem WHERE problem_id = ?
+`
+
+// ── 批量删除题目（admin/problem_batch_delete.php）───────────────────
+func (q *Queries) DeleteContestProblemByPID(ctx context.Context, pid int32) error {
+	_, err := q.db.ExecContext(ctx, deleteContestProblemByPID, pid)
+	return err
+}
+
+const deleteProblemByID = `-- name: DeleteProblemByID :exec
+DELETE FROM problem WHERE problem_id = ?
+`
+
+func (q *Queries) DeleteProblemByID(ctx context.Context, pid int32) error {
+	_, err := q.db.ExecContext(ctx, deleteProblemByID, pid)
+	return err
+}
+
+const deleteProblemPrivilege = `-- name: DeleteProblemPrivilege :exec
+DELETE FROM privilege WHERE rightstr = ?
+`
+
+func (q *Queries) DeleteProblemPrivilege(ctx context.Context, rightstr string) error {
+	_, err := q.db.ExecContext(ctx, deleteProblemPrivilege, rightstr)
+	return err
+}
+
 const getMailByID = `-- name: GetMailByID :many
 SELECT mail_id, from_user, to_user, title, content, in_date, new_mail
 FROM mail
@@ -165,6 +194,17 @@ func (q *Queries) GetMailList(ctx context.Context, arg GetMailListParams) ([]Get
 	return items, nil
 }
 
+const getMaxProblemID = `-- name: GetMaxProblemID :one
+SELECT MAX(problem_id) AS max_id FROM problem
+`
+
+func (q *Queries) GetMaxProblemID(ctx context.Context) (interface{}, error) {
+	row := q.db.QueryRowContext(ctx, getMaxProblemID)
+	var max_id interface{}
+	err := row.Scan(&max_id)
+	return max_id, err
+}
+
 const getUserByID = `-- name: GetUserByID :one
 
 SELECT user_id, password, nick, school, email FROM users WHERE user_id = ?
@@ -233,6 +273,15 @@ func (q *Queries) SendMail(ctx context.Context, arg SendMailParams) error {
 		arg.Title,
 		arg.Content,
 	)
+	return err
+}
+
+const updateSolutionProblemToZero = `-- name: UpdateSolutionProblemToZero :exec
+UPDATE solution SET problem_id = 0, result = 13 WHERE problem_id = ?
+`
+
+func (q *Queries) UpdateSolutionProblemToZero(ctx context.Context, pid int32) error {
+	_, err := q.db.ExecContext(ctx, updateSolutionProblemToZero, pid)
 	return err
 }
 
