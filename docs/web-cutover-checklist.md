@@ -30,7 +30,7 @@
 | 方法 | 路径 |
 |---|---|
 | GET | `/`、`/index.php`、`/portal.php`、`/viewnews.php` |
-| GET | `/problemset.php`、`/problem.php` |
+| GET | `/problemset.php`、`/problem.php`、`/category.php` |
 | GET/POST | `/contest.php` |
 | GET | `/contestrank.php`、`/contestrank-oi.php`、`/contestrank4.php`、`/contestrank5.php`、`/contestrank.xls.php`、`/conteststatistics.php` |
 | GET | `/status.php`、`/problemstatus.php`、`/showsource.php` |

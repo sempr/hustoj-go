@@ -2361,6 +2361,16 @@ $(document).ready(function() { update(); window.setInterval(update, 2000); });
 </div>
 {{end}}
 
+{{/* categoryPage 对应 category.php：来源标签云，点击跳 problemset.php?search=<标签>。 */}}
+{{define "categoryPage"}}
+<div class="padding">
+<h1 style="margin-left:10px;display:inline-block;">{{.Title}}</h1>
+<div class="ui existing segment" style="word-wrap:break-word;">
+{{range .Categories}}<a class="ui label {{.Theme}}" style="display:inline-block;margin:5px" href="{{.Href}}">{{.Label}}</a>{{else}}<h3>No Category Now!</h3>{{end}}
+</div>
+</div>
+{{end}}
+
 {{/* compareSourcePage 对应 comparesource.php（原页用 mergely 前端对比，这里改为双栏 <pre>）。 */}}
 {{define "compareSourcePage"}}
 <div class="padding">

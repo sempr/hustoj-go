@@ -161,6 +161,9 @@ func (s *Server) handler() http.Handler {
 	// 业务路由：P1 用户页（在线用户 / 最近比赛 / 代码导出 / 源码查看 / 滚榜）。
 	s.registerP1Routes(mux)
 
+	// 业务路由：题目来源分类页（category.php）。
+	s.registerCategoryRoutes(mux)
+
 	// 业务路由：P2 用户功能（邮件 / 用户信息修改 / 密码重置）。
 	s.registerP2UserRoutes(mux)
 
