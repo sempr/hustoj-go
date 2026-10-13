@@ -58,10 +58,9 @@ func TestBuildWhereAppliesExplicitLanguageZero(t *testing.T) {
 	if !strings.Contains(where, "s.result = ?") {
 		t.Errorf("显式 jresult=0 应生成结果条件，实际: %s", where)
 	}
-	// 条件各带一个参数，不能多也不能少。
-	// 匿名身份会先带上 rank-hidden 排除项（admin、zhblue），
-	// 再是两个筛选参数，顺序必须与 WHERE 子句一致。
-	want := []interface{}{"admin", "zhblue", int32(0), int32(0)}
+	// 条件各带一个参数，不能多也不能少。状态页不再加 rank-hidden 排除项，
+	// 因此参数只有两个筛选值，顺序必须与 WHERE 子句一致。
+	want := []interface{}{int32(0), int32(0)}
 	if len(args) != len(want) {
 		t.Fatalf("参数个数 = %d，期望 %d，实际 args=%v", len(args), len(want), args)
 	}
@@ -110,23 +109,19 @@ func TestParseStatusFilterJResultMinusOneIsUnfiltered(t *testing.T) {
 	}
 }
 
-// 游客看不到 rank-hidden 账号（$OJ_RANK_HIDDEN = 'admin','zhblue'）。
-// 这是"管理员的提交不污染公开状态页"的保证。
-func TestBuildWhereAnonymousExcludesRankHiddenUsers(t *testing.T) {
+// 状态页**不再**排除 rank-hidden 账号：admin 等账号的提交一律可见，
+// 以保证 rank-hidden 账号（如 admin）本人登录后能看到自己的提交。
+func TestBuildWhereAnonymousDoesNotExcludeRankHiddenUsers(t *testing.T) {
 	s := newTestServer(t, &fakeQuerier{}, nil)
 	where, args := s.buildWhere(StatusFilter{}, Anonymous())
 
-	if !strings.Contains(where, "NOT IN") {
-		t.Errorf("游客应排除 rank-hidden 账号: %s", where)
+	if strings.Contains(where, "NOT IN") {
+		t.Errorf("状态页不应再排除 rank-hidden 账号: %s", where)
 	}
-	found := false
 	for _, a := range args {
-		if s, ok := a.(string); ok && (s == "admin" || s == "zhblue") {
-			found = true
+		if str, ok := a.(string); ok && (str == "admin" || str == "zhblue") {
+			t.Errorf("不应把 rank-hidden 账号作为排除参数: %v", args)
 		}
-	}
-	if !found {
-		t.Errorf("rank-hidden 账号未作为参数传入: %v", args)
 	}
 }
 

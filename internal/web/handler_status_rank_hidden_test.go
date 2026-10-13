@@ -5,19 +5,25 @@ import (
 	"testing"
 )
 
-// TestBuildWhereRankHiddenOnExplicitUser 校验：匿名默认排除 rank-hidden 账号，
-// 但显式 ?user_id= 时不排除（否则 admin 提交后跳转的 status.php?user_id=admin
-// 会显示为空，看起来像"看不到自己的提交"）。
-func TestBuildWhereRankHiddenOnExplicitUser(t *testing.T) {
+// 状态页不再排除 rank-hidden 账号：admin 等账号的提交一律可见。
+//
+// 背景：11218–11266 这批最新提交全部属于 admin（$OJ_RANK_HIDDEN），
+// 若按游客分支排除，公开状态页最高只能显示到 11217，看起来像"看不到提交记录"。
+func TestBuildWhereDoesNotExcludeRankHidden(t *testing.T) {
 	srv := newTestServer(t, &fakeQuerier{}, nil)
 
-	// 匿名、无 user_id：应排除 rank-hidden 并带两个参数。
+	// 匿名、无 user_id。
 	where, args := srv.buildWhere(StatusFilter{}, Anonymous())
-	if !strings.Contains(where, "NOT IN") || len(args) != 2 {
-		t.Errorf("匿名默认应排除 rank-hidden：where=%q args=%v", where, args)
+	if strings.Contains(where, "NOT IN") {
+		t.Errorf("匿名默认不应排除 rank-hidden：where=%q", where)
+	}
+	for _, a := range args {
+		if str, ok := a.(string); ok && (str == "admin" || str == "zhblue") {
+			t.Errorf("不应把 rank-hidden 账号作为排除参数：args=%v", args)
+		}
 	}
 
-	// 匿名、显式 user_id=admin：不排除 rank-hidden（但会带上 user_id 参数）。
+	// 匿名、显式 user_id=admin。
 	where, args = srv.buildWhere(StatusFilter{UserID: "admin"}, Anonymous())
 	if strings.Contains(where, "NOT IN") {
 		t.Errorf("显式 user_id 不应排除 rank-hidden：where=%q", where)

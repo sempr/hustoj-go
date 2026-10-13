@@ -192,13 +192,6 @@ func parseStatusFilter(r *http.Request) StatusFilter {
 	}
 }
 
-// rankHiddenUsers 是 $OJ_RANK_HIDDEN（include/db_info.inc.php:87）。
-//
-// 这些用户的提交不进入状态页。它是内嵌在 SQL 里的字符串字面量而非
-// 占位符，PHP 侧同样如此；这里用参数化写法，语义相同且不会因配置
-// 含引号而拼出坏 SQL。
-var rankHiddenUsers = []string{"admin", "zhblue"}
-
 // buildWhere 构建 WHERE 子句（仅练习模式，含基础筛选）。
 // 比赛模式直接用 SQL 查询，不走此函数。
 //
@@ -227,16 +220,12 @@ func (s *Server) buildWhere(f StatusFilter, id Identity) (string, []interface{})
 	case id.LoggedIn && id.UserID != "guest":
 		sb.WriteString("AND (s.contest_id = 0 OR s.contest_id IS NULL) ")
 	default:
-		// 游客：默认排除 rank-hidden 账号（admin/zhblue）。
+		// 游客：只看练习提交（contest_id=0/NULL）。
 		//
-		// 但**显式指定 user_id 时不排除**：否则本人（尤其 admin 这类
-		// rank-hidden 账号）提交后跳转的 status.php?user_id=admin 会显示为空，
-		// 看起来像"看不到自己的提交记录"。
+		// 刻意**不排除** $OJ_RANK_HIDDEN：admin 等账号的提交在状态页一律可见
+		// ——本人（尤其 rank-hidden 账号）提交后跳转的
+		// status.php?user_id=<自己> 必须能看到自己的记录。
 		sb.WriteString("AND (s.contest_id = 0 OR s.contest_id IS NULL) ")
-		if f.UserID == "" {
-			sb.WriteString("AND s.user_id NOT IN (?, ?) ")
-			args = append(args, rankHiddenUsers[0], rankHiddenUsers[1])
-		}
 	}
 
 	sb.WriteString(statusFilterWhere(f, &args))
