@@ -227,10 +227,16 @@ func (s *Server) buildWhere(f StatusFilter, id Identity) (string, []interface{})
 	case id.LoggedIn && id.UserID != "guest":
 		sb.WriteString("AND (s.contest_id = 0 OR s.contest_id IS NULL) ")
 	default:
-		// 游客：额外排除 rank-hidden 账号。
+		// 游客：默认排除 rank-hidden 账号（admin/zhblue）。
+		//
+		// 但**显式指定 user_id 时不排除**：否则本人（尤其 admin 这类
+		// rank-hidden 账号）提交后跳转的 status.php?user_id=admin 会显示为空，
+		// 看起来像"看不到自己的提交记录"。
 		sb.WriteString("AND (s.contest_id = 0 OR s.contest_id IS NULL) ")
-		sb.WriteString("AND s.user_id NOT IN (?, ?) ")
-		args = append(args, rankHiddenUsers[0], rankHiddenUsers[1])
+		if f.UserID == "" {
+			sb.WriteString("AND s.user_id NOT IN (?, ?) ")
+			args = append(args, rankHiddenUsers[0], rankHiddenUsers[1])
+		}
 	}
 
 	sb.WriteString(statusFilterWhere(f, &args))
