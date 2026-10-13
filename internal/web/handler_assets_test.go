@@ -56,29 +56,28 @@ func TestLayoutLinksAssets(t *testing.T) {
 	}
 }
 
-// 已访问链接的配色规则必须用 :where() 把优先级降到 0。
+// 自定义颜色的链接（结果色、徽章、分页）必须带 :visited 变体。
 //
-// 否则 "a:visited"(0,1,0) 会盖住同级的结果配色 .ac/.wa/.ce 等，
-// 把点过的"通过"从绿色变成 --accent（暗色模式下是黄的）。
-func TestHustojCSSLinkRuleHasZeroSpecificity(t *testing.T) {
+// 浏览器对已访问链接单独跑一遍 :visited 级联，非 :visited 的类规则压不过
+// Simple.css 的 a:visited{color:var(--accent)}，会把点过的"通过"染成 accent
+// （暗色模式下是黄色）。所以必须显式补 .xxx:visited。
+func TestHustojCSSOverridesVisitedLinkColors(t *testing.T) {
 	css, err := assetFS.ReadFile("static/hustoj.css")
 	if err != nil {
 		t.Fatalf("读取 hustoj.css 失败: %v", err)
 	}
 	s := string(css)
 
-	if !strings.Contains(s, ":where(a, a:visited)") {
-		t.Errorf("链接配色规则必须用 :where() 包裹以降优先级")
-	}
-	for _, bad := range []string{"\na:visited {", "\na, a:visited {"} {
-		if strings.Contains(s, bad) {
-			t.Errorf("不应存在高优先级的裸规则 %q", strings.TrimSpace(bad))
+	for _, want := range []string{".ac:visited", ".wa:visited", ".ce:visited", ".label:visited", ".item:visited"} {
+		if !strings.Contains(s, want) {
+			t.Errorf("缺少 %q：已访问状态会退回 accent 色", want)
 		}
 	}
-	// 结果配色类仍需存在（被 :where 规则让位后要能生效）。
-	for _, want := range []string{".ac {", ".wa", ".ce"} {
-		if !strings.Contains(s, want) {
-			t.Errorf("缺少结果配色 %q", want)
+	// 普通链接交给 Simple.css（它已有 a, a:visited 同色），
+	// 我们自己不再声明裸 a/a:visited 颜色，避免优先级歧义。
+	for _, bad := range []string{"\na:visited {", "\na, a:visited {", ":where(a, a:visited)"} {
+		if strings.Contains(s, bad) {
+			t.Errorf("不应存在 %q", strings.TrimSpace(bad))
 		}
 	}
 }

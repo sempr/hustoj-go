@@ -37,8 +37,12 @@
 .site-header a:hover { text-decoration: underline; }
 
 /* ── 徽章 / 标签 ──────────────────────────────────────── */
-/* 覆盖两种写法：`label label-success` 与 `ui label success` */
-.label {
+/* 覆盖两种写法：`label label-success` 与 `ui label success`。
+ *
+ * 带 :visited 变体：浏览器对已访问链接单独跑一遍 :visited 级联，
+ * 普通类规则压不过 Simple.css 的 a:visited{color:accent}，徽章上的白字
+ * 会被染成 accent 色。 */
+.label, .label:visited {
   display: inline-block;
   padding: 0.05em 0.5em;
   border-radius: var(--hustoj-badge-radius);
@@ -60,11 +64,20 @@ a.label:hover { filter: brightness(0.92); }
 .label-info,    .label.info    { background: var(--hustoj-teal); }
 .label-default, .label.default { background: var(--hustoj-muted); }
 
-/* ── 判题结果配色（judgeResultClasses）─────────────────── */
-.ac { color: var(--hustoj-ok); font-weight: 600; }
-.waiting, .compiling, .running, .judging { color: var(--hustoj-muted); }
-.pe, .wa, .tle, .mle, .ole, .re, .ce, .rf, .nzec, .sig, .ie {
-  color: var(--hustoj-err);
+/* ── 判题结果配色（judgeResultClasses）───────────────────
+ *
+ * 必须带 :visited 变体，并用字面色：结果格是链接，浏览器对已访问链接
+ * 单独跑 :visited 级联，`.ac`（非 :visited 规则）压不过 Simple.css 的
+ * a:visited{color:accent}，于是点过的"通过"变成 accent（暗色下是黄色）。
+ * `.ac:visited` 的优先级高于 `a:visited`，才能压回绿色。 */
+.ac, .ac:visited { color: #1a7f37; font-weight: 600; }
+.waiting, .waiting:visited, .compiling, .compiling:visited, .running, .running:visited, .judging, .judging:visited {
+  color: #6e7781;
+}
+.pe, .pe:visited, .wa, .wa:visited, .tle, .tle:visited, .mle, .mle:visited,
+.ole, .ole:visited, .re, .re:visited, .ce, .ce:visited, .rf, .rf:visited,
+.nzec, .nzec:visited, .sig, .sig:visited, .ie, .ie:visited {
+  color: #cf222e;
 }
 
 /* ── 分页（两套写法）──────────────────────────────────── */
@@ -77,7 +90,7 @@ a.label:hover { filter: brightness(0.92); }
   padding: 0;
   list-style: none;
 }
-.ui.pagination.menu .item {
+.ui.pagination.menu .item, .ui.pagination.menu .item:visited {
   display: inline-block;
   padding: 0.3rem 0.8rem;
   border: 1px solid var(--hustoj-border);
@@ -102,7 +115,7 @@ a.label:hover { filter: brightness(0.92); }
   padding: 0;
   list-style: none;
 }
-.pagination .page-item > a {
+.pagination .page-item > a, .pagination .page-item > a:visited {
   display: inline-block;
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--hustoj-border);
@@ -135,7 +148,7 @@ a.label:hover { filter: brightness(0.92); }
 }
 
 /* ── 按钮（仅链接式按钮；真正的 <button>/<input> 交给 Simple）── */
-a.ui.button {
+a.ui.button, a.ui.button:visited {
   display: inline-block;
   padding: 0.35rem 0.9rem;
   border: 1px solid var(--hustoj-border);
@@ -158,14 +171,10 @@ a.ui.primary.button {
 /* ── 语义图标字体未加载，避免留白 ──────────────────────── */
 i.icon { display: none; }
 
-/* ── 链接：已访问与未访问同色 ─────────────────────────────
- * Simple.css 只给 a 设了 text-decoration（颜色用浏览器默认蓝），
- * 却把 a:visited 设成 --accent，于是点过的链接会变色。
- *
- * 必须用 :where(...) 包裹：它的优先级是 0，否则 "a:visited"(0,1,0)
- * 会盖住 .ac/.label 这类同级组件（把已访问的"通过"从绿/白变成 accent 色）。
- * 作者样式优先级为 0 也仍会覆盖浏览器默认链接色，所以普通链接照样是 accent。 */
-:where(a, a:visited) { color: var(--accent); }
+/* ── 链接 ─────────────────────────────────────────────────
+ * 普通链接不必自己设色：Simple.css 已有 `a, a:visited { color: var(--accent) }`，
+ * 未访问/已访问同色。需要自定义颜色的组件（结果色、徽章、分页、按钮）各自
+ * 补上 :visited 变体即可，见上面对应段落。 */
 
 /* ── 状态表（#result-tab）─────────────────────────────────
  * 整表页面居中、总宽可调（--status-table-width），列内容居中。
