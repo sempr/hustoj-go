@@ -511,6 +511,8 @@ tar xzf /root/backup/web-<时间戳>.tar.gz -C /home/judge/src
 > 不计入任何 `problem_id>0` 统计。HTTP fetcher / `trigger_judge` 有意不实现。
 > 已完成（Phase 1.5）：后台比赛管理（`admin/contest_list.php`、`contest_df_change.php`、
 > `contest_pr_change.php`、`contest_add.php`、`contest_edit.php`）。
+> 已完成（Phase 3）：核实生产库引擎 —— 22 张 InnoDB + 1 张 MEMORY（`online`），
+> **MyISAM→InnoDB 已落地，无需迁移**；唯 `admin/update_db.php` 仍写死 MyISAM（勿在生产运行）。
 
 1. **补齐后台用户管理** —— 已迁 `user_list`/`ajax`/`privilege_*`/`changepass`/
    `user_df_change`/`user_set_ip`/`user_add`/`user_import`/`ranklist_export`。仅剩
@@ -519,11 +521,18 @@ tar xzf /root/backup/web-<时间戳>.tar.gz -C /home/judge/src
 2. **判题侧** —— `custominput`/test_run 已支持（见下）；HTTP fetcher 与
    远程评测 `trigger_judge` **有意不实现**：`admin/problem_judge.php` 上游停用，
    judged-go 走数据库轮询（`result<2` 取件），无需 UDP/HTTP 触发。
-3. **MyISAM → InnoDB** —— 本文原述"21 张表是 MyISAM（`online` 是 MEMORY，
-   `solution_ai_answer` 是 InnoDB）"，但 `schema/schema.sql`（mysqldump）显示除
-   `online`(MEMORY) 外均为 InnoDB，二者矛盾，**动手前必须先核对生产库实际引擎**。
-   转换前必须在 MariaDB 11.8.6 影子环境验证锁、deadlock 与 judged-go 取件一致性。
-   当前无影子环境，不要动。
+3. **MyISAM → InnoDB（已落地 / 无需迁移）** —— 本文原述"21 张表是 MyISAM
+   （`online` 是 MEMORY、`solution_ai_answer` 是 InnoDB）"。**实测作废**：直接查生产库
+   （MariaDB 11.8.6）`information_schema.TABLES`，结果为
+   **22 张 InnoDB + 1 张 MEMORY（`online`，按设计保留）**，**没有任何 MyISAM 表**。
+   `schema/schema.sql` 声明与 `check_schema.py` 的引擎一致性检查一致（`online`=MEMORY，其余 InnoDB）。
+   结论：引擎转换**已经完成，不需要 `00002` 迁移**；原"先在影子环境验证锁 / deadlock /
+   judged-go 取件一致性"的预研前提随之不成立（表已是事务型引擎）。
+   - **遗留隐患（待处理）**：`phpweb/admin/update_db.php`（PHP 旧版结构升级脚本）里的
+     `CREATE TABLE` 仍写死 `ENGINE=MyISAM`；**若在生产运行会把表退回 MyISAM**。该脚本不在
+     Go 迁移范围内，建议标记废弃或改写为 InnoDB，切勿在生产执行。
+   - 无关的陈旧注释：`schema.sql` 的 `openai_task_queue` 表注释仍是"异步任务队列-MyISAM版"
+     （引擎实为 InnoDB）。因 `check_schema.py` 会比对表注释、生产库同样带该注释，故不改动。
 4. **`admin/problem_batch_delete.php` 非原子** —— 涉及多表与文件删除回滚。
    Go 侧已事务化，但 PHP 侧仍是旧的逐条删除。
 5. **数据库用户缺 `CREATE` 权限** —— 无法建影子库做数据级对拍。
