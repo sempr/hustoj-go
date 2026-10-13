@@ -543,7 +543,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <td><span class="{{.ResultClass}}">{{.ResultLabel}}</span></td>
 <td class="center">{{.MemoryText}}</td>
 <td class="center">{{.TimeText}}</td>
-<td class="center">{{languageName .Language}}</td>
+<td class="center">{{if .CanViewSource}}<a href="/showsource.php?id={{.SolutionID}}" title="查看代码">{{languageName .Language}}</a>{{else}}{{languageName .Language}}{{end}}</td>
 <td>{{.InDate.Format "2006-01-02 15:04:05"}}</td>
 </tr>
 {{end}}</tbody></table>

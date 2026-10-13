@@ -55,6 +55,10 @@ type StatusRow struct {
 	// 封榜期内这些行的运行结果与资源占用必须隐藏，否则比赛后半场
 	// 就能通过不断提交探测对手的解题情况（status.php:402）。
 	Masked bool
+
+	// CanViewSource 表示访问者有权查看该提交的源码，语言列将渲染成
+	// showsource.php?id= 链接（对齐 status.php:444-452：本人或 source_browser）。
+	CanViewSource bool
 }
 
 // ResultLabel 返回该行的结果文案，封榜行统一显示为 PHP 的 "----"。
@@ -327,6 +331,20 @@ func applyRankLockMasking(rows []StatusRow, lockTime time.Time, viewer string) {
 	}
 }
 
+// markViewableSources 标记访问者可查看源码的行（语言列渲染为链接）。
+//
+// 对齐 status.php:444-452：本人或 source_browser 可见；封榜隐藏的行不给链接。
+func markViewableSources(rows []StatusRow, id Identity) {
+	for i := range rows {
+		if rows[i].Masked {
+			continue
+		}
+		if id.SourceBrowser || (id.LoggedIn && strings.EqualFold(rows[i].UserID, id.UserID)) {
+			rows[i].CanViewSource = true
+		}
+	}
+}
+
 // statusNOIPExempt 报告该身份是否豁免 NOIP 锁榜。
 //
 // 对应 status.php:52-56 的四个 session 标记：管理员、限时赛持有人
@@ -483,6 +501,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		if lockActive {
 			applyRankLockMasking(rows, lockTime, identity.UserID)
 		}
+		markViewableSources(rows, identity)
 
 		title := fmt.Sprintf("比赛 #%d 提交状态", filter.CID)
 		s.renderPage(w, r, http.StatusOK, "statusPage", title, newStatusPage(rows, filter))
@@ -503,6 +522,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 		title = fmt.Sprintf("题目 %d 提交状态", filter.ProblemID)
 	}
 
+	markViewableSources(rows, identity)
 	s.renderPage(w, r, http.StatusOK, "statusPage", title, newStatusPage(rows, filter))
 }
 
