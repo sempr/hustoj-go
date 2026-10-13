@@ -451,6 +451,8 @@ HUSTOJ_EQUIV_DSN='...' TZ=Asia/Shanghai \
 
 ## 6. 发布流程
 
+> 逐路径切流的完整路径清单与回滚步骤见 [`web-cutover-checklist.md`](./web-cutover-checklist.md)。
+
 ### 6.1 前提
 
 - `bash extra/check_all.sh` 全绿

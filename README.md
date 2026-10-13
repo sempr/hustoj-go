@@ -2,8 +2,18 @@
 
 A high-performance online judge system written in Go, compatible with HUSTOJ database schema.
 
+The project has two halves:
+
+- **Judge** (`hustoj daemon` / `client` / `judge` / `run`): sandboxed compilation and
+  execution, compatible with the HUSTOJ `solution`/`source_code` schema.
+- **Web frontend** (`hustoj web`): a Go re-implementation of the HUSTOJ PHP web frontend,
+  migrated with a **strangler pattern** — the Go service and the PHP frontend share the same
+  MariaDB and judge data directory, and nginx routes traffic by path, so paths can be switched
+  one at a time with instant rollback. See `docs/phpweb-go-refactor-design.md`.
+
 ## Features
 
+- **Web frontend (PHP → Go)**: same URLs as PHP, switched per-path via nginx, no data sync
 - **High Performance**: Concurrent execution of submissions with configurable limits
 - **Isolated Execution**: Sandboxed environments for safe code execution
 - **Multiple Language Support**: Configurable language environments via TOML files
@@ -38,6 +48,23 @@ make
 
 ## Usage
 
+### Web Service
+
+```bash
+# Start the web service (systemd recommended; nginx reverse-proxies to it)
+hustoj web --ojhome /home/judge [--config <web.toml>] [--debug]
+```
+
+Configuration is assembled from two sources (environment variables take precedence):
+
+1. `<ojhome>/etc/web.toml` — operational settings (no credentials)
+2. environment variables — injected by systemd `EnvironmentFile=<ojhome>/etc/judge.conf`,
+   the source of DB credentials (Go never parses `db_info.inc.php`)
+
+Probes: `GET /healthz` (liveness, no DB), `GET /readyz` (DB connectivity).
+The list of paths already served by Go, and the cutover/rollback steps, are in
+`docs/web-cutover-checklist.md` and `docs/phpweb-go-refactor-design.md`.
+
 ### Daemon Service
 
 ```bash
@@ -51,15 +78,18 @@ hustoj daemon --ojhome=/home/judge --debug
 ### Client
 
 ```bash
-# Judge a single submission
+# Judge a single submission (writes results back to the database)
 hustoj client <solution_id> <runner_id> [oj_home] [DEBUG]
+
+# Same pipeline but standalone (no database), result to stdout as JSON
+hustoj judge --source <file> --lang <id> --data <dir> [--time <ms>] [--memory <kB>] [--spj <n>]
 ```
 
 ### Sandbox
 
 ```bash
-# Execute command in sandbox environment
-hustoj sandbox --rootfs=<path> --cmd="<command>" --cwd=<working_dir>
+# Execute a command in the sandbox environment (used internally by the judge)
+hustoj run --rootfs=<path> --cmd="<command>" --cwd=<working_dir> [--stdin=...] [--stdout=...]
 ```
 
 ## Configuration
@@ -96,19 +126,26 @@ env = ["LANG=en_US.UTF-8"]
 ## Architecture
 
 ```
-├── cmd/              # CLI commands
+├── cmd/              # CLI commands (web / daemon / client / judge / run)
 ├── internal/
+│   ├── web/           # OJ web frontend (PHP → Go migration)
 │   ├── client/        # Judge client implementation
 │   ├── daemon/        # Daemon service
-│   └── sandbox/       # Sandboxed execution
+│   ├── run/           # Sandboxed execution
+│   └── shared/        # cgroup helpers
 ├── pkg/
-│   ├── config/        # Configuration management
+│   ├── config/        # Judge configuration management
 │   ├── constants/     # Judge status codes
+│   ├── dbgen/         # sqlc-generated queries (web)
 │   ├── interfaces/    # Core interfaces
 │   ├── language/      # Language configuration
 │   ├── models/        # Data models
 │   └── repository/    # Database operations
-└── extra/            # Runtime environments
+├── schema/           # schema.sql + sqlc query sources (web)
+├── migrations/       # goose migration baseline (00001)
+├── phpweb/           # original HUSTOJ PHP frontend (migration reference)
+├── docs/             # migration design + cutover checklist
+└── extra/            # Runtime environments, gates, systemd units
 ```
 
 ## Development
@@ -131,6 +168,11 @@ go build -ldflags="-s -w" -o hustoj
 
 # Run tests
 go test ./...
+
+# Unified quality gate (gofmt/build/vet/staticcheck/tests/php lint/CSRF/
+# language index/schema consistency/sqlc codegen sync) — must be green to release
+export PATH="$PATH:/root/go/bin"   # sqlc / staticcheck live in ~/go/bin
+bash extra/check_all.sh
 ```
 
 ### Contributing
