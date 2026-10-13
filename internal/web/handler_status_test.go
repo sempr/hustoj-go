@@ -716,3 +716,35 @@ func TestPaginationCursorsPointTheRightWay(t *testing.T) {
 		}
 	}
 }
+
+// 未传 cid/problem_id 时表单应留空（而不是显示 0）；传了则原样回显。
+func TestStatusFilterCIDProblemEmptyByDefault(t *testing.T) {
+	empty := parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php", nil))
+	if empty.CIDText() != "" || empty.ProblemIDText() != "" {
+		t.Errorf("未传参应留空，得到 cid=%q problem_id=%q", empty.CIDText(), empty.ProblemIDText())
+	}
+
+	set := parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php?cid=12&problem_id=34", nil))
+	if set.CIDText() != "12" || set.ProblemIDText() != "34" {
+		t.Errorf("参数应回显，得到 cid=%q problem_id=%q", set.CIDText(), set.ProblemIDText())
+	}
+}
+
+// 筛选表单：cid/problem_id 输入框为空，且所有字段排在同一行（flex）。
+func TestStatusFilterFormSingleRowEmptyDefaults(t *testing.T) {
+	s := newTestServer(t, &fakeQuerier{}, nil)
+	rec := httptest.NewRecorder()
+	s.renderPage(rec, httptest.NewRequest(http.MethodGet, "/status.php", nil), http.StatusOK,
+		"statusPage", "状态", newStatusPage(nil, StatusFilter{}))
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `name="cid" value=""`) {
+		t.Errorf("cid 输入框应留空:\n%s", body)
+	}
+	if !strings.Contains(body, `name="problem_id" value=""`) {
+		t.Errorf("problem_id 输入框应留空:\n%s", body)
+	}
+	if !strings.Contains(body, "display:flex") {
+		t.Errorf("筛选项应排成一行（flex 容器）:\n%s", body)
+	}
+}

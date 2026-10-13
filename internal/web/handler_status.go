@@ -644,6 +644,25 @@ func (f StatusFilter) SelectedResult() int32 {
 	return -1
 }
 
+// CIDText / ProblemIDText 供筛选表单回显。
+//
+// 未指定（<=0）时返回空串，让输入框留空，而不是显示 "0" —— 否则用户会
+// 以为页面上默认筛了比赛 0 / 题目 0。空值提交后，后端按"空则不加该条
+// 过滤"处理（见 statusFilterWhere）。
+func (f StatusFilter) CIDText() string {
+	if f.CID > 0 {
+		return strconv.Itoa(int(f.CID))
+	}
+	return ""
+}
+
+func (f StatusFilter) ProblemIDText() string {
+	if f.ProblemID > 0 {
+		return strconv.Itoa(int(f.ProblemID))
+	}
+	return ""
+}
+
 // TopHref 是"回到最新"（PHP 的 Top 链接），不带游标。
 func (p *StatusPage) TopHref() template.URL { return statusHref(0, 0, p.Filter) }
 

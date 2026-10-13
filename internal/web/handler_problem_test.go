@@ -535,6 +535,16 @@ func TestPaginationKeepsSearch(t *testing.T) {
 	}
 }
 
+// 题目列表页只能有一组分页：曾经 problemsetTable 与 problemset 各含一次，
+// 页面底部出现两条相同的翻页条。
+func TestProblemsetHasSinglePagination(t *testing.T) {
+	vm := buildPageVM(ProblemListPage{Page: 1, TotalPage: 5})
+	got := mustRender(t, "problemset", vm)
+	if n := strings.Count(got, "ui pagination menu"); n != 1 {
+		t.Errorf("problemset 分页块数 = %d，期望 1", n)
+	}
+}
+
 // ── 工具函数 ──────────────────────────────────────────────────────────
 
 // 标签配色必须与 PHP 的 md5 取模一致，否则切流后所有标签变色。

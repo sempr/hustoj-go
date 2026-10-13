@@ -213,7 +213,6 @@ const pageContentTmpls = `
 <td>{{if .HasRate}}{{printf "%.3f" .RatePercent}}%{{else}}0.000%{{end}}</td>
 </tr>
 {{end}}</tbody></table>
-{{template "pagination" .}}
 {{end}}
 
 {{/* problemActions 是题面下方的操作区。
@@ -501,10 +500,11 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </div>{{end}}
 
 {{define "statusPage"}}<div class="ui container">
-<form class="ui form" method="GET"><div class="fields">
-<div class="field"><label>比赛</label><input name="cid" value="{{.Filter.CID}}" placeholder="比赛 ID"></div>
-<div class="field"><label>题目</label><input name="problem_id" value="{{.Filter.ProblemID}}" placeholder="题目 ID"></div>
-<div class="field"><label>用户</label><input name="user_id" value="{{.Filter.UserID}}" placeholder="用户名"></div>
+<form class="ui form" method="GET">
+<div style="display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end;margin-bottom:12px;">
+<div class="field"><label>比赛</label><input name="cid" value="{{.Filter.CIDText}}" placeholder="比赛 ID" style="width:90px"></div>
+<div class="field"><label>题目</label><input name="problem_id" value="{{.Filter.ProblemIDText}}" placeholder="题目 ID" style="width:90px"></div>
+<div class="field"><label>用户</label><input name="user_id" value="{{.Filter.UserID}}" placeholder="用户名" style="width:120px"></div>
 {{/* range 内部 . 会被重绑定成 map 的元素，因此先把筛选值取到局部变量。
      直接在 range 里写 .Filter.Language 会渲染失败（页面 500）。 */}}
 {{$selLang := .Filter.SelectedLanguage}}
@@ -525,11 +525,9 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 {{end}}
 </select>
 </div>
-<div class="field"><label>学校</label><input name="school" value="{{.Filter.School}}" placeholder="学校"></div>
-<div class="field"><label>群组</label><input name="group_name" value="{{.Filter.GroupName}}" placeholder="群组"></div>
-<div class="field">
-<div class="ui checkbox"><input type="checkbox" name="showsim" value="1"{{if eq .Filter.ShowSim 1}} checked{{end}}><label>相似度</label></div>
-</div>
+<div class="field"><label>学校</label><input name="school" value="{{.Filter.School}}" placeholder="学校" style="width:120px"></div>
+<div class="field"><label>群组</label><input name="group_name" value="{{.Filter.GroupName}}" placeholder="群组" style="width:120px"></div>
+<div class="field"><div class="ui checkbox"><input type="checkbox" name="showsim" value="1"{{if eq .Filter.ShowSim 1}} checked{{end}}><label>相似度</label></div></div>
 <div class="field"><button class="ui button" type="submit">筛选</button></div>
 </div></form>
 
