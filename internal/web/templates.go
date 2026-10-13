@@ -1288,6 +1288,118 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </div>
 {{end}}
 
+{{/* adminIndexPage 是后台首页，对应 admin/index.php。 */}}
+{{define "adminIndexPage"}}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{.Title}}</title>
+</head>
+<frameset cols="16%,*">
+<frame name="menu" src="/admin/menu.php">
+<frame name="main" src="/admin/help.php">
+</frameset>
+</html>
+{{end}}
+
+{{/* adminMenuPage 是后台菜单，对应 admin/menu.php。 */}}
+{{define "adminMenuPage"}}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{.Title}}</title>
+</head>
+<body>
+<div id="sidebar">
+<a class="btn btn-sm" href="/admin/help.php" target="main">{{.Title}}</a>
+<a class="btn btn-sm" href="/status.php" target="_top">查看OJ</a>
+
+<div class="sidebar-section">
+<h3>新闻管理</h3>
+<ul>
+{{if .IsAdmin}}
+<li><a href="/admin/news_list.php" target="main">新闻列表</a></li>
+<li><a href="/admin/news_add_page.php" target="main">添加新闻</a></li>
+{{end}}
+</ul>
+</div>
+
+<div class="sidebar-section">
+<h3>用户管理</h3>
+<ul>
+{{if or .IsAdmin .IsPasswordSetter}}
+<li><a href="/admin/user_list.php" target="main">用户列表</a></li>
+{{end}}
+{{if or .IsAdmin .IsUserAdder}}
+<li><a href="/admin/user_add.php" target="main">添加用户</a></li>
+<li><a href="/admin/user_import.php" target="main">导入用户</a></li>
+{{end}}
+{{if or .IsAdmin .IsPasswordSetter}}
+<li><a href="/admin/changepass.php" target="main">修改密码</a></li>
+{{end}}
+{{if .IsAdmin}}
+<li><a href="/admin/privilege_list.php" target="main">权限列表</a></li>
+<li><a href="/admin/privilege_add.php" target="main">添加权限</a></li>
+{{end}}
+</ul>
+</div>
+
+<div class="sidebar-section">
+<h3>题目管理</h3>
+<ul>
+{{if or .IsAdmin .IsProblemEditor .IsContestCreator}}
+<li><a href="/admin/problem_list.php" target="main">题目列表</a></li>
+{{end}}
+{{if or .IsAdmin .IsProblemEditor}}
+<li><a href="/admin/problem_add_page.php" target="main">添加题目</a></li>
+<li><a href="/admin/problem_import.php" target="main">导入题目</a></li>
+<li><a href="/admin/problem_export.php" target="main">导出题目</a></li>
+{{end}}
+</ul>
+</div>
+
+<div class="sidebar-section">
+<h3>比赛管理</h3>
+<ul>
+{{if or .IsAdmin .IsContestCreator}}
+<li><a href="/admin/contest_list.php" target="main">比赛列表</a></li>
+<li><a href="/admin/contest_add.php" target="main">添加比赛</a></li>
+<li><a href="/admin/team_generate.php" target="main">队伍生成</a></li>
+{{end}}
+</ul>
+</div>
+
+{{if .IsAdmin}}
+<div class="sidebar-section">
+<h3>系统管理</h3>
+<ul>
+<li><a href="/admin/rejudge.php" target="main">重新判题</a></li>
+<li><a href="/admin/backup.php" target="main">备份数据库</a></li>
+<li><a href="/online.php" target="main">在线用户</a></li>
+</ul>
+</div>
+{{end}}
+</div>
+</body>
+</html>
+{{end}}
+
+{{/* adminHeaderPage 是后台头部，对应 admin/admin-header.php。 */}}
+{{define "adminHeaderPage"}}
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{.Title}}</title>
+</head>
+<body>
+<p>后台管理头部</p>
+</body>
+</html>
+{{end}}
+
 `
 
 // renderPage 渲染具名页面模板并套上外壳，写出响应。

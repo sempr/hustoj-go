@@ -38,6 +38,8 @@ func (jc *JudgeClient) Run() error {
 		return jc.handleRawTextJudge(ctx.Solution, ctx.Problem, workDir)
 	}
 
+	os.Chown(workDir, 1536, 1536)
+
 	if err := jc.handleCompilation(ctx, workDir); err != nil {
 		return err
 	}
