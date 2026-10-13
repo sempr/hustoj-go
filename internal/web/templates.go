@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"html/template"
 	"net/http"
+	"strings"
 
 	"github.com/sempr/hustoj-go/pkg/dbgen"
 )
@@ -127,11 +128,19 @@ const maxStatusLanguage = 26
 // languageNames 是 statusPage 的语言下拉框。
 //
 // 只列出本 OJ 真正配置了编译器的语言（/home/judge/etc/langs/*.lang.toml），
-// 让用户选到的每个选项都能提交成功。PHP 那边的下拉框同样只列已安装语言。
-var languageNames = map[int32]string{
-	0: "GCC", 1: "G++", 2: "Java", 3: "Pascal", 5: "Python", 6: "PHP",
-	7: "Perl", 8: "Ruby", 9: "Bash", 16: "Kotlin", 17: "Dart", 25: "Rust",
-}
+// 让用户选到的每个选项都能提交成功。
+//
+// 名字统一取自 languageName（即 PHP 的 $language_name），不再手抄一份：
+// 此前这里自带的映射串位，把 6 显示成 PHP（实际是 Python）、2/3 的
+// Pascal/Java 也对调了。
+var languageNames = func() map[int32]string {
+	installed := []int32{0, 1, 2, 3, 5, 6, 7, 8, 9, 16, 17, 25}
+	m := make(map[int32]string, len(installed))
+	for _, id := range installed {
+		m[id] = languageName(id)
+	}
+	return m
+}()
 
 // resultLabels 是 statusPage 的结果下拉框。
 //
@@ -161,14 +170,18 @@ const layoutTmpl = `
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<link rel="stylesheet" href="/assets/simple.min.css">
+<link rel="stylesheet" href="/assets/hustoj.css">
 <title>{{.Title}}</title>
 </head>
 <body>
 {{template "siteHeader" .Nav}}
-<div class="ui container">
+{{if .Nav.Admin}}{{template "adminNav" .Nav.Admin}}{{end}}
+<main>
 <h1>{{.Title}}</h1>
 {{.Content}}
-</div>
+</main>
 </body>
 </html>
 {{end}}`
@@ -190,6 +203,28 @@ const pageContentTmpls = `
 {{else}}<a href="/loginpage.php" style="margin-right:12px;text-decoration:none;">登录</a>{{if .ShowRegister}}<a href="/registerpage.php" style="text-decoration:none;">注册</a>{{end}}
 {{end}}</span>
 </div>
+{{end}}
+
+{{/* adminNav 是后台导航条：/admin/ 下的所有页面在公共导航下方显示一条，
+     按角色列出可用功能。取代原先 frameset + menu.php(target=main) 的做法——
+     frameset 嵌进普通 <main> 里会被浏览器忽略，页面因此空白。 */}}
+{{define "adminNav"}}
+<nav class="admin-nav" style="border:1px solid var(--border,#ddd);border-radius:6px;padding:.5rem .75rem;margin:0 0 1rem;display:flex;flex-wrap:wrap;gap:.25rem .9rem;align-items:center;">
+<a href="/admin/index.php" style="font-weight:600;">后台首页</a>
+{{if or .IsAdmin .IsProblemEditor .IsContestCreator}}<a href="/admin/problem_list.php">题目列表</a>{{end}}
+{{if or .IsAdmin .IsProblemEditor}}<a href="/admin/problem_add_page.php">添加题目</a><a href="/admin/problem_export.php">导出题目</a><a href="/admin/problem_copy.php">复制题目</a>{{end}}
+{{if or .IsAdmin .IsContestCreator}}<a href="/admin/contest_list.php">比赛列表</a><a href="/admin/contest_add.php">添加比赛</a>{{end}}
+{{if or .IsAdmin .IsPasswordSetter}}<a href="/admin/user_list.php">用户列表</a>{{end}}
+{{if or .IsAdmin .IsUserAdder}}<a href="/admin/user_add.php">添加用户</a><a href="/admin/user_import.php">导入用户</a>{{end}}
+{{if or .IsAdmin .IsPasswordSetter}}<a href="/admin/changepass.php">修改密码</a>{{end}}
+{{if .IsAdmin}}<a href="/admin/privilege_list.php">权限</a>{{end}}
+{{if .IsAdmin}}<a href="/admin/news_list.php">新闻</a>{{end}}
+{{if .IsAdmin}}<a href="/admin/rejudge.php">重新判题</a><a href="/admin/solution_statistics.php">解题统计</a>{{end}}
+{{if .IsAdmin}}<a href="/admin/ranklist_export.php">导出榜单</a>{{end}}
+{{if .IsAdmin}}<a href="/online.php">在线用户</a>{{end}}
+<a href="/admin/help.php">帮助</a>
+<a href="/status.php">查看 OJ</a>
+</nav>
 {{end}}
 
 {{define "problemset"}}{{template "problemsetTable" .}}{{template "pagination" .}}{{end}}
@@ -454,19 +489,21 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <p><a href="javascript:history.go(-1)">{{msgBack}}</a></p>
 </div></div>{{end}}
 
-{{define "loginForm"}}<div class="ui middle aligned center aligned grid" style="height: 500px;">
-<div class="row"><div class="column" style="max-width: 450px">
-<h2 class="ui image header"><div class="content" style="margin-bottom: 10px;">登录</div></h2>
-<form class="ui large form" action="/login.php" method="post">
-<div class="ui segment">
+{{define "loginForm"}}<div style="max-width: 420px; margin: 3rem auto;">
+<h2 style="text-align:center;">登录</h2>
+<form action="/login.php" method="post">
 {{template "vcodeField" .}}
-<div class="field"><div class="ui left icon input"><i class="user icon"></i><input name="user_id" placeholder="用户名" type="text" autocomplete="username"></div></div>
-<div class="field"><div class="ui left icon input"><i class="lock icon"></i><input name="password" placeholder="密码" type="password" autocomplete="current-password"></div></div>
+<label>用户名
+<input name="user_id" placeholder="用户名" type="text" autocomplete="username">
+</label>
+<label>密码
+<input name="password" placeholder="密码" type="password" autocomplete="current-password">
+</label>
 {{template "csrfInput" .}}
-<button class="ui fluid large submit button" type="submit">登录</button>
-</div></form>
-<div class="ui message"><a href="/registerpage.php">注册</a> | <a href="/lostpassword.php">忘记密码</a></div>
-</div></div></div>{{end}}
+<button type="submit">登录</button>
+</form>
+<p class="center"><a href="/registerpage.php">注册</a> | <a href="/lostpassword.php">忘记密码</a></p>
+</div>{{end}}
 
 {{define "registerForm"}}<div class="ui container" style="max-width: 450px; margin-top: 50px;">
 <h2>注册</h2>
@@ -483,7 +520,9 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </form>
 </div>{{end}}
 
-{{define "vcodeField"}}{{if .ShowVCode}}<div class="field"><div class="ui left icon input"><i class="shield icon"></i><input name="vcode" placeholder="验证码" type="text" autocomplete="off"></div></div>{{end}}{{end}}
+{{define "vcodeField"}}{{if .ShowVCode}}<label>验证码
+<input name="vcode" placeholder="验证码" type="text" autocomplete="off">
+</label>{{end}}{{end}}
 
 {{define "csrfInput"}}{{if .Token}}<input type="hidden" name="csrf_token" value="{{csrfToken .Token}}">{{end}}{{end}}
 
@@ -511,7 +550,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 {{$selResult := .Filter.SelectedResult}}
 <div class="field"><label>语言</label>
 <select name="language">
-<option value="">全部</option>
+<option value="-1"{{if eq (int $selLang) -1}} selected{{end}}>全部</option>
 {{range $i, $name := languageNames}}
 <option value="{{$i}}"{{if eq $i (int $selLang)}} selected{{end}}>{{$name}}</option>
 {{end}}
@@ -519,7 +558,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </div>
 <div class="field"><label>结果</label>
 <select name="jresult">
-<option value="">全部</option>
+<option value="-1"{{if eq (int $selResult) -1}} selected{{end}}>全部</option>
 {{range $i, $label := resultLabels}}
 <option value="{{$i}}"{{if eq $i (int $selResult)}} selected{{end}}>{{$label}}</option>
 {{end}}
@@ -531,17 +570,33 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <div class="field"><button class="ui button" type="submit">筛选</button></div>
 </div></form>
 
-<table id="result-tab" class="ui celled table"><thead>
-<tr><th>ID</th><th>用户</th><th>题目</th><th>结果</th><th>内存</th><th>时间</th><th>语言</th><th>提交时间</th></tr>
+<table id="result-tab" class="ui celled table">
+{{/* 列宽按"最长可能内容"比例分配（整表居中、总宽见 hustoj.css 的
+     --status-table-width）。用 colgroup 让比例显式、可预期，不靠浏览器
+     按内容各自伸缩。 */}}
+<colgroup>
+<col style="width:6%">
+<col style="width:13%">
+<col style="width:6%">
+<col style="width:9%">
+<col style="width:10%">
+<col style="width:9%">
+<col style="width:12%">
+<col style="width:12%">
+<col style="width:23%">
+</colgroup>
+<thead>
+<tr><th>ID</th><th>用户</th><th>题目</th><th>结果</th><th>内存</th><th>时间</th><th>语言</th><th>代码长度</th><th>提交时间</th></tr>
 </thead><tbody>
 {{range .Rows}}<tr{{if not .Masked}} data-sid="{{.SolutionID}}" data-result="{{.Result}}"{{end}}>
 <td>{{.SolutionID}}</td>
 <td><a href="/userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
 <td>{{if gt .ProblemID 0}}<a href="/problem.php?id={{.ProblemID}}">{{.ProblemID}}</a>{{else}}{{.ProblemID}}{{end}}</td>
-<td><span class="{{.ResultClass}}">{{.ResultLabel}}</span></td>
+<td>{{if .Masked}}<span class="{{.ResultClass}}">{{.ResultLabel}}</span>{{else}}<a href="/reinfo.php?sid={{.SolutionID}}" class="{{.ResultClass}}" title="查看判题信息">{{.ResultLabel}}</a>{{end}}</td>
 <td class="center">{{.MemoryText}}</td>
 <td class="center">{{.TimeText}}</td>
 <td class="center">{{if .CanViewSource}}<a href="/showsource.php?id={{.SolutionID}}" title="查看代码">{{languageName .Language}}</a>{{else}}{{languageName .Language}}{{end}}</td>
+<td class="center">{{.CodeLength}} bytes</td>
 <td>{{.InDate.Format "2006-01-02 15:04:05"}}</td>
 </tr>
 {{end}}</tbody></table>
@@ -1342,40 +1397,19 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </div>
 {{end}}
 
-{{/* adminIndexPage 是后台首页，对应 admin/index.php。 */}}
-{{define "adminIndexPage"}}
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>{{.Title}}</title>
-</head>
-<frameset cols="16%,*">
-<frame name="menu" src="/admin/menu.php">
-<frame name="main" src="/admin/help.php">
-</frameset>
-</html>
-{{end}}
-
-{{/* adminMenuPage 是后台菜单，对应 admin/menu.php。 */}}
-{{define "adminMenuPage"}}
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<title>{{.Title}}</title>
-</head>
-<body>
-<div id="sidebar">
-<a class="btn btn-sm" href="/admin/help.php" target="main">{{.Title}}</a>
-<a class="btn btn-sm" href="/status.php" target="_top">查看OJ</a>
+{{/* adminDashboard 是后台落地内容：分区列出可用功能。
+     早期这里用 frameset + menu.php(target=main) 做左右分栏，但 frameset 嵌进
+     普通 <main> 会被浏览器忽略、页面空白；现在改由布局统一渲染 adminNav，
+     落地页只负责列功能，index.php 与旧的 menu.php 共用同一份内容。 */}}
+{{define "adminDashboard"}}
+<p>请选择要使用的功能（也可使用上方后台导航）。</p>
 
 <div class="sidebar-section">
 <h3>新闻管理</h3>
 <ul>
 {{if .IsAdmin}}
-<li><a href="/admin/news_list.php" target="main">新闻列表</a></li>
-<li><a href="/admin/news_add_page.php" target="main">添加新闻</a></li>
+<li><a href="/admin/news_list.php">新闻列表</a></li>
+<li><a href="/admin/news_add_page.php">添加新闻</a></li>
 {{end}}
 </ul>
 </div>
@@ -1384,18 +1418,18 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 <h3>用户管理</h3>
 <ul>
 {{if or .IsAdmin .IsPasswordSetter}}
-<li><a href="/admin/user_list.php" target="main">用户列表</a></li>
+<li><a href="/admin/user_list.php">用户列表</a></li>
 {{end}}
 {{if or .IsAdmin .IsUserAdder}}
-<li><a href="/admin/user_add.php" target="main">添加用户</a></li>
-<li><a href="/admin/user_import.php" target="main">导入用户</a></li>
+<li><a href="/admin/user_add.php">添加用户</a></li>
+<li><a href="/admin/user_import.php">导入用户</a></li>
 {{end}}
 {{if or .IsAdmin .IsPasswordSetter}}
-<li><a href="/admin/changepass.php" target="main">修改密码</a></li>
+<li><a href="/admin/changepass.php">修改密码</a></li>
 {{end}}
 {{if .IsAdmin}}
-<li><a href="/admin/privilege_list.php" target="main">权限列表</a></li>
-<li><a href="/admin/privilege_add.php" target="main">添加权限</a></li>
+<li><a href="/admin/privilege_list.php">权限列表</a></li>
+<li><a href="/admin/privilege_add.php">添加权限</a></li>
 {{end}}
 </ul>
 </div>
@@ -1404,12 +1438,13 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 <h3>题目管理</h3>
 <ul>
 {{if or .IsAdmin .IsProblemEditor .IsContestCreator}}
-<li><a href="/admin/problem_list.php" target="main">题目列表</a></li>
+<li><a href="/admin/problem_list.php">题目列表</a></li>
 {{end}}
 {{if or .IsAdmin .IsProblemEditor}}
-<li><a href="/admin/problem_add_page.php" target="main">添加题目</a></li>
-<li><a href="/admin/problem_import.php" target="main">导入题目</a></li>
-<li><a href="/admin/problem_export.php" target="main">导出题目</a></li>
+<li><a href="/admin/problem_add_page.php">添加题目</a></li>
+<li><a href="/admin/problem_import.php">导入题目</a></li>
+<li><a href="/admin/problem_export.php">导出题目</a></li>
+<li><a href="/admin/problem_copy.php">复制题目</a></li>
 {{end}}
 </ul>
 </div>
@@ -1418,9 +1453,8 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 <h3>比赛管理</h3>
 <ul>
 {{if or .IsAdmin .IsContestCreator}}
-<li><a href="/admin/contest_list.php" target="main">比赛列表</a></li>
-<li><a href="/admin/contest_add.php" target="main">添加比赛</a></li>
-<li><a href="/admin/team_generate.php" target="main">队伍生成</a></li>
+<li><a href="/admin/contest_list.php">比赛列表</a></li>
+<li><a href="/admin/contest_add.php">添加比赛</a></li>
 {{end}}
 </ul>
 </div>
@@ -1429,16 +1463,21 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 <div class="sidebar-section">
 <h3>系统管理</h3>
 <ul>
-<li><a href="/admin/rejudge.php" target="main">重新判题</a></li>
-<li><a href="/admin/backup.php" target="main">备份数据库</a></li>
-<li><a href="/online.php" target="main">在线用户</a></li>
+<li><a href="/admin/rejudge.php">重新判题</a></li>
+<li><a href="/admin/solution_statistics.php">解题统计</a></li>
+<li><a href="/admin/ranklist_export.php">导出榜单</a></li>
+<li><a href="/online.php">在线用户</a></li>
+<li><a href="/admin/help.php">后台帮助</a></li>
 </ul>
 </div>
 {{end}}
-</div>
-</body>
-</html>
 {{end}}
+
+{{/* adminIndexPage 是后台首页，对应 admin/index.php。 */}}
+{{define "adminIndexPage"}}{{template "adminDashboard" .}}{{end}}
+
+{{/* adminMenuPage 对应旧的 admin/menu.php：内容与首页一致（不再用 frameset）。 */}}
+{{define "adminMenuPage"}}{{template "adminDashboard" .}}{{end}}
 
 {{/* adminHeaderPage 是后台头部，对应 admin/admin-header.php。 */}}
 {{define "adminHeaderPage"}}
@@ -2429,12 +2468,16 @@ type navVM struct {
 	IsAdmin      bool
 	ShowRegister bool
 	CID          int32
+
+	// Admin 非空时，布局在公共导航下方再渲染一条后台导航条。
+	// 只在 /admin/ 下的页面、且当前身份有后台权限时设置。
+	Admin *AdminMenuVM
 }
 
 // buildNav 依据当前请求解析登录态，用于渲染导航头。
 func (s *Server) buildNav(w http.ResponseWriter, r *http.Request) navVM {
 	id := s.resolveIdentity(w, r)
-	return navVM{
+	nav := navVM{
 		OJName:       s.cfg.OJName,
 		LoggedIn:     id.LoggedIn,
 		UserID:       id.UserID,
@@ -2443,6 +2486,17 @@ func (s *Server) buildNav(w http.ResponseWriter, r *http.Request) navVM {
 		ShowRegister: s.cfg.Register,
 		CID:          int32(parseInt(r.URL.Query().Get("cid"))),
 	}
+	// 后台页面（/admin/...）补一条后台导航，免去逐个页面自己维护菜单。
+	if strings.HasPrefix(r.URL.Path, "/admin/") && s.hasAdminPrivilege(id) {
+		nav.Admin = &AdminMenuVM{
+			Title:            "后台管理",
+			OJName:           s.cfg.OJName,
+			IsAdmin:          id.Admin,
+			IsContestCreator: id.ContestCreator,
+			IsProblemEditor:  id.ProblemEditor,
+		}
+	}
+	return nav
 }
 
 // renderPage 渲染具名页面模板并套上外壳（含站点导航头），写出响应。

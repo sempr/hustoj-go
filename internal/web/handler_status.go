@@ -153,11 +153,14 @@ type StatusFilter struct {
 func parseStatusFilter(r *http.Request) StatusFilter {
 	q := r.URL.Query()
 
-	// 语言：PHP 把越界值归一成 -1（status.php:158）。
+	// 语言：空串 / -1 / 越界都表示"不过滤"，只有 0..max 才是真筛选。
+	//
+	// 关键：`?language=`（空串）绝不能当成 0 —— 0 是合法的"C"，
+	// 会把整页静默筛成"只看 C 的提交"。表单里"全部"提交的也是 -1。
 	language := int32(-1)
 	hasLanguage := false
-	if _, ok := q["language"]; ok {
-		if v := int32(parseInt(q.Get("language"))); v >= 0 && v <= maxStatusLanguage {
+	if raw := q.Get("language"); raw != "" {
+		if v := int32(parseInt(raw)); v >= 0 && v <= maxStatusLanguage {
 			language = v
 			hasLanguage = true
 		}
@@ -165,11 +168,11 @@ func parseStatusFilter(r *http.Request) StatusFilter {
 
 	_, hasTop := q["top"]
 
-	// 结果：-1 是"不按结果过滤"的保留值（status.php:171）。
+	// 结果：空串 / -1 都表示"不过滤"；0 是合法值（等待中），必须区分开。
 	result := int32(-1)
 	hasResult := false
-	if _, ok := q["jresult"]; ok {
-		if v := int32(parseInt(q.Get("jresult"))); v != -1 {
+	if raw := q.Get("jresult"); raw != "" {
+		if v := int32(parseInt(raw)); v != -1 {
 			result = v
 			hasResult = true
 		}
@@ -542,17 +545,16 @@ func judgeResultClass(result int32) string {
 	return ""
 }
 
+// languageName 对应 PHP 的 $language_name[$lang]（include/const.inc.php:12）。
+//
+// 直接复用统计表那份权威数组 statLanguageNames，不再手抄第二份 ——
+// 之前这里自带的映射整体串位（把 language=6 显示成 PHP，实际是 Python），
+// 与统计表、与 PHP 三方都对不上。
 func languageName(lang int32) string {
-	names := map[int32]string{
-		0: "GCC", 1: "G++", 2: "Java", 3: "Pascal", 4: "C#", 5: "Python", 6: "PHP",
-		7: "Perl", 8: "Ruby", 9: "Bash", 10: "Node.js", 11: "Go", 12: "Lua",
-		13: "Haskell", 14: "Rust", 15: "Swift", 16: "Kotlin", 17: "Dart",
-		25: "Rust",
+	if lang < 0 || int(lang) >= len(statLanguageNames) {
+		return fmt.Sprintf("未知(%d)", lang)
 	}
-	if n, ok := names[lang]; ok {
-		return n
-	}
-	return fmt.Sprintf("Lang %d", lang)
+	return statLanguageNames[lang]
 }
 
 func (s *Server) registerStatusRoutes(mux *http.ServeMux) {

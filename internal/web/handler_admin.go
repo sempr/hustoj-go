@@ -11,13 +11,10 @@ import (
 	"strings"
 )
 
-// AdminIndexVM 是后台首页的视图模型。
-type AdminIndexVM struct {
-	Title  string
-	OJName string
-}
-
-// AdminMenuVM 是后台菜单的视图模型。
+// AdminMenuVM 是后台菜单/落地页的视图模型。
+//
+// 角色开关决定导航条与落地页列出哪些功能；两个入口（index.php、menu.php）
+// 与布局里的 adminNav 共用它。
 type AdminMenuVM struct {
 	Title            string
 	OJName           string
@@ -42,9 +39,21 @@ func (s *Server) handleAdminIndex(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	s.renderPage(w, r, http.StatusOK, "adminIndexPage", "后台管理", AdminIndexVM{
-		Title: "后台管理", OJName: s.cfg.OJName,
-	})
+	s.renderPage(w, r, http.StatusOK, "adminIndexPage", "后台管理", s.adminMenuVM(identity))
+}
+
+// adminMenuVM 组装后台导航/落地页需要的角色开关。
+//
+// Identity 目前不建模 user_adder / password_setter，故两者恒为 false，
+// 与旧的后台菜单行为一致（见 handler_admin_user.go 顶部说明）。
+func (s *Server) adminMenuVM(identity Identity) AdminMenuVM {
+	return AdminMenuVM{
+		Title:            "后台管理",
+		OJName:           s.cfg.OJName,
+		IsAdmin:          identity.Admin,
+		IsContestCreator: identity.ContestCreator,
+		IsProblemEditor:  identity.ProblemEditor,
+	}
 }
 
 func (s *Server) handleAdminMenu(w http.ResponseWriter, r *http.Request) {
@@ -55,14 +64,7 @@ func (s *Server) handleAdminMenu(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	s.renderPage(w, r, http.StatusOK, "adminMenuPage", "后台管理", AdminMenuVM{
-		Title: "后台管理", OJName: s.cfg.OJName,
-		IsAdmin:          identity.Admin,
-		IsContestCreator: identity.ContestCreator,
-		IsProblemEditor:  identity.ProblemEditor,
-		IsUserAdder:      false,
-		IsPasswordSetter: false,
-	})
+	s.renderPage(w, r, http.StatusOK, "adminMenuPage", "后台管理", s.adminMenuVM(identity))
 }
 
 func (s *Server) handleAdminHeader(w http.ResponseWriter, r *http.Request) {

@@ -509,10 +509,12 @@ func TestParseStatusFilterDistinguishesAbsentFromZero(t *testing.T) {
 		{"/status.php?jresult=-1", -1, -1, false, false},
 		{"/status.php?language=26", 26, -1, true, false},
 		{"/status.php?language=27", -1, -1, false, false},
-		// 空值参数是个真实的坑：PHP 用 isset() 判断"是否带了参数"，而
-		// intval("") == 0，所以 ?language= 会被当成"筛语言 0（C）"。
-		// Go 这边必须照抄，否则同一个 URL 两端返回不同行数。
-		{"/status.php?language=&jresult=", 0, 0, true, true},
+		// 空串必须表示"不过滤"，不能当成 0。
+		//
+		// PHP 的 intval("")==0 会把 ?language= 当成"筛语言 0（C）"，
+		// 但那是坑：表单里"全部"提交的其实是 -1，手工拼 ?language= 的人
+		// 多半也是想"不过滤"。这里把空串与 -1 统一成不过滤，0 仍是真值。
+		{"/status.php?language=&jresult=", -1, -1, false, false},
 	}
 	for _, c := range cases {
 		f := parseStatusFilter(httptest.NewRequest(http.MethodGet, c.query, nil))
@@ -746,5 +748,87 @@ func TestStatusFilterFormSingleRowEmptyDefaults(t *testing.T) {
 	}
 	if !strings.Contains(body, "display:flex") {
 		t.Errorf("筛选项应排成一行（flex 容器）:\n%s", body)
+	}
+}
+
+// language/jresult 的默认值语义：空串与 -1 都表示"不过滤"，0 是真值。
+//
+// 曾经的 bug：表单"全部"提交空串，?language= 被 parseInt 成 0，
+// 于是"全部"被静默筛成"只看 C"（jresult= 则筛成"只看等待中"）。
+func TestParseStatusFilterEmptyAndMinusOneMeanNoFilter(t *testing.T) {
+	// 空串 → 不过滤
+	f := parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php?language=&jresult=", nil))
+	if f.HasLanguage || f.HasResult {
+		t.Errorf("空 language/jresult 应为不过滤，得到 lang=%v(%d) res=%v(%d)",
+			f.HasLanguage, f.Language, f.HasResult, f.Result)
+	}
+
+	// -1 → 不过滤
+	f = parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php?language=-1&jresult=-1", nil))
+	if f.HasLanguage || f.HasResult {
+		t.Errorf("-1 应为不过滤，得到 lang=%v res=%v", f.HasLanguage, f.HasResult)
+	}
+
+	// 0 → 真值（C / 等待中）
+	f = parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php?language=0&jresult=0", nil))
+	if !f.HasLanguage || f.Language != 0 {
+		t.Errorf("language=0 应作为筛选值，得到 %v(%d)", f.HasLanguage, f.Language)
+	}
+	if !f.HasResult || f.Result != 0 {
+		t.Errorf("jresult=0 应作为筛选值，得到 %v(%d)", f.HasResult, f.Result)
+	}
+}
+
+// 下拉框的"全部"必须是 value="-1"，不能是空串（否则提交即误筛）。
+func TestStatusFilterFormAllOptionIsMinusOne(t *testing.T) {
+	s := newTestServer(t, &fakeQuerier{}, nil)
+	rec := httptest.NewRecorder()
+	s.renderPage(rec, httptest.NewRequest(http.MethodGet, "/status.php", nil), http.StatusOK,
+		"statusPage", "状态", newStatusPage(nil, StatusFilter{}))
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `<option value="-1" selected>全部</option>`) {
+		t.Errorf("语言/结果下拉的\"全部\"应为 value=-1 且默认选中:\n%s", body)
+	}
+	if strings.Contains(body, `<option value="">全部</option>`) {
+		t.Errorf("下拉\"全部\"不应是空值:\n%s", body)
+	}
+}
+
+// 语言编号 → 名称必须与 PHP 的 $language_name（const.inc.php:12）一致。
+// 曾经状态页这份手抄表整体串位：6 显示成 PHP（实际 Python），2/3 也对调。
+func TestLanguageNameMatchesPHP(t *testing.T) {
+	want := map[int32]string{
+		0: "C", 1: "C++", 2: "Pascal", 3: "Java", 5: "Bash", 6: "Python",
+		7: "PHP", 8: "Perl", 9: "C#", 16: "JavaScript", 17: "Go", 25: "Rust",
+	}
+	for id, name := range want {
+		if got := languageName(id); got != name {
+			t.Errorf("languageName(%d) = %q，期望 %q", id, got, name)
+		}
+		if got := languageNames[id]; got != name {
+			t.Errorf("languageNames[%d] = %q，期望 %q", id, got, name)
+		}
+	}
+	// 具体回归：11259 的 language=6，应显示 Python。
+	if got := languageName(6); got != "Python" {
+		t.Errorf("11259 的语言应显示 Python，实际 %q", got)
+	}
+}
+
+// 状态表应含"代码长度"列，值形如 "1234 bytes"（对应 PHP 的 $MSG_CODE_LENGTH）。
+func TestStatusTableHasCodeLengthColumn(t *testing.T) {
+	s := newTestServer(t, &fakeQuerier{}, nil)
+	rec := httptest.NewRecorder()
+	rows := []StatusRow{{SolutionID: 7, ProblemID: 1001, UserID: "alice", Language: 6, Result: 4, CodeLength: 1234}}
+	s.renderPage(rec, httptest.NewRequest(http.MethodGet, "/status.php", nil), http.StatusOK,
+		"statusPage", "状态", newStatusPage(rows, StatusFilter{}))
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "<th>代码长度</th>") {
+		t.Errorf("表头缺少代码长度列:\n%s", body)
+	}
+	if !strings.Contains(body, "1234 bytes") {
+		t.Errorf("缺少代码长度取值:\n%s", body)
 	}
 }

@@ -40,3 +40,29 @@ func TestSiteHeaderNavLoggedIn(t *testing.T) {
 		t.Errorf("登录后不应出现登录链接")
 	}
 }
+
+// 后台页应带后台导航条，且不再有 frameset（嵌进 <main> 会被浏览器忽略）。
+func TestAdminPagesHaveNavNoFrameset(t *testing.T) {
+	rec := doProblem(t, &fakeQuerier{}, seedAdmin(), http.MethodGet, "/admin/index.php", nil, t.TempDir(), (*Server).handleAdminIndex)
+	body := rec.Body.String()
+
+	if !strings.Contains(body, `class="admin-nav"`) {
+		t.Errorf("后台页缺少导航条:\n%s", body)
+	}
+	if strings.Contains(body, "frameset") || strings.Contains(body, "<frame ") {
+		t.Errorf("后台页不应再有 frameset:\n%s", body)
+	}
+	for _, want := range []string{"/admin/problem_list.php", "/admin/user_list.php", "/admin/rejudge.php"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("后台导航缺少 %q", want)
+		}
+	}
+}
+
+// 匿名访问后台不应出现后台导航条（权限不足）。
+func TestAdminNavHiddenForAnonymous(t *testing.T) {
+	rec := doProblem(t, &fakeQuerier{}, "", http.MethodGet, "/admin/index.php", nil, t.TempDir(), (*Server).handleAdminIndex)
+	if strings.Contains(rec.Body.String(), `class="admin-nav"`) {
+		t.Errorf("匿名不应出现后台导航")
+	}
+}

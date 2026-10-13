@@ -1,0 +1,182 @@
+/* HUSTOJ Go 版覆盖样式（配合 Simple.css）。
+ *
+ * Simple.css 负责基础排版/表格/表单/按钮；这里把模板里既有的
+ * Semantic UI / Bootstrap 方言类名补齐成组件外观，并把内容栏放宽到
+ * 适合判题站宽表格的宽度。
+ *
+ * 颜色集中在下面几个变量里，便于统一调色。 */
+
+:root {
+  --hustoj-ok: #1a7f37;
+  --hustoj-err: #cf222e;
+  --hustoj-warn: #9a6700;
+  --hustoj-info: #0969da;
+  --hustoj-teal: #0a7f8a;
+  --hustoj-muted: #6e7781;
+  --hustoj-badge-radius: 999px;
+  --hustoj-border: var(--border, #ccc);
+  --hustoj-radius: var(--standard-border-radius, 5px);
+  --hustoj-accent: var(--accent, #4157ac);
+}
+
+/* Simple.css 默认中间栏宽 min(45rem,90%)（约 720px），对宽表格偏窄。
+ * 桌面端放宽；小屏沿用 Simple 自身的单列布局。 */
+@media only screen and (width > 720px) {
+  body { grid-template-columns: 1fr min(85rem, 95%) 1fr; }
+}
+
+/* ── 工具类（模板大量使用）────────────────────────────── */
+.padding { padding: 1rem 0; }
+.center { text-align: center; }
+.green { color: var(--hustoj-ok); }
+.red { color: var(--hustoj-err); }
+.orange { color: var(--hustoj-warn); }
+
+/* ── 站点导航 ─────────────────────────────────────────── */
+.site-header a { text-decoration: none; }
+.site-header a:hover { text-decoration: underline; }
+
+/* ── 徽章 / 标签 ──────────────────────────────────────── */
+/* 覆盖两种写法：`label label-success` 与 `ui label success` */
+.label {
+  display: inline-block;
+  padding: 0.05em 0.5em;
+  border-radius: var(--hustoj-badge-radius);
+  font-size: 0.78em;
+  font-weight: 600;
+  line-height: 1.7;
+  color: #fff;
+  background: var(--hustoj-muted);
+  text-decoration: none;
+  vertical-align: middle;
+}
+a.label:hover { filter: brightness(0.92); }
+.label-sm { font-size: 0.68em; padding: 0 0.4em; line-height: 1.6; }
+
+.label-success, .label.success { background: var(--hustoj-ok); }
+.label-danger,  .label.danger  { background: var(--hustoj-err); }
+.label-warning, .label.warning { background: var(--hustoj-warn); }
+.label-primary, .label.primary { background: var(--hustoj-info); }
+.label-info,    .label.info    { background: var(--hustoj-teal); }
+.label-default, .label.default { background: var(--hustoj-muted); }
+
+/* ── 判题结果配色（judgeResultClasses）─────────────────── */
+.ac { color: var(--hustoj-ok); font-weight: 600; }
+.waiting, .compiling, .running, .judging { color: var(--hustoj-muted); }
+.pe, .wa, .tle, .mle, .ole, .re, .ce, .rf, .nzec, .sig, .ie {
+  color: var(--hustoj-err);
+}
+
+/* ── 分页（两套写法）──────────────────────────────────── */
+/* 状态页/题目列表：Semantic 风格 `ui pagination menu` + `item` */
+.ui.pagination.menu {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+.ui.pagination.menu .item {
+  display: inline-block;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  color: inherit;
+  text-decoration: none;
+}
+.ui.pagination.menu .item:hover { background: rgba(0, 0, 0, 0.05); }
+.ui.pagination.menu .active.item {
+  background: var(--hustoj-accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* 后台列表：Bootstrap 风格 `pagination` + `page-item` */
+.pagination {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.25rem;
+  margin: 0.5rem 0;
+  padding: 0;
+  list-style: none;
+}
+.pagination .page-item > a {
+  display: inline-block;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  color: inherit;
+  text-decoration: none;
+}
+.pagination .page-item > a:hover { background: rgba(0, 0, 0, 0.05); }
+.pagination .page-item.active > a {
+  background: var(--hustoj-accent);
+  border-color: transparent;
+  color: #fff;
+}
+
+/* ── 消息条 ───────────────────────────────────────────── */
+.ui.message {
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  border-left: 4px solid var(--hustoj-info);
+  border-radius: var(--hustoj-radius);
+  background: rgba(9, 105, 218, 0.08);
+}
+.ui.warning.message {
+  border-left-color: var(--hustoj-warn);
+  background: rgba(154, 103, 0, 0.1);
+}
+.ui.negative.message, .ui.error.message {
+  border-left-color: var(--hustoj-err);
+  background: rgba(207, 34, 46, 0.1);
+}
+
+/* ── 按钮（仅链接式按钮；真正的 <button>/<input> 交给 Simple）── */
+a.ui.button {
+  display: inline-block;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  color: inherit;
+  text-decoration: none;
+}
+a.ui.button:hover { background: rgba(0, 0, 0, 0.05); }
+a.ui.primary.button {
+  background: var(--hustoj-accent);
+  border-color: transparent;
+  color: #fff;
+}
+.ui.buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+
+/* ── 复选框 ───────────────────────────────────────────── */
+.ui.checkbox { display: inline-flex; align-items: center; gap: 0.4rem; }
+.ui.checkbox input[type="checkbox"] { margin: 0; }
+
+/* ── 语义图标字体未加载，避免留白 ──────────────────────── */
+i.icon { display: none; }
+
+/* ── 链接：已访问与未访问同色 ─────────────────────────────
+ * Simple.css 只给 a 设了 text-decoration（颜色用浏览器默认蓝），
+ * 却把 a:visited 设成 --accent，于是点过的链接会变色。这里显式统一，
+ * 点过与否颜色一致（与旧版外观一致，也便于扫列表）。 */
+a, a:visited { color: var(--accent); }
+
+/* ── 状态表（#result-tab）─────────────────────────────────
+ * 整表页面居中、总宽可调（--status-table-width），列内容居中。
+ * 列宽比例由模板 <colgroup> 指定，table-layout:fixed 让比例生效。 */
+#result-tab {
+  table-layout: fixed;
+  width: var(--status-table-width, 1080px);
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+#result-tab th, #result-tab td {
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
