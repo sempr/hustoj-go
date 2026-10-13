@@ -272,6 +272,12 @@ type fakeQuerier struct {
 	contestUserIDs        []string
 	lastSetSolutionNum    dbgen.SetSolutionNumParams
 	nextContestID         int64
+
+	// 零散页：help / suspect
+	avgJudgeDelay  any
+	solutionsCount int64
+	suspectByIP    []dbgen.SuspectByIPRow
+	suspectByUser  []dbgen.SuspectUsersByIPRow
 }
 
 type fakeResult struct{ id int64 }
@@ -1922,4 +1928,23 @@ func (f *fakeQuerier) RecomputeContestProblemAccepted(_ context.Context, _ dbgen
 func (f *fakeQuerier) RecomputeContestProblemSubmit(_ context.Context, _ dbgen.RecomputeContestProblemSubmitParams) error {
 	f.note("RecomputeContestProblemSubmit")
 	return f.fail()
+}
+
+// ── 零散页：help / suspect ──────────────────────────────────────────────
+
+func (f *fakeQuerier) AvgJudgeDelay(context.Context) (interface{}, error) {
+	f.note("AvgJudgeDelay")
+	return f.avgJudgeDelay, f.fail()
+}
+func (f *fakeQuerier) CountSolutions(context.Context) (int64, error) {
+	f.note("CountSolutions")
+	return f.solutionsCount, f.fail()
+}
+func (f *fakeQuerier) SuspectByIP(_ context.Context, _ dbgen.SuspectByIPParams) ([]dbgen.SuspectByIPRow, error) {
+	f.note("SuspectByIP")
+	return f.suspectByIP, f.fail()
+}
+func (f *fakeQuerier) SuspectUsersByIP(_ context.Context, _ dbgen.SuspectUsersByIPParams) ([]dbgen.SuspectUsersByIPRow, error) {
+	f.note("SuspectUsersByIP")
+	return f.suspectByUser, f.fail()
 }

@@ -213,4 +213,7 @@ func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
 
 	// 比赛管理（admin/contest_*.php）。
 	s.registerAdminContestRoutes(mux)
+
+	// 零散页：后台落地页/系统状态、查重（admin/help.php、suspect_list.php）。
+	s.registerAdminMiscRoutes(mux)
 }

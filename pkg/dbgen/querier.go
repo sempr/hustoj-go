@@ -12,6 +12,9 @@ import (
 type Querier interface {
 	// ── 账户激活（active.php）────────────────────────────────────────────
 	ActivateUserByCode(ctx context.Context, code string) error
+	// 后台零散页（admin/help.php、suspect_list.php）。
+	// 最近 10 条已判提交的平均判题耗时（help.php）。
+	AvgJudgeDelay(ctx context.Context) (interface{}, error)
 	CheckMailPrivilege(ctx context.Context, arg CheckMailPrivilegeParams) ([]int32, error)
 	// 被降级后需要重算题目计数。submit.php:337-341 用一条
 	// `UPDATE problem p INNER JOIN (SELECT count(1) ...) s` 同时算和写。
@@ -93,6 +96,7 @@ type Querier interface {
 	CountSearchProblemsForAdmin(ctx context.Context, arg CountSearchProblemsForAdminParams) (int64, error)
 	CountSearchProblemsForMember(ctx context.Context, arg CountSearchProblemsForMemberParams) (int64, error)
 	CountSearchProblemsFreePractice(ctx context.Context, arg CountSearchProblemsFreePracticeParams) (int64, error)
+	CountSolutions(ctx context.Context) (int64, error)
 	CountSubmitsForProblem(ctx context.Context, problemID int32) (int64, error)
 	// 投毒计数（$OJ_POISON_BOT_COUNT）。submit.php:392 统计该用户该题的 AC 数，
 	// 达到阈值后判题机开始返回随机结果，把算力让给真人。
@@ -463,6 +467,10 @@ type Querier interface {
 	// ── 解题统计（solution_statistics.php）──────────────────────────────
 	SolutionMinByContest(ctx context.Context, contestID sql.NullInt32) ([]SolutionMinByContestRow, error)
 	SolutionMinByUsers(ctx context.Context, userIds []string) ([]SolutionMinByUsersRow, error)
+	// 同一 IP 被多个不同用户使用（contest 内），并按 IP 展开明细。
+	SuspectByIP(ctx context.Context, arg SuspectByIPParams) ([]SuspectByIPRow, error)
+	// 同一用户在比赛时段内用多个不同 IP 登录。
+	SuspectUsersByIP(ctx context.Context, arg SuspectUsersByIPParams) ([]SuspectUsersByIPRow, error)
 	UpdateContest(ctx context.Context, arg UpdateContestParams) error
 	UpdateContestProblemProblemID(ctx context.Context, arg UpdateContestProblemProblemIDParams) error
 	UpdateNews(ctx context.Context, arg UpdateNewsParams) error

@@ -318,8 +318,8 @@ PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lan
     AC/WA/空白三态。administrator 或 contest_creator。
   - **仍未迁**（各有依赖，暂不迁）：`settings.php`（改写 `db_info.inc.php` 配置）、
     `backup.php`（DB dump + 打包全部数据）、`watch.php`（监视）、`phpfm.php`（文件管理器）、
-    `update_db.php`（库结构升级）、`aidba.php`、`suspect_list.php`（依赖 ajax/多表）。
-    `admin/ajax.php` 已迁；`admin/check.php`/`msg.txt`/`help.php` 为静态辅助页。
+    `update_db.php`（库结构升级，且写死 MyISAM，勿在生产运行）、`aidba.php`。
+    `admin/ajax.php` 已迁；`admin/check.php`/`msg.txt`/`help.php` 中 help 已迁、check 为旧 frameset 壳。
 - **后台比赛管理（`contest_list.php`、`contest_df_change.php`、`contest_pr_change.php`、
   `contest_add.php`、`contest_edit.php`）**：
   - 权限 administrator 或 contest_creator（Identity 未建模 session 里的 `m<cid>`）。
@@ -331,9 +331,21 @@ PHP 逐字一致，应把 `judgeResultLabel` 与 `resultLabels` 一起改成 lan
     题号列表逐题校验存在性后写 `contest_problem`（编辑还会重算 `c_accepted/c_submit` 与
     `solution.num`）；写 `c<cid>`（受邀用户）与 `m<cid>`（创建者，仅 add）。未复刻 kindeditor 与
     依赖 session 的"从比赛复制用户"下拉。
-  - 未迁移（后续）：`suspect_list.php`、`team_generate*.php`、`offline_import.php`、
+  - 未迁移（后续）：`team_generate*.php`、`offline_import.php`、
     `problem_import_*`/`problem_add_page_*`、`settings.php`、`backup.php`、`watch.php`、
     `phpfm.php`、`update_db.php`、`aidba.php`、`setmsg.php`。
+- **后台零散页（`help.php`、`suspect_list.php`）**：
+  - `help.php`：后台落地页（admin frameset 的 main frame 正指向它）。显示平均判题延迟
+    （最近 10 条 `result>=4` 的 `avg(judgetime-in_date)`）、负载、内存/磁盘、题目/用户/提交计数，
+    以及各功能入口（按角色显示）。**用原生读 `/proc/loadavg`、`/proc/meminfo` 与 `unix.Statfs`
+    替代 PHP 的 `system("free/df/top")`**；系统状态 iframe 仍指向 `watch.php`（未迁移，混合模式可用）。
+  - `suspect_list.php`：查重 —— ①同一 IP 被多个用户使用（`solution` 按 IP 聚合）；②同一用户在
+    比赛时段内用多个 IP 登录（`loginlog` 按用户聚合）。权限同 admin-header 角色集合
+    （PHP 里该权限检查被注释掉，这里用 `hasAdminPrivilege`）。
+  - 仍未迁：`watch.php`（系统监控图表，依赖 flot/jQuery 静态资源与 `/dev/shm` 历史文件）、
+    `check.php`（旧 frameset 壳，已被 `admin/index.php`+`menu.php` 取代）、`phpfm.php`（文件管理器）、
+    `settings.php`（改写 PHP 配置）、`backup.php`（DB dump + 打包）、`update_db.php`（旧结构升级）、
+    `aidba.php`（AI-DBA）、`setmsg.php`、各导入适配器。
 
 ---
 
@@ -513,6 +525,7 @@ tar xzf /root/backup/web-<时间戳>.tar.gz -C /home/judge/src
 > `contest_pr_change.php`、`contest_add.php`、`contest_edit.php`）。
 > 已完成（Phase 3）：核实生产库引擎 —— 22 张 InnoDB + 1 张 MEMORY（`online`），
 > **MyISAM→InnoDB 已落地，无需迁移**；唯 `admin/update_db.php` 仍写死 MyISAM（勿在生产运行）。
+> 已完成（Phase 1.6）：后台零散页 `admin/help.php`、`suspect_list.php`。
 
 1. **补齐后台用户管理** —— 已迁 `user_list`/`ajax`/`privilege_*`/`changepass`/
    `user_df_change`/`user_set_ip`/`user_add`/`user_import`/`ranklist_export`。仅剩

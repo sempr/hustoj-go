@@ -2200,6 +2200,71 @@ user3"></textarea>
 </div>
 {{end}}
 
+{{/* adminHelpPage 对应 admin/help.php。 */}}
+{{define "adminHelpPage"}}
+<table class="table">
+<tbody>
+<tr><td colspan="2">
+延迟：{{.Delay}}s/judge　CPU：{{.Load}}tasks/1min　空闲内存：{{.FreeMem}}　空闲磁盘：{{.FreeDisk}}
+　题目：{{.ProblemNum}}　用户：{{.UserNum}}　提交：{{.SubmitNum}}
+</td></tr>
+<tr><td><a class="btn btn-block btn-sm" href="/status.php">查看 OJ</a></td></tr>
+<tr><td><a class="btn btn-success btn-sm" href="/admin/problem_list.php">题目-列表</a></td>
+<td><a class="btn btn-success btn-sm" href="/admin/problem_add_page.php">题目-添加</a></td></tr>
+<tr><td><a class="btn btn-success btn-sm" href="/admin/problem_export.php">题目-导出</a></td>
+<td><a class="btn btn-success btn-sm" href="/admin/problem_copy.php">题目-复制</a></td></tr>
+<tr><td><a class="btn btn-warning btn-sm" href="/admin/contest_list.php">比赛-列表</a></td>
+<td><a class="btn btn-warning btn-sm" href="/admin/contest_add.php">比赛-添加</a></td></tr>
+<tr><td><a class="btn btn-warning btn-sm" href="/admin/user_set_ip.php">比赛-设置登录IP</a></td></tr>
+{{if .IsAdmin}}
+<tr><td><a class="btn btn-info btn-sm" href="/admin/news_list.php">新闻-列表</a></td>
+<td><a class="btn btn-info btn-sm" href="/admin/news_add_page.php">新闻-添加</a></td></tr>
+<tr><td><a class="btn btn-primary btn-sm" href="/admin/user_list.php">用户-列表</a></td>
+<td><a class="btn btn-primary btn-sm" href="/admin/user_add.php">用户-添加</a></td></tr>
+<tr><td><a class="btn btn-primary btn-sm" href="/admin/user_import.php">用户-导入</a></td>
+<td><a class="btn btn-primary btn-sm" href="/admin/privilege_list.php">权限-列表</a></td></tr>
+<tr><td><a class="btn btn-primary btn-sm" href="/admin/privilege_add.php">权限-添加</a></td>
+<td><a class="btn btn-primary btn-sm" href="/admin/changepass.php">用户-设置密码</a></td></tr>
+<tr><td><a class="btn btn-danger btn-sm" href="/admin/rejudge.php">系统-重新判题</a></td>
+<td><a class="btn btn-danger btn-sm" href="/admin/solution_statistics.php">系统-解题统计</a></td></tr>
+<tr><td><a class="btn btn-danger btn-sm" href="/online.php">系统-在线用户</a></td></tr>
+{{end}}
+</tbody>
+</table>
+{{if .IsAdmin}}
+<a href="/admin/problem_copy.php">复制题目</a> ·
+<a href="/admin/problem_changeid.php">重排题号</a>
+{{end}}
+{{end}}
+
+{{/* adminSuspectPage 对应 admin/suspect_list.php。 */}}
+{{define "adminSuspectPage"}}
+<hr><center><h3>IP 验证</h3></center>
+<div class="container">
+<center>同一 IP 被多个用户使用
+<table width="90%" border="1" style="text-align:center;">
+<tr><td>IP address</td><td colspan="2">Used ID</td><td>Time</td><td>IP address count</td></tr>
+{{range .ByIP}}
+<tr><td>{{.IP}}</td><td>{{.UserID}}</td>
+<td><a href="/userinfo.php?user={{.UserID}}">档案</a> / <a href="/status.php?cid={{$.CID}}&user_id={{.UserID}}">提交</a></td>
+<td>{{.Time}}</td><td>{{.Count}}</td></tr>
+{{end}}
+</table>
+</center>
+<br><br>
+<center>同一用户使用多个 IP
+<table width="90%" border="1" style="text-align:center;">
+<tr><td colspan="2">User ID</td><td>Used IP address</td><td>Time</td><td>IP address count</td></tr>
+{{range .ByUser}}
+<tr><td>{{.UserID}}</td>
+<td><a href="/userinfo.php?user={{.UserID}}">档案</a> / <a href="/status.php?cid={{$.CID}}&user_id={{.UserID}}">提交</a></td>
+<td>{{.IP}}</td><td>{{.Time}}</td><td>{{.Count}}</td></tr>
+{{end}}
+</table>
+</center>
+</div>
+{{end}}
+
 `
 
 // renderPage 渲染具名页面模板并套上外壳，写出响应。
