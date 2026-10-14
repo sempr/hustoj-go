@@ -15,9 +15,10 @@ versions.txt
 
 internal/sandbox/zz_test.go
 
-# 凭据文件：部署副本 /home/judge/src/web/include/db_info.inc.php 含真实 DB 账密，
-# 仓库内只保留 .example 模板。Phase 0 三方合并时以部署版为基底，故必须排除。
-phpweb/include/db_info.inc.php
+# 遗留 PHP 前端（web 切割完成后只作参照，运行副本在
+# /home/judge/src/web；其 db_info.inc.php 含真实 DB 账密，
+# 不得入库）
+phpweb/
 
 # Go Web 本地配置（含运营参数，站点身份不入库）
 *.local.toml
