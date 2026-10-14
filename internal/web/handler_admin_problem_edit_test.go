@@ -121,6 +121,56 @@ func TestAdminProblemEditGet(t *testing.T) {
 	}
 }
 
+// 题目新增/编辑页必须像 PHP 一样引入 kindeditor（对应 admin/kindeditor.php），
+// 否则 textarea[class="kindeditor"] 只是个普通多行文本框。
+func TestAdminProblemPagesLoadKindEditor(t *testing.T) {
+	f := &fakeQuerier{
+		detail:            dbgen.Problem{ProblemID: 1001, Title: "E", Description: "D", Spj: "1", Coin: 2},
+		lastProblemSource: sql.NullString{String: "tagX", Valid: true},
+		futureContests:    []dbgen.ListFutureContestsRow{{ContestID: 9, Title: sql.NullString{String: "Future", Valid: true}}},
+	}
+	for _, tc := range []struct {
+		name string
+		path string
+		h    func(*Server, http.ResponseWriter, *http.Request)
+	}{
+		{"add", "/admin/problem_add_page.php", (*Server).handleAdminProblemAddPage},
+		{"edit", "/admin/problem_edit.php?id=1001", (*Server).handleAdminProblemEdit},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := doProblem(t, f, seedAdmin(), http.MethodGet, tc.path, nil, t.TempDir(), tc.h)
+			if rec.Code != http.StatusOK {
+				t.Fatalf("状态码 = %d, 期望 200", rec.Code)
+			}
+			body := rec.Body.String()
+			for _, want := range []string{
+				"/assets/kindeditor/kindeditor.js",
+				"/assets/kindeditor/themes/default/default.css",
+				"/assets/kindeditor/lang/zh_CN.js",
+				"/assets/kindeditor/plugins/code/prettify.js",
+				"/assets/kindeditor/php/upload_json.php", // 由 Go 实现的上传接口
+				"KindEditor.ready",
+				"/assets/jquery.min.js", // 初始化用到 $(document).ready
+				`class="kindeditor"`,
+			} {
+				if !strings.Contains(body, want) {
+					t.Errorf("缺少 %q", want)
+				}
+			}
+			// 纯 Go 环境：不得再引用 PHP web 根的静态文件。
+			for _, bad := range []string{"/template/", "/include/"} {
+				if strings.Contains(body, bad) {
+					t.Errorf("不应再依赖 PHP 静态树 %q", bad)
+				}
+			}
+			// 编辑器必须在 textarea 之后加载，否则初始化时元素还不存在。
+			if a, b := strings.Index(body, `class="kindeditor"`), strings.Index(body, "KindEditor.ready"); b < a {
+				t.Errorf("KindEditor 应在 textarea 之后初始化")
+			}
+		})
+	}
+}
+
 func TestAdminProblemEditPost(t *testing.T) {
 	ojhome := t.TempDir()
 	f := &fakeQuerier{}

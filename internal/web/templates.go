@@ -1963,6 +1963,94 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 {{end}}
 {{end}}
 
+{{/* kindeditorScript 是后台富文本编辑器，逐条对应 PHP admin/kindeditor.php。
+     资源放在 web 根的 /kindeditor/（静态文件由 nginx 直接下发）；上传端点是
+     上传接口同样走 /assets/kindeditor/php/（由 Go 实现）。
+     jQuery 必须先加载——初始化里用了 $(document).ready 与 $.ajax。
+     designMode:false 对应生产配置 $OJ_MARKDOWN="marked.js"（默认源码模式）。 */}}
+{{define "kindeditorScript"}}
+<link rel="stylesheet" href="/assets/kindeditor/themes/default/default.css">
+<link rel="stylesheet" href="/assets/kindeditor/plugins/code/prettify.css">
+<script src="/assets/jquery.min.js"></script>
+<script charset="utf-8" src="/assets/kindeditor/kindeditor.js?v=20251217"></script>
+<script charset="utf-8" src="/assets/kindeditor/lang/zh_CN.js"></script>
+<script charset="utf-8" src="/assets/kindeditor/plugins/code/prettify.js"></script>
+<script>
+function upload(file, editor1){
+    var formData = new FormData();
+    if(file.name=="image.png")
+        formData.append("imgFile",file,"img"+(new Date().getTime())+".png");
+    else
+        formData.append("imgFile",file);
+    $.ajax({
+        url : '/assets/kindeditor/php/upload_json.php?dir=image',
+        type : 'POST',
+        data : formData,
+        processData : false,
+        contentType : false,
+        dataType:"json",
+        success : function(responseStr) {
+            var src = responseStr.url;
+            var imgTag = "<img src='"+src+"' width='486px' border='0'/>";
+            if(src.endsWith('.mp3'))
+                imgTag="<audio controls src='"+src+"'></audio>";
+            if(src.endsWith('.pdf'))
+                imgTag="<iframe src='"+src+"'  width=\"100%\" height=\"800px\"  ></iframe>";
+            if(src.endsWith('.mp4'))
+                imgTag="<video controls  width=\"68%\" ><source src='"+src+"' type='video/mp4'></video>";
+            editor1.insertHtml(imgTag);
+        },
+        error : function(responseStr) {
+            console.log("error:"+responseStr);
+        }
+    });
+}
+$(document).ready(function (){
+    KindEditor.ready(function(K) {
+        var editor1 = K.create('textarea[class="kindeditor"]', {
+            width : '100%',
+            cssPath : '/assets/kindeditor/plugins/code/prettify.css',
+            uploadJson : '/assets/kindeditor/php/upload_json.php',
+            fileManagerJson : '/assets/kindeditor/php/file_manager_json.php',
+            allowFileManager : false,
+            allowImageRemote: true,
+            newlineTag: 'br',
+            filterMode:false,
+            pasteType:1,
+            cssData: 'body { font-family:"Consolas";font-size: 18px;line-height:150% }  ',
+            designMode:false,
+            afterCreate : function() {
+                var self = this;
+                K.ctrl(document, 13, function(){ self.sync(); });
+                K.ctrl(self.edit.doc, 13, function(){ self.sync(); });
+                var editerDoc = this.edit.doc;
+                $(editerDoc).bind('paste', null, function (e) {
+                    var ele = e.originalEvent.clipboardData.items;
+                    for (var i = 0; i < ele.length; ++i) {
+                        if ( ele[i].kind == 'file' && (ele[i].type.indexOf('image/') !== -1 || ele[i].type.endsWith("pdf") ) ) {
+                            var file = ele[i].getAsFile();
+                            upload(file,self);
+                            if(ele.length==1||ele[i-1].type=="text/html") return false;
+                        }
+                    }
+                }).bind("drop",null,function(e){
+                    e.originalEvent.preventDefault();
+                    e.originalEvent.stopPropagation();
+                    var dt=e.originalEvent.dataTransfer;
+                    if(dt.files != undefined ){
+                        for(var n=0;n<dt.files.length;n++){ upload(dt.files[n],self); }
+                    }
+                });
+            },
+            afterBlur: function() { this.sync(); },
+            afterChange: function() { this.sync(); if( typeof sync === "function") sync(); }
+        });
+        prettyPrint();
+    });
+});
+</script>
+{{end}}
+
 {{/* adminProblemAddPage 对应 admin/problem_add_page.php。 */}}
 {{define "adminProblemAddPage"}}
 <center><h3>题目-添加</h3></center>
@@ -2009,6 +2097,7 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 <div align="center"><input type="submit" value="保存" name="submit"></div>
 </form>
 </div>
+{{template "kindeditorScript"}}
 {{end}}
 
 {{/* adminProblemAddResultPage 是新增题目的结果页。 */}}
@@ -2056,6 +2145,7 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 <div align="center"><input class="btn btn-success" type="submit" value="保存" name="submit"></div>
 </form>
 </div>
+{{template "kindeditorScript"}}
 {{end}}
 
 {{/* adminProblemExportPage 对应 admin/problem_export.php。 */}}
@@ -2358,8 +2448,8 @@ user3"></textarea>
 <span style="color:rgb(150,150,150)">DISK:<span id="disk">{{.Disk}}</span>MB (Used)</span><br>
 <span style="color:rgb(150,150,150)">TOTAL:<span id="nas">{{.Total}}</span>GB</span><br>
 </h1>
-<script src="/template/bs3/jquery.min.js"></script>
-<script src="/include/jquery.flot.js"></script>
+<script src="/assets/jquery.min.js"></script>
+<script src="/assets/jquery.flot.js"></script>
 <div id="panel" style="width:98%;height:180px" onclick="update()">loading data ...</div>
 <script type="text/javascript">
 function update() {

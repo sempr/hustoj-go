@@ -164,8 +164,11 @@ func (s *Server) handler() http.Handler {
 	// 业务路由：题目来源分类页（category.php）。
 	s.registerCategoryRoutes(mux)
 
-	// 静态资源：/assets/pico.min.css、/assets/hustoj.css（编进二进制）。
+	// 静态资源：/assets/（含 jquery、kindeditor、katex），由二进制内嵌提供。
 	s.registerAssetRoutes(mux)
+
+	// 编辑器上传接口（原 PHP kindeditor/php/*.php 的位置，纯 Go 不再走 PHP-FPM）。
+	s.registerUploadRoutes(mux)
 
 	// 业务路由：P2 用户功能（邮件 / 用户信息修改 / 密码重置）。
 	s.registerP2UserRoutes(mux)

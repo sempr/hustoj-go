@@ -49,6 +49,13 @@ type Config struct {
 	// PHP 下线后置 false 并移除相关代码。
 	SessionBridge bool `toml:"session_bridge"`
 
+	// UploadDir 是编辑器上传文件的落盘目录（默认 <OJHome>/src/web/upload）。
+	//
+	// 该目录同时是 nginx 各域名的静态根，因此上传结果能被 oj / oj-go /
+	// oj-php 直接以 /upload/... 提供，无需再让 Go 参与文件服务。
+	// 留空即按 OJHome 推导，测试里把 OJHome 指到临时目录即可隔离。
+	UploadDir string `toml:"upload_dir"`
+
 	// RedisURL 是 Go 自身会话的 Redis 连接串。
 	//
 	// Go 的登录态与 CSRF 全部存这里，与 PHP 会话完全解耦。
@@ -337,6 +344,7 @@ func applyEnv(cfg *Config) {
 	setStr(&cfg.Listen, "HUSTOJ_WEB_LISTEN")
 	setStr(&cfg.Template, "OJ_TEMPLATE")
 	setStr(&cfg.SessionDir, "HUSTOJ_WEB_SESSION_DIR")
+	setStr(&cfg.UploadDir, "HUSTOJ_WEB_UPLOAD_DIR")
 	setStr(&cfg.OJName, "HUSTOJ_WEB_OJ_NAME")
 	setBool(&cfg.Debug, "HUSTOJ_WEB_DEBUG")
 	setBool(&cfg.SessionBridge, "HUSTOJ_WEB_SESSION_BRIDGE")
