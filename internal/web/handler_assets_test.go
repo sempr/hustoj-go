@@ -48,16 +48,49 @@ func TestLayoutLinksAssets(t *testing.T) {
 	for _, want := range []string{
 		`href="/assets/simple.min.css?v=`,
 		`href="/assets/hustoj.css?v=`,
-		`href="/template/syzoj/css/katex.min.css"`, // KaTeX：公式排版
+		`href="/assets/katex.min.css?v=`, // KaTeX：公式排版（含字体，随仓库走 /assets）
 		"<main>",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("页面缺少 %q:\n%s", want, body)
 		}
 	}
+	// 不应再依赖 PHP web 根的 /template/ 目录
+	if strings.Contains(body, "/template/syzoj/css/katex.min.css") {
+		t.Errorf("KaTeX 样式不应再引用 /template/ 目录:\n%s", body)
+	}
 	// 缓存击穿哈希不能为空，否则 ?v= 不起作用。
 	if assetVersion == "" {
 		t.Errorf("assetVersion 为空，缓存击穿失效")
+	}
+}
+
+// KaTeX 资源随仓库内嵌，且上标字号覆盖必须存在（否则 10^12 的上标偏大）。
+func TestKatexAssetsAndScriptSize(t *testing.T) {
+	css, err := assetFS.ReadFile("static/katex.min.css")
+	if err != nil {
+		t.Fatalf("内嵌的 katex.min.css 缺失: %v", err)
+	}
+	if len(css) < 20000 {
+		t.Errorf("katex.min.css 过小: %d 字节", len(css))
+	}
+	if _, err := assetFS.ReadDir("static/fonts"); err != nil {
+		t.Fatalf("内嵌字体目录缺失: %v", err)
+	}
+
+	h, err := assetFS.ReadFile("static/hustoj.css")
+	if err != nil {
+		t.Fatalf("读取 hustoj.css 失败: %v", err)
+	}
+	s := string(h)
+	for _, want := range []string{
+		".katex .katex-sizing.reset-size6.size3 { font-size: 0.55em; }",
+		".katex .katex-sizing.reset-size6.size2 { font-size: 0.47em; }",
+		".katex .katex-sizing.reset-size6.size1 { font-size: 0.39em; }",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("缺少上标字号覆盖 %q", want)
+		}
 	}
 }
 

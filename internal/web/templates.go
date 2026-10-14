@@ -192,9 +192,10 @@ const layoutTmpl = `
 <link rel="stylesheet" href="{{asset "/assets/simple.min.css"}}">
 <link rel="stylesheet" href="{{asset "/assets/hustoj.css"}}">
 {{/* KaTeX：题面/新闻里的公式是服务端预渲染好的（同时含 .katex-mathml 与
-     .katex-html），缺这份 CSS 时两者都会显示，公式因此乱掉。路径与 PHP
-     的 template/$OJ_TEMPLATE/css.php 一致（静态文件在 web 根，三个域名都可达）。 */}}
-<link rel="stylesheet" href="/template/syzoj/css/katex.min.css">
+     .katex-html），缺这份 CSS 两者都会显示，公式因此乱掉。
+     资源（CSS + 字体）随仓库放在 internal/web/static/，经 /assets/ 提供，
+     不再依赖 PHP web 根的 /template/ 目录，也不用题面里那个老 CDN。 */}}
+<link rel="stylesheet" href="{{asset "/assets/katex.min.css"}}">
 <title>{{.Title}}</title>
 </head>
 <body>

@@ -171,6 +171,16 @@ a.ui.primary.button {
 /* ── 语义图标字体未加载，避免留白 ──────────────────────── */
 i.icon { display: none; }
 
+/* ── KaTeX 上/下标（脚本）字号 ───────────────────────────
+ * KaTeX 默认脚本 = 数学字号 × 0.7；而数学整体是 1.21× 正文、正文在
+ * Simple.css 里是 1.15rem，于是上标 ≈ 正文 85%，看着仍偏大。
+ * 这里把标准基线（reset-size6）的脚本层统一缩到 0.55，并同比例下调
+ * 更深的 script 层，保持嵌套层级关系；主字号（size4..size9）不动。
+ * 用与 vendor 相同的选择器 + 更靠后的加载顺序覆盖，不改 katex.min.css。 */
+.katex .katex-sizing.reset-size6.size3 { font-size: 0.55em; }
+.katex .katex-sizing.reset-size6.size2 { font-size: 0.47em; }
+.katex .katex-sizing.reset-size6.size1 { font-size: 0.39em; }
+
 /* ── 链接 ─────────────────────────────────────────────────
  * 普通链接不必自己设色：Simple.css 已有 `a, a:visited { color: var(--accent) }`，
  * 未访问/已访问同色。需要自定义颜色的组件（结果色、徽章、分页、按钮）各自
