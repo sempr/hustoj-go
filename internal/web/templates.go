@@ -2155,7 +2155,16 @@ $(document).ready(function (){
 <center><h3>测试数据 - 题目 {{.PID}}</h3></center>
 <div class="padding">
 <p>目录：<code>{{.Path}}</code></p>
-<p>判题约定：扫描 <code>X.in</code> 并按同名 <code>X.out</code> 配对（无 .ans 回退）；特殊评测需要目录内存在 <code>spj</code>／<code>tpj</code>／<code>upj</code> 文件。</p>
+<div class="ui message">
+<strong>文件约定：</strong>
+<ul style="margin:.4em 0 0">
+<li>用例 <code>0.in</code>／<code>0.out</code>、<code>1.in</code>／<code>1.out</code>…… 数字编号成对；判题按文件名顺序扫描所有 <code>.in</code>，各自找同名 <code>.out</code>（没有 <code>.ans</code> 回退：缺 <code>.out</code> 的用例会异常，孤立的 <code>.out</code> 不会被使用）</li>
+<li>文本评测题：整题只有一对 <code>data.in</code>／<code>data.out</code></li>
+<li>交互题：每个 <code>.in</code> 是一个交互会话；目录里没有 <code>.in</code> 时系统会注入合成用例</li>
+<li>特殊评测程序：<code>spj</code>（参数：输入文件 答案文件 用户输出）、<code>tpj</code>（参数：输入文件 用户输出 答案文件）、<code>upj</code>（同 spj，但返回 0–100 的分数）；题目标记为特殊评测时目录内必须有其一，同时存在时按 upj → tpj → spj 的优先级取用</li>
+<li>文件名只能是纯文件名（不能含 <code>/</code>、<code>\</code> 等路径字符）；上传单个文件限 64MB，<code>.zip</code> 解压限 2000 个条目、总量 512MB</li>
+</ul>
+</div>
 <p><a href="/admin/problem_list.php">返回题目列表</a> · <a href="/admin/problem_edit.php?id={{.PID}}">编辑此题</a></p>
 
 {{if .Msg}}<div class="ui message">{{.Msg}}</div>{{end}}
