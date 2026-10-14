@@ -2159,9 +2159,12 @@ $(document).ready(function (){
 <strong>文件约定：</strong>
 <ul style="margin:.4em 0 0">
 <li>用例 <code>0.in</code>／<code>0.out</code>、<code>1.in</code>／<code>1.out</code>…… 数字编号成对；判题按文件名顺序扫描所有 <code>.in</code>，各自找同名 <code>.out</code>（没有 <code>.ans</code> 回退：缺 <code>.out</code> 的用例会异常，孤立的 <code>.out</code> 不会被使用）</li>
+<li>子任务与分值：文件名可用 <code>1_1.in</code>／<code>1_2.in</code> 形式（下划线前是子任务编号，同编号为一个子任务），<code>[10]</code> 标记该测试点分值（如 <code>sub[10].in</code>）；多用例时按 OI 模式计分，同一子任务的用例全部通过才拿到该子任务的分值</li>
 <li>文本评测题：整题只有一对 <code>data.in</code>／<code>data.out</code></li>
 <li>交互题：每个 <code>.in</code> 是一个交互会话；目录里没有 <code>.in</code> 时系统会注入合成用例</li>
-<li>特殊评测程序：<code>spj</code>（参数：输入文件 答案文件 用户输出）、<code>tpj</code>（参数：输入文件 用户输出 答案文件）、<code>upj</code>（同 spj，但返回 0–100 的分数）；题目标记为特殊评测时目录内必须有其一，同时存在时按 upj → tpj → spj 的优先级取用</li>
+<li>特殊评测程序：<code>spj</code>（参数：输入文件 答案文件 用户输出）、<code>tpj</code>（参数：输入文件 用户输出 答案文件，testlib 风格，源码里的 <code>testlib.h</code> 通常放数据根目录共享）、<code>upj</code>（同 spj，但返回 0–100 的分数）；题目标记为特殊评测时目录内必须有其一，同时存在时按 upj → tpj → spj 的优先级取用</li>
+<li>强制文件输入/输出：<code>input.name</code>／<code>output.name</code>，内容即程序 freopen 使用的文件名（如 <code>sort.in</code>）；<code>solution.name</code> 则强制用户按指定文件名上传答案</li>
+<li>代码辅助：<code>template.&lt;语言后缀&gt;</code> 是答案模版，<code>prepend.&lt;后缀&gt;</code>／<code>append.&lt;后缀&gt;</code> 会拼到用户源码前后；<code>Main.c</code>／<code>Main.cc</code>（标程）与 <code>Gen.py</code>（数据生成器）仅作存档，判题不读取</li>
 <li>文件名只能是纯文件名（不能含 <code>/</code>、<code>\</code> 等路径字符）；上传单个文件限 64MB，<code>.zip</code> 解压限 2000 个条目、总量 512MB</li>
 </ul>
 </div>
