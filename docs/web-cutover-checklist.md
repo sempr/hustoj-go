@@ -13,7 +13,8 @@
 ## 1. Go 已接管的路径
 
 > 未列出的路径（及静态资源）仍由 PHP 提供，属正常混合状态，例如
-> `admin/settings.php`、`admin/backup.php`、`admin/phpfm.php`、`admin/setmsg.php`、
+> `admin/settings.php`、`admin/backup.php`、`admin/phpfm.php`（题目数据管理已由 Go 的
+> `/admin/test_data.php` 取代，phpfm 的其余功能未迁移）、`admin/setmsg.php`、
 > `admin/update_db.php`、`admin/aidba.php`、`admin/team_generate*.php`、
 > `admin/offline_import.php`、`admin/problem_import_*.php`、`admin/problem_add_page_*.php`、
 > `admin/check.php`。
@@ -56,6 +57,7 @@
 | POST | `/admin/privilege_delete.php` |
 | GET | `/admin/problem_list.php`、`/admin/problem_add_page.php`、`/admin/problem_edit.php`、`/admin/problem_export.php`、`/admin/problem_copy.php`、`/admin/problem_del.php` |
 | GET/POST | `/admin/problem_df_change.php`、`/admin/problem_changeid.php`、`/admin/problem_add.php`、`/admin/problem_export_xml.php` |
+| GET/POST | `/admin/test_data.php`（测试数据管理：列表/上传+zip解压/下载/打包/查看/新建/重命名/删除） |
 | GET/POST | `/admin/rejudge.php`、`/admin/solution_statistics.php`；GET `/admin/ranklist_export.php` |
 | GET | `/admin/contest_list.php`、`/admin/contest_df_change.php`、`/admin/contest_pr_change.php`、`/admin/contest_edit.php` |
 | GET/POST | `/admin/contest_add.php` |

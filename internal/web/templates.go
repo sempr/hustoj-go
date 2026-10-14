@@ -1880,7 +1880,7 @@ userid3 password3">{{.UList}}</textarea>
 <thead>
 <tr>
 <th>题号</th><th>标题</th><th>AC</th><th>入库时间</th><th>来源</th>
-{{if .CanEdit}}<th>状态</th><th>金币</th><th>编辑</th>{{end}}
+{{if .CanEdit}}<th>状态</th><th>金币</th><th>编辑</th><th>数据</th>{{end}}
 </tr>
 </thead>
 <tbody>
@@ -1895,6 +1895,7 @@ userid3 password3">{{.UList}}</textarea>
 <td><a href="/admin/problem_df_change.php?id={{.ProblemID}}">{{if eq .Defunct "N"}}<span class="green">可用</span>{{else}}<span class="red">保留</span>{{end}}</a></td>
 <td><span fd="coin" problem_id="{{.ProblemID}}">{{.Coin}}</span></td>
 <td><a href="/admin/problem_edit.php?id={{.ProblemID}}">编辑</a></td>
+<td><a href="/admin/test_data.php?pid={{.ProblemID}}">数据</a></td>
 {{end}}
 </tr>
 {{end}}
@@ -2109,6 +2110,7 @@ $(document).ready(function (){
 {{/* adminProblemEditPage 对应 admin/problem_edit.php。 */}}
 {{define "adminProblemEditPage"}}
 <center><h3>编辑题目</h3></center>
+<p><a href="/admin/test_data.php?pid={{.ProblemID}}">测试数据管理（题目 {{.ProblemID}}）→</a></p>
 <hr>
 <div id="main" class="container">
 <form method="post" action="/admin/problem_edit.php">
@@ -2146,6 +2148,83 @@ $(document).ready(function (){
 </form>
 </div>
 {{template "kindeditorScript"}}
+{{end}}
+
+{{/* adminTestDataPage 是后台测试数据管理页（对应 PHP phpfm.php 里与题目数据相关的部分）。 */}}
+{{define "adminTestDataPage"}}
+<center><h3>测试数据 - 题目 {{.PID}}</h3></center>
+<div class="padding">
+<p>目录：<code>{{.Path}}</code></p>
+<p>判题约定：扫描 <code>X.in</code> 并按同名 <code>X.out</code> 配对（无 .ans 回退）；特殊评测需要目录内存在 <code>spj</code>／<code>tpj</code>／<code>upj</code> 文件。</p>
+<p><a href="/admin/problem_list.php">返回题目列表</a> · <a href="/admin/problem_edit.php?id={{.PID}}">编辑此题</a></p>
+
+{{if .Msg}}<div class="ui message">{{.Msg}}</div>{{end}}
+{{if .Err}}<div class="ui negative message">{{.Err}}</div>{{end}}
+
+<div class="ui message">
+<strong>完整性检查：</strong>共 {{.Report.Total}} 个文件，<strong>{{.Report.Pairs}}</strong> 组用例配对齐全{{if .Report.Numbering}}，编号 {{.Report.Numbering}}{{end}}。
+{{if .Report.InWithoutOut}}<br><span class="red">缺 .out（判题会异常）：{{range .Report.InWithoutOut}}{{.}} {{end}}</span>{{end}}
+{{if .Report.OutWithoutIn}}<br><span class="orange">孤立 .out（判题用不到）：{{range .Report.OutWithoutIn}}{{.}} {{end}}</span>{{end}}
+{{if .Report.OddNames}}<br>非数字编号的 .in：{{range .Report.OddNames}}{{.}} {{end}}{{end}}
+{{if .Report.SPJPrograms}}<br>SPJ 程序：{{range .Report.SPJPrograms}}{{.}} {{end}}{{end}}
+{{if .Report.SPJWarn}}<br><span class="red">该题标记为特殊评测，但目录内没有 spj／tpj／upj 文件。</span>{{end}}
+</div>
+
+<form method="post" action="/admin/test_data.php?pid={{.PID}}" enctype="multipart/form-data">
+{{template "csrfInput" .}}
+<input type="hidden" name="action" value="upload">
+<p>上传：<input type="file" name="files" multiple>
+<button type="submit" class="ui button">上传</button>
+<span style="font-size:.9em">（可多选；<code>.zip</code> 自动解压，只允许写本题目录，覆盖同名文件）</span></p>
+</form>
+
+<form method="post" action="/admin/test_data.php?pid={{.PID}}">
+{{template "csrfInput" .}}
+<input type="hidden" name="action" value="create">
+<p>新建空文件：<input name="name" placeholder="如 4.in"> <button type="submit" class="ui button">新建</button></p>
+</form>
+
+<form method="post" action="/admin/test_data.php?pid={{.PID}}">
+{{template "csrfInput" .}}
+<input type="hidden" name="action" value="delete">
+<table class="ui celled table">
+<thead><tr><th style="width:2em"></th><th>文件名</th><th>大小</th><th>修改时间</th><th>操作</th></tr></thead>
+<tbody>
+{{range .Files}}
+<tr>
+<td><input type="checkbox" name="names" value="{{.Name}}"></td>
+<td>{{if .IsText}}<a href="{{.ViewURL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}</td>
+<td>{{.SizeText}}</td>
+<td>{{.ModTime}}</td>
+<td><a href="{{.DownURL}}">下载</a></td>
+</tr>
+{{else}}
+<tr><td colspan="5">（暂无数据文件）</td></tr>
+{{end}}
+</tbody>
+</table>
+<p><button type="submit" class="ui button">删除选中</button></p>
+</form>
+
+<form method="post" action="/admin/test_data.php?pid={{.PID}}">
+{{template "csrfInput" .}}
+<input type="hidden" name="action" value="rename">
+<p>重命名：<input name="old" placeholder="原文件名"> → <input name="new" placeholder="新文件名">
+<button type="submit" class="ui button">重命名</button></p>
+</form>
+
+<p><a class="ui button" href="/admin/test_data.php?pid={{.PID}}&amp;action=zip">打包下载全部（zip）</a></p>
+</div>
+{{end}}
+
+{{/* adminTestDataViewPage 是数据文件的文本查看页（超出上限只显示前段）。 */}}
+{{define "adminTestDataViewPage"}}
+<div class="padding">
+<p><a href="/admin/test_data.php?pid={{.PID}}">← 返回题目 {{.PID}} 的测试数据</a></p>
+<h3>{{.Name}}</h3>
+{{if .Truncated}}<div class="ui warning message">文件较大，仅显示前 256KB。</div>{{end}}
+<pre style="white-space:pre-wrap">{{.Content}}</pre>
+</div>
 {{end}}
 
 {{/* adminProblemExportPage 对应 admin/problem_export.php。 */}}

@@ -34,3 +34,6 @@ extra/_csrf_probe.php
 # tests/ 下的判题程序编译产物（源码 *.rs / *.py / spj 源码均入库，
 # 需按 Makefile 重新编译；11MB 且带 debug_info，不应进版本库）
 tests/rs/1
+
+# 本地 agent 工具配置（会话级，不属于项目源码）
+.commandcode/

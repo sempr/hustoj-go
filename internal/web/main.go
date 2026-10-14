@@ -170,6 +170,9 @@ func (s *Server) handler() http.Handler {
 	// 编辑器上传接口（原 PHP kindeditor/php/*.php 的位置，纯 Go 不再走 PHP-FPM）。
 	s.registerUploadRoutes(mux)
 
+	// 后台测试数据管理（/admin/test_data.php）。
+	s.registerTestDataRoutes(mux)
+
 	// 业务路由：P2 用户功能（邮件 / 用户信息修改 / 密码重置）。
 	s.registerP2UserRoutes(mux)
 
