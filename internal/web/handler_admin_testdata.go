@@ -3,9 +3,15 @@
 // 页面 /admin/test_data.php?pid=N 管理 <OJHome>/data/<pid>/：
 // 列表 / 上传（含 zip 自动解压）/ 下载 / 打包下载 / 查看 / 新建 / 重命名 / 删除。
 //
-// 判题侧的约定（internal/client/run.go）：
+// 判题侧的约定（internal/client/run.go、executor.go、interactive.go）：
 //   - 扫描 *.in，按同名 X.in → X.out 严格配对；没有 .ans 回退；
-//   - SPJ 靠目录内存在 spj / tpj / upj 文件判定。
+//   - SPJ 靠目录内存在 spj / tpj / upj 文件判定：spj/upj 的参数为
+//     输入文件 标准输出 选手输出，tpj 为 输入文件 选手输出 标准输出
+//     （testlib 的 inf/ouf/ans 顺序）；退出码 0=AC 非 0=WA，upj 的
+//     退出码即 0–100 的分值（executor.go handleSpecialJudge）；
+//   - 交互评测（SPJ=16）用目录里预编译的 spj 作交互器，附加用例文件
+//     作参数，经两个 FIFO 与玩家程序双向通信，退出码 0=AC 非 0=WA
+//     （interactive.go）。
 //
 // 这两条是页面上"完整性检查"横幅的判定依据。
 //
