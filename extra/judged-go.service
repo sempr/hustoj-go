@@ -8,7 +8,10 @@ Type=simple
 # Web 相同的进程时区；具体值由部署配置决定，代码里不写死。
 # 说明见 hustoj-web.service 里的 Environment=TZ= 注释。
 Environment=TZ=Asia/Shanghai
-ExecStart=/usr/bin/hustoj daemon --ojhome /home/judge --debug
+# 日志级别由 LOG_LEVEL 控制（缺省 DEBUG）。systemd 下进程保持前台运行、
+# 不自我 daemonize（内部按 INVOCATION_ID 判断），因此无需 --debug。
+Environment=LOG_LEVEL=INFO
+ExecStart=/usr/bin/hustoj daemon --ojhome /home/judge
 Restart=on-failure
 RestartSec=5s
 User=root

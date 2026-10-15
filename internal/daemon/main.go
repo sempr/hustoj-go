@@ -33,8 +33,11 @@ func Main(ccfg *models.DaemonArgs) {
 	cfg.Debug = daemonArgs.Debug
 	cfg.Once = daemonArgs.Once
 
-	// Set up daemonization if not in debug mode
-	if !cfg.Debug {
+	// Set up daemonization if not in debug mode.
+	// systemd 的 Type=simple 要求主进程保持前台：自我 daemonize（Reborn）会让
+	// 父进程退出，systemd 直接判定服务已停止。因此由 systemd 拉起时跳过 Reborn，
+	// 不依赖 --debug 也能被正确监管（与 cmd/loginit.go 的 systemd 判断一致）。
+	if !cfg.Debug && !runningUnderSystemd() {
 		pidFilePath := filepath.Join(cfg.OJHome, "etc", "judge.pid")
 		logFilePath := filepath.Join(cfg.OJHome, "log", "judged-go.log")
 
@@ -92,4 +95,9 @@ func Main(ccfg *models.DaemonArgs) {
 	worker.Run(ctx)
 
 	slog.Info("judged-go stopped.")
+}
+
+// runningUnderSystemd 判断进程是否由 systemd 拉起（systemd 会注入 INVOCATION_ID）。
+func runningUnderSystemd() bool {
+	return os.Getenv("INVOCATION_ID") != ""
 }
