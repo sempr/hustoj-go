@@ -29,16 +29,9 @@ import (
 	"github.com/sempr/hustoj-go/pkg/repository"
 )
 
-// languageExt 是 PHP $language_ext（const.inc.php:13）的副本。
-//
-// 用途只有一个：按语言找题目目录下的 prepend.<ext> / append.<ext>
-// 模板代码。下标必须与 $language_ext 逐项对齐 —— 错位会让 A 语言的
-// 提交被拼上 B 语言的模板，编译错误极难定位。
-var languageExt = []string{
-	"c", "cc", "pas", "java", "rb", "sh", "py", "php", "pl", "cs",
-	"m", "bas", "scm", "c", "cc", "lua", "js", "go", "sql", "f95",
-	"m", "cob", "R", "sb3", "cj", "rs",
-}
+// 语言后缀（prepend/append 模板与判题文件名的依据）由注册表提供，见
+// languages.go 的 languageExtAt；索引必须与 all.toml 的 id 逐项对齐 ——
+// 错位会让 A 语言的提交被拼上 B 语言的模板，编译错误极难定位。
 
 // submitInput 是从 POST 解析出的提交参数。
 type submitInput struct {
@@ -215,7 +208,7 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 // 所以可用语言是掩码里为 0 的那些位。
 func (s *Server) allowedLanguages(mask int32) []submitLanguage {
 	var out []submitLanguage
-	for i := 0; i < len(languageExt); i++ {
+	for i := 0; i < languageCount(); i++ {
 		if mask&(1<<uint(i)) != 0 {
 			continue
 		}
@@ -287,7 +280,7 @@ func (s *Server) submitOnce(w http.ResponseWriter, r *http.Request, identity Ide
 
 	// 语言下标越界时 PHP 归零（submit.php:164-166），
 	// 随后会被掩码检查拦下，除非 0 号语言恰好可用。
-	if in.Language < 0 || int(in.Language) >= len(languageExt) {
+	if in.Language < 0 || int(in.Language) >= languageCount() {
 		in.Language = 0
 	}
 
@@ -560,20 +553,25 @@ func (s *Server) recomputeProblemCounts(ctx context.Context, problemID int32) {
 //     （Scratch3 的 .sb3 上传场景）；
 //  2. prepend.<ext> + "\n" + source（$OJ_APPENDCODE 开启时）；
 //  3. append.<ext>；
-//  4. language==6（PHP）且题目非 SPJ 时补 "# coding=utf-8" 头。
+//  4. 语言在注册表里配置了 source_header 且题目非 SPJ 时，补上该头
+//     （注册表里 Python 配为 "# coding=utf-8"）。
 //
-// 注意顺序：PHP 的 coding 头是在拼接**之前**加的（第 250 行早于 237 行），
-// 所以它出现在 prepend 之前。
+// 注意顺序：header 在拼接 prepend/append **之前**加进源码。
 func (s *Server) buildJudgeSource(ctx context.Context, problemID int32, language int32, source string) (string, error) {
-	if spj, err := s.queries().GetProblemSPJ(ctx, absInt32(problemID)); err == nil && language == 6 && spj != "2" {
-		source = "# coding=utf-8\n" + source
+	if hdr := languageSourceHeader(language); hdr != "" {
+		if spj, err := s.queries().GetProblemSPJ(ctx, absInt32(problemID)); err == nil && spj != "2" {
+			source = hdr + "\n" + source
+		}
 	}
 
-	if !s.cfg.AppendCode || int(language) >= len(languageExt) {
+	if !s.cfg.AppendCode {
 		return source, nil
 	}
 
-	ext := languageExt[language]
+	ext, ok := languageExtAt(language)
+	if !ok {
+		return source, nil
+	}
 	dir := filepath.Join(s.cfg.OJHome, "data", strconv.Itoa(int(absInt32(problemID))))
 	if prepend, err := os.ReadFile(filepath.Join(dir, "prepend."+ext)); err == nil {
 		source = string(prepend) + "\n" + source

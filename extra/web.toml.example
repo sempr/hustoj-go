@@ -27,3 +27,8 @@ session_dir = "/var/lib/php/sessions"
 
 # 调试模式会输出路由命中与请求细节，生产必须为 false。
 debug = false
+
+# 语言注册表末位哨兵的展示名（历史提交可能带越界语言编号时的兜底文案）。
+# 语言展示名、源文件后缀、语法高亮 brush、可选语言列表都不再写在代码里，
+# 而是统一来自 <OJHome>/etc/langs/all.toml。此值仅覆盖哨兵文案。
+unknown_language = "UnknownLanguage"

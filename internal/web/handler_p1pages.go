@@ -397,15 +397,6 @@ func (s *Server) handleGetSource(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	brush := languageName(int32(sol.Language))
-	if brush == "Pascal" {
-		brush = "delphi"
-	} else if brush == "Obj-C" {
-		brush = "c"
-	} else if brush == "FreeBasic" {
-		brush = "vb"
-	}
-
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 	fmt.Fprintf(w, "/**************************************************************\n")
 	fmt.Fprintf(w, "\tProblem: %d\n\tUser: %s\n\tNick: %s\n", sol.ProblemID, sol.UserID, sol.Nick)

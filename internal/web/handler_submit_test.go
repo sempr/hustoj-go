@@ -512,12 +512,12 @@ func TestAllowedLanguagesInvertsMask(t *testing.T) {
 	f := newSubmitFixture(t)
 
 	// 掩码全 0：全部可用。
-	if got := len(f.srv.allowedLanguages(0)); got != len(languageExt) {
-		t.Errorf("掩码 0 时可用语言数 = %d，期望 %d（全部）", got, len(languageExt))
+	if got := len(f.srv.allowedLanguages(0)); got != languageCount() {
+		t.Errorf("掩码 0 时可用语言数 = %d，期望 %d（全部）", got, languageCount())
 	}
 	// 禁掉 0 号：少一个。
-	if got := len(f.srv.allowedLanguages(1)); got != len(languageExt)-1 {
-		t.Errorf("掩码 1 时可用语言数 = %d，期望 %d", got, len(languageExt)-1)
+	if got := len(f.srv.allowedLanguages(1)); got != languageCount()-1 {
+		t.Errorf("掩码 1 时可用语言数 = %d，期望 %d", got, languageCount()-1)
 	}
 }
 

@@ -113,7 +113,8 @@ var templateFuncs = template.FuncMap{
 	// int 转换，供模板中将 int32 转为 int 以便比较。
 	"int": func(i int32) int { return int(i) },
 	// languageNames 和 resultLabels 供 statusPage 模板的 select 选项用。
-	"languageNames": func() map[int32]string { return languageNames },
+	// languageNames 只列本机已装语言（存在 <id>.lang.toml），来自注册表。
+	"languageNames": func() map[int32]string { return installedLanguageMap() },
 	// coinStars 复刻 contest.php:95 的 min(coin, 5)：题面最多 5 颗星。
 	"coinStars":    coinStars,
 	"resultLabels": func() []resultOption { return resultOptions },
@@ -133,28 +134,6 @@ var templateFuncs = template.FuncMap{
 		return template.JS(b)
 	},
 }
-
-// maxStatusLanguage 是 status.php 允许的语言编号上界，对应
-// PHP 的 count($language_ext)（include/const.inc.php:13，26 项）。
-// 超出该范围的 language 参数按 -1 处理，即"不按语言过滤"。
-const maxStatusLanguage = 26
-
-// languageNames 是 statusPage 的语言下拉框。
-//
-// 只列出本 OJ 真正配置了编译器的语言（/home/judge/etc/langs/*.lang.toml），
-// 让用户选到的每个选项都能提交成功。
-//
-// 名字统一取自 languageName（即 PHP 的 $language_name），不再手抄一份：
-// 此前这里自带的映射串位，把 6 显示成 PHP（实际是 Python）、2/3 的
-// Pascal/Java 也对调了。
-var languageNames = func() map[int32]string {
-	installed := []int32{0, 1, 2, 3, 5, 6, 7, 8, 9, 16, 17, 25}
-	m := make(map[int32]string, len(installed))
-	for _, id := range installed {
-		m[id] = languageName(id)
-	}
-	return m
-}()
 
 // resultOption 是结果下拉的一项。
 type resultOption struct {

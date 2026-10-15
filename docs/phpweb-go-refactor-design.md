@@ -125,6 +125,22 @@ Go 侧全部经 `html/template` 转义。
 12..15 保留 Go 判题器自己的语义（受限函数/非零退出/信号终止/内部错误），
 因为 PHP 那份（编译成功/运行完成/人工确认/提交中）与本判题器不一致。
 
+### 3.9 语言注册表统一由配置驱动
+
+语言相关数据不再硬编码在 Go 代码里，唯一来源是 `etc/langs/all.toml`
+（仓库模板 `extra/etc/langs/all.toml`），Web 通过 `<OJHome>` 加载：
+
+- `display_name` —— 状态页/提交页/统计表/源码页的展示名（对齐 PHP
+  `$language_name`，由 `extra/check_lang_index.sh` 校验）。
+- `suffix` —— 去点即 `prepend.<ext>`/`append.<ext>` 模板与判题源文件名后缀。
+- `brush` —— showsource 语法高亮 brush；缺省取 `display_name` 小写。
+- 某语言存在 `<id>.lang.toml` 即视为"已安装"，决定是否出现在提交/状态下拉中。
+
+原先散落在代码里的 `statLanguageNames`、`languageExt`、`languageNames`、
+`maxStatusLanguage` 常量与 `sourceBrush` 别名表全部删除，改由
+`pkg/language`（判题与 Web 共用）与 `internal/web/languages.go` 提供。
+daemon 侧的 `OJ_LANG_SET` 也去掉代码默认值，改为 `judge.conf` 必须显式声明。
+
 ---
 
 ## 4. 当前实现范围
@@ -334,7 +350,8 @@ Go 侧全部经 `html/template` 转义。
   - `contest_list`：计数不过滤、25/页、每帧 5；搜索 `title/description LIKE` 不加 LIMIT、
     按 contest_id DESC；行内给出 公开/状态 切换与 编辑/复制/导出/日志/查重 链接。
   - `contest_df_change`/`contest_pr_change`：按 cid 切换 `defunct`/`private`。
-  - `contest_add`/`contest_edit`：langmask 由 Go 侧算 `((1<<len(languageExt))-1) & ^selected`；
+  - `contest_add`/`contest_edit`：langmask 由 Go 侧算 `((1<<语言数)-1) & ^selected`；
+    语言数取自语言注册表 `etc/langs/all.toml`（见下）
     `contest_type` 是复选框 `1<<i` 的按位或；`description` 由 Markdown 编辑器原样存取，
     不再做 `<p>` 去除、`</p>→<br />`、`,`→`&#44;` 等 HTML 预处理；
     题号列表逐题校验存在性后写 `contest_problem`（编辑还会重算 `c_accepted/c_submit` 与

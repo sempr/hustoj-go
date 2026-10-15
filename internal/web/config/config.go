@@ -239,6 +239,12 @@ type Config struct {
 
 	// Lang 对应 PHP 的 $OJ_LANG：默认语言。线上为 "cn"（db_info.inc.php:26）。
 	Lang string `toml:"lang"`
+
+	// UnknownLanguage 是语言注册表末位哨兵的展示名。
+	//
+	// 历史提交可能带越界语言编号，PHP 的 $language_name 末尾用
+	// "UnknownLanguage" 兜底；这里让文案可配，代码不再写死。
+	UnknownLanguage string `toml:"unknown_language"`
 }
 
 // Default 返回内置默认值。
@@ -295,6 +301,7 @@ func Default() *Config {
 		MenuNews:        true,
 		MathJax:         true,
 		Lang:            "cn",
+		UnknownLanguage: "UnknownLanguage",
 	}
 }
 
@@ -371,6 +378,7 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.MenuNews, "HUSTOJ_WEB_MENU_NEWS")
 	setBool(&cfg.MathJax, "HUSTOJ_WEB_MATHJAX")
 	setStr(&cfg.Lang, "HUSTOJ_WEB_LANG")
+	setStr(&cfg.UnknownLanguage, "HUSTOJ_WEB_UNKNOWN_LANGUAGE")
 	if v, ok := lookupEnv("OJ_HOME"); ok {
 		cfg.OJHome = v
 	}

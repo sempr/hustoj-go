@@ -4,11 +4,14 @@
 #
 # 语言索引是 PHP 前端、Go judge 客户端与 judge.conf 共同依赖的隐式契约：
 #
-#   1. extra/etc/langs/all.toml            完整注册表（name/id/suffix）
+#   1. extra/etc/langs/all.toml            完整注册表（name/display_name/id/suffix/brush）
 #   2. extra/etc/langs/<id>.lang.toml      仅 extra/ 下有 Dockerfile 的语言
 #   3. phpweb/include/const.inc.php        PHP 的 $language_name / $language_ext
 #   4. judge.conf 的 OJ_LANG_SET           judge 实际受理的语言 id
 #   5. db_info.inc.php 的 $OJ_LANGMASK     提交页可见语言（【禁用位掩码】）
+#
+# all.toml 的 display_name 是 Web 展示名的唯一来源（Go 代码不再硬编码），
+# 迁移期须与 PHP 的 $language_name 逐项一致。
 #
 # 任一处漂移都会导致「用户能选但判题失败」或反之。
 # 历史事故：仓库 const.inc.php 缺失 Rust（id 25）而 judge.conf 已启用 25，
@@ -93,6 +96,31 @@ if [[ -f "$CONST_INC" ]]; then
         fi
     else
         fail "const.inc.php 缺少 UnknownLanguage 哨兵项"
+    fi
+
+    # ---------- 3b. all.toml display_name 与 $language_name 逐项一致 ----------
+    # Web 展示名现在唯一来自 all.toml 的 display_name（Go 代码不再硬编码）。
+    # 迁移期 PHP 仍是生产展示名来源之一，二者必须逐项相同（哨兵除外）。
+    mapfile -t disp < <(grep -oE 'display_name = "[^"]*"' "$ALL_TOML" \
+                        | sed 's/display_name = "//;s/"$//')
+    mapfile -t php_names < <(grep -oE '\$language_name=Array\([^;]*' "$CONST_INC" \
+                             | grep -oE '"[^"]*"' | sed 's/^"//;s/"$//')
+    if [[ ${#php_names[@]} -gt 0 ]]; then
+        php_real=("${php_names[@]:0:${#php_names[@]}-1}")
+        if [[ ${#disp[@]} -ne ${#php_real[@]} ]]; then
+            fail "all.toml display_name 数(${#disp[@]}) 与 \$language_name 实际语言数(${#php_real[@]}) 不一致"
+        else
+            mismatch=""
+            for i in "${!disp[@]}"; do
+                [[ "${disp[$i]}" == "${php_real[$i]}" ]] || \
+                    mismatch+="id=$i: '${disp[$i]}' != '${php_real[$i]}'; "
+            done
+            if [[ -n "$mismatch" ]]; then
+                fail "all.toml display_name 与 \$language_name 不一致: $mismatch"
+            else
+                ok "all.toml display_name 与 \$language_name 逐项一致（共 ${#disp[@]} 项）"
+            fi
+        fi
     fi
 else
     fail "缺少 $CONST_INC（仓库尚未纳入 phpweb？）"

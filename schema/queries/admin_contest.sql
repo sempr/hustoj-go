@@ -1,7 +1,7 @@
 -- 后台比赛管理（admin/contest_list.php、contest_df_change.php、contest_pr_change.php、
 -- contest_add.php、contest_edit.php）。
 --
--- langmask 由 Go 侧按 `((1<<len(languageExt))-1) & ^selected` 算好后传入；
+-- langmask 由 Go 侧按 `((1<<语言数)-1) & ^selected` 算好后传入；
 -- contest_type 是各复选框 1<<i 的按位或，同样在 Go 侧算好。
 
 -- name: CountContestsAdmin :one

@@ -2,7 +2,7 @@
 // contest_add.php、contest_edit.php）。
 //
 // 权限：administrator 或 contest_creator（Identity 不建模 session 里的 m<cid>）。
-// langmask 由 Go 侧算：`((1<<len(languageExt))-1) & ^selected`；contest_type 是复选框
+// langmask 由 Go 侧算：`((1<<语言数)-1) & ^selected`；contest_type 是复选框
 // 1<<i 的按位或。说明字段由轻量 Markdown 编辑器原样存取（见 templates.go 的
 // markdownEditorScript），不再套用旧 HTML 预处理。
 // 未复刻：langmask 复制下拉（依赖 session 的 m<cid> 列表）。
@@ -30,12 +30,13 @@ var contestLockNames = []string{
 // contestLangmask 计算存储用的 langmask（掩码位为 1 表示"禁止使用"）。
 func contestLangmask(selected []int) uint32 {
 	var sum uint32
+	count := languageCount()
 	for _, t := range selected {
-		if t >= 0 && t < len(languageExt) {
+		if t >= 0 && t < count {
 			sum |= 1 << uint(t)
 		}
 	}
-	all := uint32(1)<<uint(len(languageExt)) - 1
+	all := uint32(1)<<uint(count) - 1
 	return all & ^sum
 }
 
@@ -262,7 +263,7 @@ func (s *Server) buildFormVM(editing bool, cid int32, title string, st, et sql.N
 			vm.EMinute = et.Time.Format("04")
 		}
 	}
-	for i := 0; i < len(languageExt); i++ {
+	for i := 0; i < languageCount(); i++ {
 		if s.cfg.LangMask&(1<<uint(i)) != 0 {
 			continue
 		}

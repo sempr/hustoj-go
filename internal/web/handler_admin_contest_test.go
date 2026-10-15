@@ -69,8 +69,8 @@ func TestAdminContestAdd(t *testing.T) {
 		t.Fatalf("状态码/Location = %d/%q", rec.Code, rec.Header().Get("Location"))
 	}
 	got := f.lastInsertContest
-	// 未选任何语言 → langmask = 全部位 = (1<<len(languageExt))-1。
-	wantMask := uint32(1)<<uint(len(languageExt)) - 1
+	// 未选任何语言 → langmask = 全部位 = (1<<语言数)-1。
+	wantMask := uint32(1)<<uint(languageCount()) - 1
 	if got.Title.String != "MyContest" || got.Private != 1 || got.Langmask != wantMask {
 		t.Errorf("InsertContest 参数 = %+v (langmask 期望 %d)", got, wantMask)
 	}

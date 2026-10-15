@@ -260,8 +260,9 @@ func (s *Server) problemStatusRecommends(ctx context.Context, id int32) []int {
 //
 // 越界（语言 id 超出表长）时 PHP 取到 undefined index，渲染为空串。
 func problemStatusLanguageName(lang uint32) string {
-	if int(lang) < len(statLanguageNames) {
-		return statLanguageNames[lang]
+	names := languageNamesAll()
+	if int(lang) < len(names) {
+		return names[lang]
 	}
 	return ""
 }

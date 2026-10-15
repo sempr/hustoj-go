@@ -70,6 +70,16 @@ func New(cfg *config.Config, log *slog.Logger) (*Server, error) {
 	if cfg.SessionBridge {
 		bridge = NewSessionBridge(cfg.SessionDir, cfg.OJName)
 	}
+	// 语言注册表来自 <OJHome>/etc/langs/all.toml，是展示名/后缀/可选语言
+	// 的唯一来源。缺失或格式错误直接启动失败：否则会静默退化成"没有任何
+	// 可选语言"，提交页对所有人空白。
+	langTable, err := loadLangTable(cfg.OJHome, cfg.UnknownLanguage)
+	if err != nil {
+		_ = db.Close()
+		_ = sessions.Close()
+		return nil, fmt.Errorf("加载语言配置失败: %w", err)
+	}
+	setLangTable(langTable)
 	return &Server{cfg: cfg, log: log, db: db, sessions: sessions, sessionBridge: bridge}, nil
 }
 

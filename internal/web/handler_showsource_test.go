@@ -234,6 +234,8 @@ func TestSourceBrush(t *testing.T) {
 		1:  "c++",
 		2:  "delphi",
 		9:  "c#",
+		10: "c",
+		11: "vb",
 		13: "c",
 		14: "c++",
 		22: "delphi",

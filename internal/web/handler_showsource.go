@@ -170,8 +170,9 @@ func showsourceLockMessage(cid int32) string {
 // Go 交给 html/template 转义，因此这里返回未转义原文。
 func showsourceText(sol dbgen.GetSolutionByIDRow, viewSource string) string {
 	lang := ""
-	if int(sol.Language) < len(statLanguageNames) {
-		lang = statLanguageNames[sol.Language]
+	names := languageNamesAll()
+	if int(sol.Language) < len(names) {
+		lang = names[sol.Language]
 	}
 	var b strings.Builder
 	b.WriteString(strings.ReplaceAll(viewSource, "\n\r", "\n"))
@@ -187,25 +188,15 @@ func showsourceText(sol dbgen.GetSolutionByIDRow, viewSource string) string {
 }
 
 // sourceBrush 复刻 showsource 模板对 SyntaxHighlighter brush 的改写。
+//
+// brush 名来自注册表的 brush 字段（缺省取展示名小写），不再在代码里维护
+// 别名表。越界语言返回空串，与 PHP 取到 undefined index 的行为一致。
 func sourceBrush(lang uint32) string {
-	name := ""
-	if int(lang) < len(statLanguageNames) {
-		name = statLanguageNames[lang]
+	brush, ok := languageBrushAt(int32(lang))
+	if !ok {
+		return ""
 	}
-	b := strings.ToLower(name)
-	switch b {
-	case "pascal", "r":
-		return "delphi"
-	case "clang", "obj-c":
-		return "c"
-	case "clang++":
-		return "c++"
-	case "python3", "cangjie":
-		return "python"
-	case "swift":
-		return "csharp"
-	}
-	return b
+	return brush
 }
 
 // showsourceFailure 记录错误并返回 500。

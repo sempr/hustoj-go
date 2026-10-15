@@ -40,18 +40,6 @@ const (
 	msgSetLoginIP    = "指定登录IP" // $MSG_SET_LOGIN_IP :200
 )
 
-// statLanguageNames 是 const.inc.php:12 的 $language_name。
-//
-// 与 status 页的 languageNames（只列本机装了的语言）不同：统计表的语言列
-// 直接取自这份全量表，列名也照抄，哪怕某语言本机没装 ——
-// 只要历史上有过该语言的提交，这一列就该出现，否则合计行对不上。
-var statLanguageNames = [27]string{
-	"C", "C++", "Pascal", "Java", "Ruby", "Bash", "Python", "PHP",
-	"Perl", "C#", "Obj-C", "FreeBasic", "Scheme", "Clang", "Clang++",
-	"Lua", "JavaScript", "Go", "SQL", "Fortran", "Matlab", "Cobol",
-	"R", "Scratch3", "Cangjie", "Rust", "UnknownLanguage",
-}
-
 // statResultLabels 是统计表 j=0..10 的表头（template :137-147）。
 //
 // j=9 的 "|" 对应 result 13..15 的汇总列，j=10 是每题的提交总数。
@@ -188,8 +176,9 @@ func (s *Server) handleContestStatistics(w http.ResponseWriter, r *http.Request)
 	}
 
 	// :148-157 语言列：只输出合计行有非零计数的语言。
+	// 语言区间取自注册表（history 上出现过的语言仍会显示，与本机是否安装无关）。
 	var langCols []int
-	for i := range statLanguageNames {
+	for i := 0; i < languageCount(); i++ {
 		if agg[pidCnt][i+11] > 0 {
 			langCols = append(langCols, i+11)
 		}
@@ -199,7 +188,7 @@ func (s *Server) handleContestStatistics(w http.ResponseWriter, r *http.Request)
 	header := make([]string, 0, 11+len(langCols))
 	header = append(header, statResultLabels[:]...)
 	for _, j := range langCols {
-		header = append(header, statLanguageNames[j-11])
+		header = append(header, languageName(int32(j-11)))
 	}
 
 	// num -> problem_id，供赛后链接查询（template :177 按 num 取题）。

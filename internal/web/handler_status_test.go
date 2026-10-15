@@ -827,8 +827,8 @@ func TestLanguageNameMatchesPHP(t *testing.T) {
 		if got := languageName(id); got != name {
 			t.Errorf("languageName(%d) = %q，期望 %q", id, got, name)
 		}
-		if got := languageNames[id]; got != name {
-			t.Errorf("languageNames[%d] = %q，期望 %q", id, got, name)
+		if got := installedLanguageMap()[id]; got != name {
+			t.Errorf("已装语言下拉[%d] = %q，期望 %q", id, got, name)
 		}
 	}
 	// 具体回归：11259 的 language=6，应显示 Python。

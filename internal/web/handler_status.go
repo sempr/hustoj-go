@@ -160,7 +160,7 @@ func parseStatusFilter(r *http.Request) StatusFilter {
 	language := int32(-1)
 	hasLanguage := false
 	if raw := q.Get("language"); raw != "" {
-		if v := int32(parseInt(raw)); v >= 0 && v <= maxStatusLanguage {
+		if v := int32(parseInt(raw)); v >= 0 && v <= maxStatusLanguageID() {
 			language = v
 			hasLanguage = true
 		}
@@ -557,18 +557,6 @@ func judgeResultClass(result int32) string {
 		return judgeResultClasses[result]
 	}
 	return ""
-}
-
-// languageName 对应 PHP 的 $language_name[$lang]（include/const.inc.php:12）。
-//
-// 直接复用统计表那份权威数组 statLanguageNames，不再手抄第二份 ——
-// 之前这里自带的映射整体串位（把 language=6 显示成 PHP，实际是 Python），
-// 与统计表、与 PHP 三方都对不上。
-func languageName(lang int32) string {
-	if lang < 0 || int(lang) >= len(statLanguageNames) {
-		return fmt.Sprintf("未知(%d)", lang)
-	}
-	return statLanguageNames[lang]
 }
 
 func (s *Server) registerStatusRoutes(mux *http.ServeMux) {

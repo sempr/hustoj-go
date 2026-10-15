@@ -50,14 +50,17 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 		return nil, fmt.Errorf("failed to load base config: %w", err)
 	}
 
-	// Default daemon-specific values
+	// Default daemon-specific values.
+	//
+	// LangSet 刻意不给默认值：受理哪些语言是判题语义的一部分，
+	// 写死在代码里会让"配漏了"和"就想要这几个"变成同一种状态。
+	// judge.conf 必须显式声明 OJ_LANG_SET（见下方校验）。
 	cfg := &DaemonConfig{
 		JudgeConfig:    baseConfig,
 		MaxRunning:     3,
 		SleepTime:      1,
 		TotalJudges:    1,
 		JudgeMod:       0,
-		LangSet:        "0,1,3,6",
 		DockerPath:     "/usr/bin/docker",
 		UDPServer:      "127.0.0.1",
 		UDPPort:        1536,
@@ -70,6 +73,7 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 	}
 	defer file.Close()
 
+	seenLangSet := false
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -84,10 +88,19 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
+		if key == "OJ_LANG_SET" {
+			seenLangSet = true
+		}
 		assignDaemonConfigValue(cfg, key, value)
 	}
 
-	return cfg, scanner.Err()
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+	if !seenLangSet {
+		return nil, fmt.Errorf("%s 缺少必需项 OJ_LANG_SET（受理语言 id 列表，如 0,1,3,6）", path)
+	}
+	return cfg, nil
 }
 
 func assignDaemonConfigValue(cfg *DaemonConfig, key, value string) {
