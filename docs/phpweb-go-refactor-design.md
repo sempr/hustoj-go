@@ -133,6 +133,10 @@ Go 侧全部经 `html/template` 转义。
 - `display_name` —— 状态页/提交页/统计表/源码页的展示名（对齐 PHP
   `$language_name`，由 `extra/check_lang_index.sh` 校验）。
 - `suffix` —— 去点即 `prepend.<ext>`/`append.<ext>` 模板与判题源文件名后缀。
+  注意与实际判题镜像保持一致，**不必等于** PHP `$language_ext`：如 id 16
+  展示名是 `JavaScript`（对齐 `$language_name`），但判题运行时是 TypeScript
+  （`.lang.toml` 里 `esbuild Main.ts`），故 `suffix` 取 `.ts` 而非 `.js`。
+  `check_lang_index.sh` 只校验 `display_name`，不会发现这类后缀漂移。
 - `brush` —— showsource 语法高亮 brush；缺省取 `display_name` 小写。
 - `default` —— 提交页在用户没有历史语言时的默认语言（全表至多一项为
   `true`，现配在 C++ 上）；缺省无默认时回退到第一个可用语言。

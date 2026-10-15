@@ -124,7 +124,7 @@ suffix = ".lua"
 name = "JS"
 display_name = "JavaScript"
 id = 16
-suffix = ".js"
+suffix = ".ts"
 
 [[lang]]
 name = "GO"
