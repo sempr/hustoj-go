@@ -112,6 +112,14 @@ type ProblemDetail struct {
 	// HintHidden 表示同时隐藏提示（problem.php:163-167，OJ_NOIP_HINT 为 false 时）。
 	StatsHidden bool
 	HintHidden  bool
+
+	// ── 强制文件读写（freopen）提示 ──
+	//
+	// InputFileName / OutputFileName 非空表示该题要求文件读写：程序需
+	// freopen 到这些文件，而不是使用标准输入/输出。取自题目数据目录的
+	// input.name / output.name（见 problemFileIONames）。
+	InputFileName  string
+	OutputFileName string
 }
 
 // ContestDetail 是比赛模式下渲染按钮所需的比赛信息。

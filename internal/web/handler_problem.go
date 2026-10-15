@@ -227,6 +227,9 @@ func (s *Server) handleProblemPractice(w http.ResponseWriter, r *http.Request, i
 	// NOIP 锁榜对两种模式都生效（problem.php:150-168 在分支之外）。
 	detail.StatsHidden, detail.HintHidden = s.applyNoIPMask(r, identity, detail.ProblemID, now)
 
+	// 需要 freopen 的题目在题面顶部给出文件名提示。
+	detail.InputFileName, detail.OutputFileName = problemFileIONames(s.cfg.OJHome, detail.ProblemID)
+
 	s.renderPage(w, r, http.StatusOK, "problemDetail", detail.Title, detail)
 }
 
@@ -282,6 +285,9 @@ func (s *Server) handleProblemContest(w http.ResponseWriter, r *http.Request, id
 	}
 	detail.ContestIsOver = access.IsOver
 	detail.StatsHidden, detail.HintHidden = s.applyNoIPMask(r, identity, detail.ProblemID, now)
+
+	// 需要 freopen 的题目在题面顶部给出文件名提示。
+	detail.InputFileName, detail.OutputFileName = problemFileIONames(s.cfg.OJHome, detail.ProblemID)
 
 	s.renderPage(w, r, http.StatusOK, "problemDetail", detail.Title, detail)
 }

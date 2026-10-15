@@ -303,6 +303,11 @@ const pageContentTmpls = `
 <span class="ui label">提交：{{if .StatsHidden}}?{{else}}{{if .SubmitStat.Valid}}{{.SubmitStat.Int32}}{{else}}0{{end}}{{end}}</span>
 <span class="ui label">通过：{{if .StatsHidden}}?{{else}}{{if .AcceptedStat.Valid}}{{.AcceptedStat.Int32}}{{else}}0{{end}}{{end}}</span>
 </div>
+{{if or .InputFileName .OutputFileName}}
+<div class="ui warning message">
+<strong>本题需要文件读写（freopen）</strong>：{{if .InputFileName}}从文件 <code>{{.InputFileName}}</code> 读入{{end}}{{if and .InputFileName .OutputFileName}}，{{end}}{{if .OutputFileName}}结果写出到文件 <code>{{.OutputFileName}}</code>{{end}}，请勿使用标准输入/输出。
+</div>
+{{end}}
 {{if .Description}}<div class="problem-description md-body">{{markdown .Description}}</div>{{end}}
 {{if .Input}}<h3 class="ui header">输入</h3><div class="md-body">{{markdown .Input}}</div>{{end}}
 {{if .Output}}<h3 class="ui header">输出</h3><div class="md-body">{{markdown .Output}}</div>{{end}}

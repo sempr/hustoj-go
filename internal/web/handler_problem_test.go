@@ -688,3 +688,31 @@ func TestProblemDetailTitleOnceAndMetaAboveDescription(t *testing.T) {
 		t.Errorf("时限与内存被拆到了不同行/容器:\n%s", got)
 	}
 }
+
+// 需要 freopen 的题目（数据目录有 input.name/output.name）应在题面提示
+// 读写文件名；没有时不应出现该提示。
+func TestProblemDetailFreopenNotice(t *testing.T) {
+	base := ProblemDetail{ProblemID: 1, Title: "T", TimeLimit: 1, MemoryLimit: 128}
+
+	// 输入输出都固定。
+	d := base
+	d.InputFileName, d.OutputFileName = "sort.in", "sort.out"
+	got := mustRenderDetail(t, d)
+	for _, want := range []string{"freopen", "sort.in", "sort.out"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("缺少 %q:\n%s", want, got)
+		}
+	}
+
+	// 只固定输入。
+	d = base
+	d.InputFileName = "a.in"
+	if got := mustRenderDetail(t, d); !strings.Contains(got, "a.in") {
+		t.Errorf("仅固定输入时应出现提示:\n%s", got)
+	}
+
+	// 没有文件读写：不出现提示。
+	if got := mustRenderDetail(t, base); strings.Contains(got, "freopen") {
+		t.Errorf("无文件读写时不应出现 freopen 提示:\n%s", got)
+	}
+}
