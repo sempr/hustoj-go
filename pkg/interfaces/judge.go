@@ -54,9 +54,12 @@ type Problem struct {
 }
 
 type LangBasic struct {
-	Name   string `toml:"name"`
-	ID     int    `toml:"id"`
-	Suffix string `toml:"suffix"`
+	Name         string `toml:"name"`
+	DisplayName  string `toml:"display_name"`
+	ID           int    `toml:"id"`
+	Suffix       string `toml:"suffix"`
+	Brush        string `toml:"brush"`
+	SourceHeader string `toml:"source_header"`
 }
 
 type LangConfig struct {

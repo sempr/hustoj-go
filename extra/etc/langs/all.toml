@@ -1,129 +1,180 @@
+# 语言注册表（Web 与判题共用的唯一真相来源）。
+#
+# 每个 [[lang]] 条目：
+#   id           语言索引。必须从 0 连续；solution.language / $OJ_LANGMASK /
+#                OJ_LANG_SET 都以它为准。
+#   name         判题侧注册名（历史上用于日志，判题逻辑本身不依赖）。
+#   display_name Web 展示名。必须与 PHP 的 $language_name（const.inc.php）逐项
+#                对齐；extra/check_lang_index.sh 会校验。
+#   suffix       题目目录 prepend/append 模板与判题源文件名所用的后缀（含点）。
+#   brush        可选。showsource 语法高亮 brush；缺省取 display_name 小写。
+#                仅当小写名不是合法的 SyntaxHighlighter brush 时才需要显式声明。
+#   source_header 可选。提交源码前强制追加的头（如 Python 的 "# coding=utf-8"）；
+#                非空时在拼接 prepend/append 模板之前加进源码。
+#
+# 某语言是否存在 <id>.lang.toml 决定它是否"已安装"，从而决定状态页/提交页
+# 是否列出（见 pkg/language 的 Installed）。
+
 [[lang]]
 name = "C"
+display_name = "C"
 id = 0
 suffix = ".c"
 
 [[lang]]
 name = "CPP"
+display_name = "C++"
 id = 1
 suffix = ".cc"
 
 [[lang]]
 name = "PASCAL"
+display_name = "Pascal"
 id = 2
 suffix = ".pas"
+brush = "delphi"
 
 [[lang]]
 name = "JAVA"
+display_name = "Java"
 id = 3
 suffix = ".java"
 
 [[lang]]
 name = "RUBY"
+display_name = "Ruby"
 id = 4
 suffix = ".rb"
 
 [[lang]]
 name = "BASH"
+display_name = "Bash"
 id = 5
 suffix = ".sh"
 
 [[lang]]
 name = "PYTHON"
+display_name = "Python"
 id = 6
 suffix = ".py"
+source_header = "# coding=utf-8"
 
 [[lang]]
 name = "PHP"
+display_name = "PHP"
 id = 7
 suffix = ".php"
 
 [[lang]]
 name = "PERL"
+display_name = "Perl"
 id = 8
 suffix = ".pl"
 
 [[lang]]
 name = "CSHARP"
+display_name = "C#"
 id = 9
 suffix = ".cs"
 
 [[lang]]
 name = "OBJC"
+display_name = "Obj-C"
 id = 10
 suffix = ".m"
+brush = "c"
 
 [[lang]]
 name = "FREEBASIC"
+display_name = "FreeBasic"
 id = 11
 suffix = ".bas"
+brush = "vb"
 
 [[lang]]
 name = "SCHEME"
+display_name = "Scheme"
 id = 12
 suffix = ".scm"
 
 [[lang]]
 name = "CLANG"
+display_name = "Clang"
 id = 13
 suffix = ".c"
+brush = "c"
 
 [[lang]]
 name = "CLANGPP"
+display_name = "Clang++"
 id = 14
 suffix = ".cc"
+brush = "c++"
 
 [[lang]]
 name = "LUA"
+display_name = "Lua"
 id = 15
 suffix = ".lua"
 
 [[lang]]
 name = "JS"
+display_name = "JavaScript"
 id = 16
 suffix = ".js"
 
 [[lang]]
 name = "GO"
+display_name = "Go"
 id = 17
 suffix = ".go"
 
 [[lang]]
 name = "SQL"
+display_name = "SQL"
 id = 18
 suffix = ".sql"
 
 [[lang]]
 name = "FORTRAN"
+display_name = "Fortran"
 id = 19
 suffix = ".f95"
 
 [[lang]]
 name = "MATLAB"
+display_name = "Matlab"
 id = 20
 suffix = ".m"
 
 [[lang]]
 name = "COBOL"
+display_name = "Cobol"
 id = 21
 suffix = ".cob"
 
 [[lang]]
 name = "R"
+display_name = "R"
 id = 22
 suffix = ".R"
+brush = "delphi"
 
 [[lang]]
 name = "SB3"
+display_name = "Scratch3"
 id = 23
 suffix = ".sb3"
 
 [[lang]]
 name = "CJ"
+display_name = "Cangjie"
 id = 24
 suffix = ".cj"
+brush = "python"
 
 [[lang]]
 name = "RUST"
+display_name = "Rust"
 id = 25
 suffix = ".rs"
