@@ -1071,36 +1071,45 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 
 {{/* ranklist 是全局排名页，对应 template/syzoj/ranklist.php。
 
-   顶部是 scope 导航（日/周/月/上月/年）与 prefix、group_name 两个搜索框；
-   表格固定 7 列；分页条按 page_size 分段拼接 start 偏移。
+   顶部同一行：左侧 scope 导航（日/周/月/上月/年），右侧 prefix、group_name
+   两个查找框（.ranklist-toolbar，见 hustoj.css）。表格固定 7 列、整表居中、
+   列宽按最长内容比例分配（colgroup + table-layout:fixed，总宽见 hustoj.css
+   的 --ranklist-table-width）。分页条按 page_size 分段拼接 start 偏移。
    starred>0 的账号在用户名前后各加一颗星，与 PHP :110-118 一致。 */}}
 {{define "ranklist"}}
 <div class="padding">
+<div class="ranklist-toolbar">
+<div class="ranklist-scopes">
 <a href="ranklist.php?scope=d" class="ui mini button">{{msgRanklistDay}}</a>
 <a href="ranklist.php?scope=w" class="ui mini button primary">{{msgRanklistWeek}}</a>
 <a href="ranklist.php?scope=m" class="ui mini button red">{{msgRanklistMonth}}</a>
 <a href="ranklist.php?scope=m&pre=1" class="ui mini button green">{{msgRanklistLastMonth}}</a>
 <a href="ranklist.php?scope=y" class="ui mini button violet">{{msgRanklistYear}}</a>
-<form action="ranklist.php" class="ui mini form" method="get" role="form" style="margin-bottom: 25px; text-align: right;">
-<div class="ui action left icon input inline" style="width: 180px; margin-right: 77px;">
-<i class="search icon"></i><input name="prefix" placeholder="{{msgUser}}" type="text" value="{{.Prefix}}">
-<button class="ui mini button" type="submit">{{msgSearch}}</button>
 </div>
-<div class="ui action left icon input inline" style="width: 180px; margin-right: 77px;">
-<i class="search icon"></i><input name="group_name" placeholder="{{msgGroupName}}" type="text" value="{{.GroupName}}">
-<button class="ui mini button" type="submit">{{msgSearch}}</button>
-</div>
+<form action="ranklist.php" class="ranklist-search" method="get" role="form">
+<div class="field"><i class="search icon"></i><input name="prefix" placeholder="{{msgUser}}" type="text" value="{{.Prefix}}"><button class="ui mini button" type="submit">{{msgSearch}}</button></div>
+<div class="field"><i class="search icon"></i><input name="group_name" placeholder="{{msgGroupName}}" type="text" value="{{.GroupName}}"><button class="ui mini button" type="submit">{{msgSearch}}</button></div>
 </form>
-<table class="ui very basic center aligned table" style="table-layout: fixed;">
+</div>
+<table id="ranklist-tab" class="ui very basic center aligned table">
+<colgroup>
+<col style="width: 7%">
+<col style="width: 18%">
+<col style="width: 25%">
+<col style="width: 22%">
+<col style="width: 8%">
+<col style="width: 8%">
+<col style="width: 12%">
+</colgroup>
 <thead>
 <tr>
-<th style="width: 60px;">{{msgNumber}}</th>
-<th style="width: 180px;">{{msgUser}}</th>
+<th>{{msgNumber}}</th>
+<th>{{msgUser}}</th>
 <th>{{msgNick}}</th>
 <th>{{msgGroupName}}</th>
-<th style="width: 100px;">{{msgSolved}}</th>
-<th style="width: 100px;">{{msgSubmit}}</th>
-<th style="width: 100px;">{{msgRatio}}</th>
+<th>{{msgSolved}}</th>
+<th>{{msgSubmit}}</th>
+<th>{{msgRatio}}</th>
 </tr>
 </thead>
 <tbody>

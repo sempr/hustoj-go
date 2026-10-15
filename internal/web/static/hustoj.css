@@ -239,3 +239,51 @@ i.icon { display: none; }
   white-space: nowrap;
 }
 
+/* ── 全局排名页（.ranklist-toolbar / #ranklist-tab）─────────
+ * 顶部 scope 导航与两个查找框放同一行：按钮靠左、查找靠右，窄屏可换行。
+ * 表格整表居中、总宽可调（--ranklist-table-width），列宽比例由模板
+ * <colgroup> 指定，table-layout:fixed 让比例生效。 */
+.ranklist-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+}
+.ranklist-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.ranklist-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  margin: 0;
+}
+.ranklist-search .field {
+  display: inline-flex;
+  align-items: center;
+  margin: 0;
+  white-space: nowrap;
+}
+.ranklist-search input {
+  width: 160px;
+  margin: 0;
+}
+.ranklist-search button { margin: 0; }
+#ranklist-tab {
+  table-layout: fixed;
+  width: var(--ranklist-table-width, 1080px);
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+#ranklist-tab th, #ranklist-tab td {
+  text-align: center;
+  vertical-align: middle;
+}
+
