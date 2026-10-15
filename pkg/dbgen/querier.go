@@ -173,6 +173,10 @@ type Querier interface {
 	// 比赛不存在时返回 sql.ErrNoRows，按 PHP 的 $result 为空处理。
 	GetContestWindow(ctx context.Context, contestID int32) (GetContestWindowRow, error)
 	GetFirstBlood(ctx context.Context, cid sql.NullInt32) ([]GetFirstBloodRow, error)
+	// 提交页语言下拉的默认值：该用户最近一次提交所用的语言。
+	// 从未提交过则无行（sql.ErrNoRows），调用方回退到 all.toml 的默认语言。
+	// 取全局最近一条（不分题目、不分比赛），与"上次用的语言"这一直觉一致。
+	GetLastLanguageByUser(ctx context.Context, userID string) (uint32, error)
 	GetLastProblemSource(ctx context.Context) (sql.NullString, error)
 	// 提交冷却。submit.php:286：
 	//   select in_date, solution_id from solution

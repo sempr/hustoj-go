@@ -60,6 +60,7 @@ type LangBasic struct {
 	Suffix       string `toml:"suffix"`
 	Brush        string `toml:"brush"`
 	SourceHeader string `toml:"source_header"`
+	Default      bool   `toml:"default"`
 }
 
 type LangConfig struct {

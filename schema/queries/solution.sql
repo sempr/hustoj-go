@@ -74,6 +74,16 @@ WHERE user_id = sqlc.arg(user_id)
 ORDER BY in_date DESC
 LIMIT 1;
 
+-- 提交页语言下拉的默认值：该用户最近一次提交所用的语言。
+-- 从未提交过则无行（sql.ErrNoRows），调用方回退到 all.toml 的默认语言。
+-- 取全局最近一条（不分题目、不分比赛），与"上次用的语言"这一直觉一致。
+-- name: GetLastLanguageByUser :one
+SELECT language
+FROM solution
+WHERE user_id = sqlc.arg(user_id)
+ORDER BY solution_id DESC
+LIMIT 1;
+
 -- contest_locked($cid, $level)（my_func.inc.php:210）。
 -- 命中条件：比赛进行中，且（contest_type 含 level 位 或 标题含关键字）。
 -- submit.php 用它判断 128（延时）与 16（NOIP 只留最后一次提交）两种模式。

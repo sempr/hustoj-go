@@ -170,6 +170,7 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 		Languages: s.allowedLanguages(s.cfg.LangMask),
 		Ajax:      q.Get("ajax") != "",
 	}
+	view.DefaultLanguage = s.defaultSubmitLanguage(r.Context(), identity.UserID, view.Languages)
 
 	if rawCid := q.Get("cid"); rawCid != "" {
 		cid := int32(abs(intval(rawCid)))
@@ -207,7 +208,7 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 // PHP 的掩码约定是"命中即拒绝"（$langmask & (1 << $language)），
 // 所以可用语言是掩码里为 0 的那些位。
 func (s *Server) allowedLanguages(mask int32) []submitLanguage {
-	var out []submitLanguage
+	out := make([]submitLanguage, 0, languageCount())
 	for i := 0; i < languageCount(); i++ {
 		if mask&(1<<uint(i)) != 0 {
 			continue
@@ -218,6 +219,35 @@ func (s *Server) allowedLanguages(mask int32) []submitLanguage {
 		})
 	}
 	return out
+}
+
+// defaultSubmitLanguage 选提交页语言下拉的默认项。
+//
+// 优先用户上一次提交用的语言（且必须在本次允许范围内 —— 比赛的语言掩码
+// 可能禁掉它）；否则用注册表里 default=true 的语言（C++）；再否则回退到
+// 第一个可用语言。列表为空时返回 -1。
+func (s *Server) defaultSubmitLanguage(ctx context.Context, userID string, allowed []submitLanguage) int32 {
+	if len(allowed) == 0 {
+		return -1
+	}
+	if last, err := s.queries().GetLastLanguageByUser(ctx, userID); err == nil &&
+		allowedHasLanguage(allowed, int32(last)) {
+		return int32(last)
+	}
+	if def := defaultLanguageID(); def >= 0 && allowedHasLanguage(allowed, def) {
+		return def
+	}
+	return allowed[0].ID
+}
+
+// allowedHasLanguage 报告 id 是否在语言下拉列表里（即未被掩码禁用）。
+func allowedHasLanguage(allowed []submitLanguage, id int32) bool {
+	for _, l := range allowed {
+		if l.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // handleSubmit 处理 POST /submit.php。
@@ -782,6 +812,12 @@ type submitPageView struct {
 
 	// Languages 是掩码允许的语言列表。
 	Languages []submitLanguage
+
+	// DefaultLanguage 是语言下拉默认选中的语言 id。
+	//
+	// 优先用户上一次提交用的语言，否则用注册表里 default=true 的语言，
+	// 再否则回退到列表首项。计算见 defaultSubmitLanguage。
+	DefaultLanguage int32
 
 	// Ajax 报告该页是否由 AJAX 提交端渲染。
 	//

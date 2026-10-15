@@ -67,6 +67,10 @@ type fakeQuerier struct {
 	remoteOJ sql.NullString
 	// lastRecentSubmit 非 0 表示冷却期内已有提交。
 	lastRecentSubmit uint32
+	// lastLanguage / lastLanguageSet：上次提交用的语言。未 set 时
+	// GetLastLanguageByUser 返回 sql.ErrNoRows（模拟从未提交过）。
+	lastLanguage    uint32
+	lastLanguageSet bool
 	// contestLocked 对应 IsContestLocked（128 延时 / 16 NOIP）。
 	contestLocked bool
 	// userAccepted 是投毒判定用的 AC 计数。
@@ -944,6 +948,17 @@ func (f *fakeQuerier) GetUserNick(_ context.Context, _ string) (string, error) {
 func (f *fakeQuerier) GetLastRecentSubmit(_ context.Context, _ dbgen.GetLastRecentSubmitParams) (uint32, error) {
 	f.note("GetLastRecentSubmit")
 	return f.lastRecentSubmit, f.fail()
+}
+
+func (f *fakeQuerier) GetLastLanguageByUser(_ context.Context, _ string) (uint32, error) {
+	f.note("GetLastLanguageByUser")
+	if err := f.fail(); err != nil {
+		return 0, err
+	}
+	if !f.lastLanguageSet {
+		return 0, sql.ErrNoRows
+	}
+	return f.lastLanguage, nil
 }
 
 func (f *fakeQuerier) IsContestLocked(_ context.Context, _ dbgen.IsContestLockedParams) (bool, error) {

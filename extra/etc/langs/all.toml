@@ -11,6 +11,8 @@
 #                仅当小写名不是合法的 SyntaxHighlighter brush 时才需要显式声明。
 #   source_header 可选。提交源码前强制追加的头（如 Python 的 "# coding=utf-8"）；
 #                非空时在拼接 prepend/append 模板之前加进源码。
+#   default      可选。提交页在用户没有历史语言时的默认语言；全表至多一项为 true。
+#                缺省无默认时提交页回退到可用语言里的第一个。
 #
 # 某语言是否存在 <id>.lang.toml 决定它是否"已安装"，从而决定状态页/提交页
 # 是否列出（见 pkg/language 的 Installed）。
@@ -26,6 +28,7 @@ name = "CPP"
 display_name = "C++"
 id = 1
 suffix = ".cc"
+default = true
 
 [[lang]]
 name = "PASCAL"

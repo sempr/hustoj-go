@@ -23,6 +23,9 @@ type LangBasic struct {
 	// SourceHeader 是提交源码前强制追加的头（如 Python 的
 	// "# coding=utf-8"）。非空时在拼接 prepend/append 模板之前加进源码。
 	SourceHeader string `toml:"source_header"`
+	// Default 标记提交页在用户没有历史语言时使用的默认语言；
+	// 全表至多一项为 true（loadLanguageMap 会校验）。
+	Default bool `toml:"default"`
 }
 
 // LangConfig represents complete language configuration
@@ -52,14 +55,17 @@ type Manager struct {
 	// 因此 ordered[i].ID == i，可作为下标直接使用。
 	ordered []LangBasic
 	langMap map[int]LangBasic
-	homeDir string
+	// defaultID 是 all.toml 中标记 default=true 的语言 id；没有则为 -1。
+	defaultID int
+	homeDir   string
 }
 
 // NewLanguageManager creates a new language manager
 func NewLanguageManager(homeDir string) (*Manager, error) {
 	manager := &Manager{
-		homeDir: homeDir,
-		langMap: make(map[int]LangBasic),
+		homeDir:   homeDir,
+		langMap:   make(map[int]LangBasic),
+		defaultID: -1,
 	}
 
 	if err := manager.loadLanguageMap(); err != nil {
@@ -104,6 +110,12 @@ func (m *Manager) loadLanguageMap() error {
 		}
 		if _, dup := m.langMap[lang.ID]; dup {
 			return fmt.Errorf("%s 中 id=%d 重复", path, lang.ID)
+		}
+		if lang.Default {
+			if m.defaultID >= 0 {
+				return fmt.Errorf("%s 中 default=true 出现多次（id=%d 与 id=%d）", path, m.defaultID, lang.ID)
+			}
+			m.defaultID = lang.ID
 		}
 		m.langMap[lang.ID] = lang
 	}
@@ -184,6 +196,11 @@ func (m *Manager) SourceHeader(langID int) (string, bool) {
 	}
 	return lang.SourceHeader, true
 }
+
+// DefaultLanguageID 返回 all.toml 里 default=true 的语言 id；未配置返回 -1。
+//
+// 用于提交页在用户没有历史语言时的默认选项，避免把"默认语言"写死在代码里。
+func (m *Manager) DefaultLanguageID() int { return m.defaultID }
 
 // Installed 返回本机真正配置了编译器的语言（存在 <id>.lang.toml）。
 //

@@ -171,6 +171,24 @@ func (q *Queries) GetContestSubmitProblem(ctx context.Context, arg GetContestSub
 	return problem_id, err
 }
 
+const getLastLanguageByUser = `-- name: GetLastLanguageByUser :one
+SELECT language
+FROM solution
+WHERE user_id = ?
+ORDER BY solution_id DESC
+LIMIT 1
+`
+
+// 提交页语言下拉的默认值：该用户最近一次提交所用的语言。
+// 从未提交过则无行（sql.ErrNoRows），调用方回退到 all.toml 的默认语言。
+// 取全局最近一条（不分题目、不分比赛），与"上次用的语言"这一直觉一致。
+func (q *Queries) GetLastLanguageByUser(ctx context.Context, userID string) (uint32, error) {
+	row := q.db.QueryRowContext(ctx, getLastLanguageByUser, userID)
+	var language uint32
+	err := row.Scan(&language)
+	return language, err
+}
+
 const getLastRecentSubmit = `-- name: GetLastRecentSubmit :one
 SELECT solution_id
 FROM solution

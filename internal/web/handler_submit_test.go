@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/sempr/hustoj-go/internal/web/config"
+	"github.com/sempr/hustoj-go/pkg/dbgen"
 )
 
 // submitFixture 是提交链路的测试环境。
@@ -646,6 +647,88 @@ func TestSubmitPageRequiresLogin(t *testing.T) {
 	}
 	if !strings.Contains(w.Body.String(), "请先登录") {
 		t.Errorf("未提示登录：\n%s", w.Body.String())
+	}
+}
+
+// TestDefaultSubmitLanguage 用查询替身覆盖默认语言的选取逻辑（不依赖真实库）。
+func TestDefaultSubmitLanguage(t *testing.T) {
+	ctx := context.Background()
+	base := newTestServer(t, &fakeQuerier{}, nil)
+	all := base.allowedLanguages(0)
+	noPython := base.allowedLanguages(1 << 6)
+	noCPPNoPython := base.allowedLanguages((1 << 1) | (1 << 6))
+
+	cases := []struct {
+		name    string
+		q       dbgen.FullQuerier
+		allowed []submitLanguage
+		want    int32
+	}{
+		{"有历史且允许用上次语言", lastLang(6), all, 6},
+		{"无历史用注册表默认(C++)", noHistory(), all, 1},
+		{"上次语言被掩码时回退默认", lastLang(6), noPython, 1},
+		{"默认也被掩码时回退首个可用", lastLang(6), noCPPNoPython, 0},
+		{"查询出错时回退默认", queryErr(), all, 1},
+		{"没有可用语言返回 -1", lastLang(6), nil, -1},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			srv := newTestServer(t, c.q, nil)
+			if got := srv.defaultSubmitLanguage(ctx, "u", c.allowed); got != c.want {
+				t.Errorf("defaultSubmitLanguage = %d，期望 %d", got, c.want)
+			}
+		})
+	}
+}
+
+func lastLang(id uint32) *fakeQuerier {
+	return &fakeQuerier{lastLanguage: id, lastLanguageSet: true}
+}
+func noHistory() *fakeQuerier { return &fakeQuerier{} }
+func queryErr() *fakeQuerier  { return &fakeQuerier{err: sql.ErrConnDone} }
+
+// 优先"上次提交用的语言"，没有则 all.toml 的默认语言（C++），
+// 默认语言被掩码禁用时再回退到第一个可用语言。
+func TestSubmitPageDefaultLanguage(t *testing.T) {
+	f := newSubmitFixture(t)
+	seedProblem(t, f.db, 900001, "N")
+
+	getSubmitPage := func() string {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest("GET", "/submitpage.php?id=900001", nil)
+		req.AddCookie(&http.Cookie{Name: f.srv.cfg.GoSessionCookie, Value: submitTestSID})
+		f.srv.handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("GET /submitpage.php = %d，期望 200", rec.Code)
+		}
+		return rec.Body.String()
+	}
+
+	// 无历史：默认 C++（all.toml 里 default=true，id=1）。
+	if body := getSubmitPage(); !strings.Contains(body, `value="1" selected`) {
+		t.Errorf("无历史时应默认 C++(id=1)：\n%s", body)
+	}
+
+	// 有历史（Python=6）：默认上次语言。
+	if _, err := f.db.Exec(
+		`INSERT INTO solution (user_id, language, in_date) VALUES (?, 6, NOW())`,
+		submitTestUser); err != nil {
+		t.Fatalf("插入历史提交失败: %v", err)
+	}
+	if body := getSubmitPage(); !strings.Contains(body, `value="6" selected`) {
+		t.Errorf("应默认上次语言 Python(id=6)：\n%s", body)
+	}
+
+	// 上次语言被掩码禁用：回退到默认 C++。
+	f.srv.cfg.LangMask = 1 << 6
+	if body := getSubmitPage(); !strings.Contains(body, `value="1" selected`) {
+		t.Errorf("上次语言被禁用时应回退 C++(id=1)：\n%s", body)
+	}
+
+	// 默认语言也被禁用：回退到第一个可用语言（C=0）。
+	f.srv.cfg.LangMask = (1 << 1) | (1 << 6)
+	if body := getSubmitPage(); !strings.Contains(body, `value="0" selected`) {
+		t.Errorf("默认语言被禁用时应回退首个可用(id=0)：\n%s", body)
 	}
 }
 

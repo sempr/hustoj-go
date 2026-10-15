@@ -162,11 +162,47 @@ func TestManagerRegistryAccessors(t *testing.T) {
 		t.Error("SourceHeader(0) 应为空")
 	}
 
+	// default：提交页默认语言配在 C++(1) 上。
+	if id := m.DefaultLanguageID(); id != 1 {
+		t.Errorf("DefaultLanguageID() = %d，期望 1（C++）", id)
+	}
+
 	if _, ok := m.DisplayName(9999); ok {
 		t.Error("DisplayName(9999) 应返回 ok=false")
 	}
 	if _, ok := m.Extension(-1); ok {
 		t.Error("Extension(-1) 应返回 ok=false")
+	}
+}
+
+// TestLoadLanguageMapRejectsDuplicateDefault 确保 all.toml 里 default=true
+// 至多出现一次，否则提交页的默认语言将有歧义。
+func TestLoadLanguageMapRejectsDuplicateDefault(t *testing.T) {
+	dir := t.TempDir()
+	langs := filepath.Join(dir, "etc", "langs")
+	if err := os.MkdirAll(langs, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	body := `
+[[lang]]
+name = "C"
+display_name = "C"
+id = 0
+suffix = ".c"
+default = true
+
+[[lang]]
+name = "CPP"
+display_name = "C++"
+id = 1
+suffix = ".cc"
+default = true
+`
+	if err := os.WriteFile(filepath.Join(langs, "all.toml"), []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := NewLanguageManager(dir); err == nil {
+		t.Error("出现多个 default=true 时应当报错")
 	}
 }
 

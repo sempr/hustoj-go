@@ -134,12 +134,18 @@ Go 侧全部经 `html/template` 转义。
   `$language_name`，由 `extra/check_lang_index.sh` 校验）。
 - `suffix` —— 去点即 `prepend.<ext>`/`append.<ext>` 模板与判题源文件名后缀。
 - `brush` —— showsource 语法高亮 brush；缺省取 `display_name` 小写。
+- `default` —— 提交页在用户没有历史语言时的默认语言（全表至多一项为
+  `true`，现配在 C++ 上）；缺省无默认时回退到第一个可用语言。
 - 某语言存在 `<id>.lang.toml` 即视为"已安装"，决定是否出现在提交/状态下拉中。
 
 原先散落在代码里的 `statLanguageNames`、`languageExt`、`languageNames`、
 `maxStatusLanguage` 常量与 `sourceBrush` 别名表全部删除，改由
 `pkg/language`（判题与 Web 共用）与 `internal/web/languages.go` 提供。
 daemon 侧的 `OJ_LANG_SET` 也去掉代码默认值，改为 `judge.conf` 必须显式声明。
+
+**提交页默认语言**（`handler_submit.go:defaultSubmitLanguage`）：优先取该用户
+最近一次提交的语言（`GetLastLanguageByUser` 查 `solution` 表），若该语言被本次
+比赛/站点掩码禁用，则回退到 `default` 语言，再回退到第一个可用语言。
 
 ---
 

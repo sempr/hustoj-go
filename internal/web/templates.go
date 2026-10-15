@@ -398,7 +398,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <span id="language_span">Language:
 <select id="language" name="language">
 {{range .Languages}}
-<option value="{{.ID}}">{{.Name}}</option>
+<option value="{{.ID}}"{{if eq .ID $.DefaultLanguage}} selected{{end}}>{{.Name}}</option>
 {{end}}
 </select>
 </span>

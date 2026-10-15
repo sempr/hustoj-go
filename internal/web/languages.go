@@ -24,6 +24,8 @@ type langTable struct {
 	headers []string
 	// installed 是已安装语言（存在 <id>.lang.toml）的 id，升序。
 	installed []int32
+	// defaultID 是 all.toml 里 default=true 的语言 id；没有则为 -1。
+	defaultID int32
 }
 
 // buildLangTable 把 Manager 摊平成按 id 下标访问的切片。
@@ -32,10 +34,11 @@ func buildLangTable(mgr *language.Manager, unknown string) *langTable {
 	n := len(ordered)
 
 	t := &langTable{
-		names:   make([]string, 0, n+1),
-		exts:    make([]string, n),
-		brushes: make([]string, n),
-		headers: make([]string, n),
+		names:     make([]string, 0, n+1),
+		exts:      make([]string, n),
+		brushes:   make([]string, n),
+		headers:   make([]string, n),
+		defaultID: -1,
 	}
 	for i := range ordered {
 		// 注册表已校验 id 从 0 连续，因此 ordered[i].ID == i。
@@ -55,6 +58,9 @@ func buildLangTable(mgr *language.Manager, unknown string) *langTable {
 
 	for _, l := range mgr.Installed() {
 		t.installed = append(t.installed, int32(l.ID))
+	}
+	if id := mgr.DefaultLanguageID(); id >= 0 {
+		t.defaultID = int32(id)
 	}
 	return t
 }
@@ -161,3 +167,14 @@ func installedLanguageMap() map[int32]string {
 //
 // 等于真实语言数 N：展示名切片长度为 N+1（含哨兵），合法下标 0..N。
 func maxStatusLanguageID() int32 { return int32(languageCount()) }
+
+// defaultLanguageID 返回 all.toml 配置的默认语言 id；未配置返回 -1。
+//
+// 用于提交页在用户没有历史语言时选中它，避免把"默认语言"写死在代码里。
+func defaultLanguageID() int32 {
+	t := currentLangs()
+	if t == nil {
+		return -1
+	}
+	return t.defaultID
+}
