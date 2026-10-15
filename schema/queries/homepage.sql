@@ -151,3 +151,13 @@ WHERE news_id = sqlc.arg(news_id)
   AND (defunct != 'Y' OR menu = 1)
 ORDER BY importance ASC, time DESC
 LIMIT 50;
+
+-- name: GetNewsByTitle :many
+-- FAQ 页按标题取内容（faqs.php:13 的
+-- `select title,content from news where title=? and defunct='N' order by news_id limit 1`）。
+SELECT news_id, title, content
+FROM news
+WHERE title = sqlc.arg(title)
+  AND defunct = 'N'
+ORDER BY news_id
+LIMIT 1;

@@ -285,6 +285,46 @@ func (q *Queries) GetNewsByID(ctx context.Context, newsID int32) ([]GetNewsByIDR
 	return items, nil
 }
 
+const getNewsByTitle = `-- name: GetNewsByTitle :many
+SELECT news_id, title, content
+FROM news
+WHERE title = ?
+  AND defunct = 'N'
+ORDER BY news_id
+LIMIT 1
+`
+
+type GetNewsByTitleRow struct {
+	NewsID  int32  `json:"news_id"`
+	Title   string `json:"title"`
+	Content string `json:"content"`
+}
+
+// FAQ 页按标题取内容（faqs.php:13 的
+// `select title,content from news where title=? and defunct='N' order by news_id limit 1`）。
+func (q *Queries) GetNewsByTitle(ctx context.Context, title string) ([]GetNewsByTitleRow, error) {
+	rows, err := q.db.QueryContext(ctx, getNewsByTitle, title)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetNewsByTitleRow
+	for rows.Next() {
+		var i GetNewsByTitleRow
+		if err := rows.Scan(&i.NewsID, &i.Title, &i.Content); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getNewsList = `-- name: GetNewsList :many
 SELECT news_id, title, time FROM news
 WHERE defunct != 'Y' AND title != 'faqs.cn'

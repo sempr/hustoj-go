@@ -171,6 +171,7 @@ type fakeQuerier struct {
 	contestTeams       []dbgen.GetContestTeamsRow
 	contestProblemMap  []dbgen.GetContestProblemMapRow
 	newsByID           []dbgen.GetNewsByIDRow
+	newsByTitle        []dbgen.GetNewsByTitleRow
 	userByID           dbgen.GetUserByIDRow
 	userByIDErr        error
 	userEmail          sql.NullString
@@ -1403,6 +1404,11 @@ func (f *fakeQuerier) GetContestProblemMap(_ context.Context, _ sql.NullInt32) (
 func (f *fakeQuerier) GetNewsByID(_ context.Context, _ int32) ([]dbgen.GetNewsByIDRow, error) {
 	f.note("GetNewsByID")
 	return f.newsByID, f.fail()
+}
+
+func (f *fakeQuerier) GetNewsByTitle(_ context.Context, _ string) ([]dbgen.GetNewsByTitleRow, error) {
+	f.note("GetNewsByTitle")
+	return f.newsByTitle, f.fail()
 }
 
 func (f *fakeQuerier) GetMailList(_ context.Context, _ dbgen.GetMailListParams) ([]dbgen.GetMailListRow, error) {

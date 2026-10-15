@@ -507,4 +507,5 @@ func (s *Server) registerHomepageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /index.php", s.handleIndex)
 	mux.HandleFunc("GET /portal.php", s.handlePortal)
 	mux.HandleFunc("GET /viewnews.php", s.handleViewNews)
+	mux.HandleFunc("GET /faqs.php", s.handleFaq)
 }

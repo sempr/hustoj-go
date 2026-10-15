@@ -199,6 +199,9 @@ type Querier interface {
 	// ── 新闻详情（viewnews.php）─────────────────────────────────────────
 	// 新闻详情
 	GetNewsByID(ctx context.Context, newsID int32) ([]GetNewsByIDRow, error)
+	// FAQ 页按标题取内容（faqs.php:13 的
+	// `select title,content from news where title=? and defunct='N' order by news_id limit 1`）。
+	GetNewsByTitle(ctx context.Context, title string) ([]GetNewsByTitleRow, error)
 	// 新闻列表（首页）
 	GetNewsList(ctx context.Context) ([]GetNewsListRow, error)
 	// 首页/门户/新闻详情查询

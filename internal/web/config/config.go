@@ -245,6 +245,11 @@ type Config struct {
 	// 历史提交可能带越界语言编号，PHP 的 $language_name 末尾用
 	// "UnknownLanguage" 兜底；这里让文案可配，代码不再写死。
 	UnknownLanguage string `toml:"unknown_language"`
+
+	// Admin 对应 PHP 的 $OJ_ADMIN（db_info.inc.php:18）：管理员邮箱。
+	// FAQ 页"请向管理员……反馈"处展示。线上为默认值 "root@localhost"。
+	// Go 刻意不解析 db_info.inc.php，故这里单独配置。
+	Admin string `toml:"admin"`
 }
 
 // Default 返回内置默认值。
@@ -302,6 +307,8 @@ func Default() *Config {
 		MathJax:         true,
 		Lang:            "cn",
 		UnknownLanguage: "UnknownLanguage",
+		// 与 db_info.inc.php:18 的默认值一致。
+		Admin: "root@localhost",
 	}
 }
 
@@ -379,6 +386,7 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.MathJax, "HUSTOJ_WEB_MATHJAX")
 	setStr(&cfg.Lang, "HUSTOJ_WEB_LANG")
 	setStr(&cfg.UnknownLanguage, "HUSTOJ_WEB_UNKNOWN_LANGUAGE")
+	setStr(&cfg.Admin, "HUSTOJ_WEB_OJ_ADMIN")
 	if v, ok := lookupEnv("OJ_HOME"); ok {
 		cfg.OJHome = v
 	}

@@ -2682,14 +2682,163 @@ $(document).ready(function() { update(); window.setInterval(update, 2000); });
 
 {{define "contestRank3Page"}}{{template "contestRankPage" .}}{{end}}
 
-{{/* problemBatchDeleteResultPage 对应 admin/problem_batch_delete.php 的结果页。 */}}
-{{define "problemBatchDeleteResultPage"}}
-<center><h3>批量删除题目</h3></center>
-<p>已删除 {{.Count}} 道题目{{if .Success}}（成功）{{else}}（失败）{{end}}。</p>
-<p><a href="/admin/problem_list.php">返回题目列表</a></p>
-{{end}}
+ {{/* problemBatchDeleteResultPage 对应 admin/problem_batch_delete.php 的结果页。 */}}
+ {{define "problemBatchDeleteResultPage"}}
+ <center><h3>批量删除题目</h3></center>
+ <p>已删除 {{.Count}} 道题目{{if .Success}}（成功）{{else}}（失败）{{end}}。</p>
+ <p><a href="/admin/problem_list.php">返回题目列表</a></p>
+ {{end}}
 
-`
+ {{/* faqPage 是帮助/常见问答页，对应 template/syzoj/faqs.php 与 faqs.news.php。
+      标题"帮助"由 layout 统一渲染，这里不再重复 h1。
+      - 命中 faqs.<lang> 公告时只渲染公告正文（faqs.news.php 的形态）；
+      - 否则渲染静态帮助，其中"评测"一节替换为 .LangInfo —— 由
+        hustoj-go langinfo 预生成的 <ojhome>/etc/faq-langs.html，
+        列出各语言的版本号与编译/运行命令。 */}}
+ {{define "faqPage"}}
+ <div class="padding">
+ <div class="font-content">
+ {{if .NewsContent}}
+ {{.NewsContent}}
+ {{else}}
+ {{.LangInfo}}
+ <p>
+   <br> 您可以使用 <code>#pragma GCC optimize ("O0")</code> 手工关闭 O2 优化；
+   <br> Java 如果您的代码中没有 <code>public class</code>，请将入口类命名为 <code>Main</code>，在评测时提供额外 2 秒的运行时间和 64MB 的运行内存；
+   <br> 这里给出的编译器版本仅供参考，请以实际编译器版本为准。
+ </p>
+ <h2 class="ui header">Q: cin/cout为什么会超时（TLE）?</h2>
+ <p>A: cin/cout因为默认同步stdin/stdout而变慢，并产生更多的系统调用而受到性能影响，可以在main函数开头加入下面代码加速：
+ <div class="ui existing segment">
+ <pre style="margin-top: 0; margin-bottom: 0; ">ios::sync_with_stdio(false);
+ cin.tie(0);</pre>
+ </div>
+ * 另外，请使用'\n'而不是 endl ，因为endl默认会增加刷新操作，而导致输出缓冲失效，降低效率。
+ </p>
+
+ <h2 class="ui header">Q: gets函数没有了吗?</h2>
+ <p>A: gets函数因为不能限制输入的长度，造成了历史上大量的缓冲区溢出漏洞，因此在最新版本中被彻底删除了，请使用fgets这个函数取代。 或者使用下面的宏定义来取代：
+ <div class="ques-view">   #define gets(S) fgets(S,sizeof(S),stdin)  </div>
+ </p>
+
+ <h2 class="ui header">Q: 为什么我的代码在本地正常，提交以后被判错? </h2>
+ <p>A: 不要使用rewind来清空输入缓冲，OJ的输入本质是文件，与键盘输入逻辑不一样。 如果你发现别人可以正确完成问题，那么有可能是你的代码没有考虑到所有的情况。
+ 并不是通过样例数据就代表一定是正确答案。如果你发现所有人都不能正确提交该题，那么有可能是测试数据有问题，请向管理员{{.Admin}}反馈。
+ </p>
+
+ <h2 class="ui header">个人资料<br></h2>
+ <p>本站不提供头像存储服务，而是使用 QQ 头像显示。请使用QQ邮箱注册 ，系统自动取用您在QQ的头像。</p>
+
+ <h2 class="ui header">返回结果说明<br></h2>
+ <div class="ques-view">
+ <p>试题的解答提交后由评分系统评出即时得分，每一次提交会判决结果会及时通知；系统可能的反馈信息包括：</p>
+ <li>等待评测：评测系统还没有评测到这个提交，请稍候</li>
+ <li>正在评测：评测系统正在评测，稍候会有结果</li>
+ <li>编译错误：您提交的代码无法完成编译，点击“编译错误”可以看到编译器输出的错误信息</li>
+ <li>答案正确：恭喜！您通过了这道题</li>
+ <li>格式错误：您的程序输出的格式不符合要求（比如空格和换行与要求不一致）</li>
+ <li>答案错误：您的程序未能对评测系统的数据返回正确的结果</li>
+ <li>运行超时：您的程序未能在规定时间内运行结束</li>
+ <li>内存超限：您的程序使用了超过限制的内存</li>
+ <li>运行错误：您的程序在运行过程中崩溃了，发生了如段错误、浮点错误等</li>
+ <li>输出超限：您的程序输出了过多内容，一般可能是无限循环输出导致的结果</li>
+ </div>
+
+ <h2>程序样例</h2>
+ <p>以下样例程序可用于解决这道简单的题目：<strong>读入2个整数A和B，然后输出它们的和。</strong></p>
+ <p><strong>gcc (.c)</strong></p>
+ <div class="ui existing segment">
+ <pre style="margin-top: 0; margin-bottom: 0; ">
+ <code class="lang-c">#include &lt;stdio.h&gt;
+ int main(){
+     int a, b;
+     while(scanf("%d %d",&amp;a, &amp;b) != EOF){
+         printf("%d\n", a + b);
+     }
+     return 0;
+ }</code></pre>
+ </div>
+ <p><strong>g++ (.cpp)</strong></p>
+ <div class="ui existing segment">
+ <pre style="margin-top: 0; margin-bottom: 0; ">
+ <code class="lang-c++">#include &lt;iostream&gt;
+ using namespace std;
+ int main(){
+     // io speed up
+     const char endl = '\n';
+     std::ios::sync_with_stdio(false);
+     cin.tie(nullptr);
+
+     int a, b;
+     while (cin &gt;&gt; a &gt;&gt; b){
+         cout &lt;&lt; a+b &lt;&lt; endl;
+     }
+     return 0;
+ }</code></pre>
+ </div>
+ <p><strong>fpc (.pas)</strong></p>
+ <div class="ui existing segment">
+ <pre style="margin-top: 0; margin-bottom: 0; ">
+ <code class="lang-pascal">var
+ a, b: integer;
+ begin
+     while not eof(input) do begin
+         readln(a, b);
+         writeln(a + b);
+     end;
+ end.</code></pre>
+ </div>
+ <p><strong>javac (.java)</strong></p>
+ <div class="ui existing segment">
+ <pre style="margin-top: 0; margin-bottom: 0; ">
+ <code class="lang-java">import java.util.Scanner;
+ public class Main {
+     public static void main(String[] args) {
+         Scanner in = new Scanner(System.in);
+         while (in.hasNextInt()) {
+             int a = in.nextInt();
+             int b = in.nextInt();
+             System.out.println(a + b);
+         }
+     }
+ }</code></pre>
+ </div>
+ <p><strong>python3 (.py)</strong></p>
+ <div class="ui existing segment">
+ <pre style="margin-top: 0; margin-bottom: 0; ">
+ <code class="lang-c">import io
+ import sys
+ sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf8')
+ for line in sys.stdin:
+     a = line.split()
+     print(int(a[0]) + int(a[1]))</code></pre>
+ </div>
+ <p><strong>仓颉 (.cj)</strong></p>
+ <div class="ui existing segment">
+ <pre style="margin-top: 0; margin-bottom: 0; ">
+ <code class="lang-python">import std.core.*
+ import std.console.*
+ import std.collection.*
+ import std.convert.*
+
+ main(): Int64 {
+     while (let Some(line) &lt;- Console.stdIn.readln()) {
+         let nums = map(Int.parse)(line.split(" "))
+         let sum = reduce({a: Int64, b: Int64 =&gt; a + b})(nums)
+         if (let Some(r) &lt;- sum) {
+             Console.stdOut.writeln(r)
+         }
+     }
+     return 0
+ }</code></pre>
+ </div>
+ </div>
+ {{end}}
+ </div>
+ </div>
+ {{end}}
+
+ `
 
 // navVM 是站点导航头的数据（登录态、比赛上下文）。
 type navVM struct {
