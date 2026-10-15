@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test.sh - test the interactive judge (spj=16) with a PYTHON player and the
+# test.sh - test the interactive judge (spj=3) with a PYTHON player and the
 # ORIGINAL C++ interactor, end to end, without a database.
 #
 # Fixtures (under this script's directory):
@@ -64,7 +64,7 @@ echo
 echo "== 1. Correct python player -> AC (two interactive sessions) =="
 run_judge "$BASE/out1.json" \
     --source="$BASE/main_ac.py" --lang "$LANG_ID" --data "$DATA_DIR" \
-    --time 1000 --memory 262144 --spj 16 --ojhome "$OJHOME" --workbase "$WORKBASE"
+    --time 1000 --memory 262144 --spj 3 --ojhome "$OJHOME" --workbase "$WORKBASE"
 check_json "$BASE/out1.json" 4 1.0 "AC (original C++ interactor + python player)"
 python3 - "$BASE/out1.json" <<'PYEOF'
 import json, sys
@@ -80,14 +80,14 @@ echo
 echo "== 2. Wrong python player -> WA =="
 run_judge "$BASE/out2.json" \
     --source="$BASE/main_wa.py" --lang "$LANG_ID" --data "$DATA_DIR" \
-    --time 1000 --memory 262144 --spj 16 --ojhome "$OJHOME" --workbase "$WORKBASE"
+    --time 1000 --memory 262144 --spj 3 --ojhome "$OJHOME" --workbase "$WORKBASE"
 check_json "$BASE/out2.json" 6 0.0 "WA"
 
 echo
 echo "== 3. Hanging python player -> TL =="
 run_judge "$BASE/out3.json" \
     --source="$BASE/main_hang.py" --lang "$LANG_ID" --data "$DATA_DIR" \
-    --time 1000 --memory 262144 --spj 16 --ojhome "$OJHOME" --workbase "$WORKBASE"
+    --time 1000 --memory 262144 --spj 3 --ojhome "$OJHOME" --workbase "$WORKBASE"
 check_json "$BASE/out3.json" 7 0.0 "TL"
 
 echo

@@ -8,7 +8,7 @@
 | `spj.cpp` | 普通 SPJ（problem.spj=1） | `spj data.in sysdata.out data.usr` | 退出码 0=AC，非 0=WA |
 | `tpj.cpp` | testlib SPJ（problem.spj=1） | `tpj data.in data.usr sysdata.out` | 同上；testlib 的 inf/ouf/ans 顺序 |
 | `upj.cpp` | 带分值 SPJ（problem.spj=1） | `upj data.in sysdata.out data.usr` | 退出码即 0–100 分值；100=AC 其余 WA |
-| `interactor.cpp` | 交互题（problem.spj=16） | `spj data.in`（stdin=选手 stdout，stdout=选手 stdin，各经 FIFO） | 退出码 0=AC，非 0=WA |
+| `interactor.cpp` | 交互题（problem.spj=3） | `spj data.in`（stdin=选手 stdout，stdout=选手 stdin，各经 FIFO） | 退出码 0=AC，非 0=WA |
 
 数据目录里同时存在 spj/tpj/upj 时，判题按 **upj → tpj → spj**
 优先级取一个（`internal/client/run.go` `detectSpjType`）。
@@ -39,6 +39,6 @@ g++ -O2 -static -I<数据根目录> interactor.cpp -o spj   # 交互器必须叫
 ## 安装成一道题
 
 1. 数据目录放好 `0.in`、编译好的 `spj`（交互题）、`spj.cc`（存档）；
-2. 数据库 `problem` 表对应行的 `spj` 字段置 `'16'`（交互题）或
+2. 数据库 `problem` 表对应行的 `spj` 字段置 `'3'`（交互题）或
    `'1'`（SPJ 题）；
 3. 提交一次答案验证。

@@ -1,6 +1,6 @@
-// interactive_spj.cpp - 样例交互评测程序 (spj=16, interactor)
+// interactive_spj.cpp - 样例交互评测程序 (spj=3, interactor)
 //
-// 契约（与 hustoj-go judge --spj 16 的实现一致）:
+// 契约（与 hustoj-go judge --spj 3 的实现一致）:
 //   argv[1]  可选，为沙箱内 /code/data.in 路径（从中读取 secret，缺省 731）。
 //   stdin    玩家程序输出流：逐行读取玩家的“猜测”。
 //   stdout   向玩家程序返回的响应（too small / too large / correct），

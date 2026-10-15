@@ -442,7 +442,7 @@ func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem
 	if err != nil {
 		return nil, fmt.Errorf("failed to find data files: %w", err)
 	}
-	// 交互评测（spj=16）：每个 .in 文件一个交互会话；没有 .in 时注入合成用例。
+	// 交互评测（spj=3）：每个 .in 文件一个交互会话；没有 .in 时注入合成用例。
 	if problem.SPJ == constants.OJ_SPJ_MODE_INTERACTIVE {
 		dataFiles = jc.interactiveDataFiles(dataDir, dataFiles)
 	}

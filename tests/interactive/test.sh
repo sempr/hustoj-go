@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# test.sh - end-to-end tests for `hustoj judge --spj 16` (interactive, no DB).
+# test.sh - end-to-end tests for `hustoj judge --spj 3` (interactive, no DB).
 #
 # Fixtures (all under this script's directory):
 #   interactive_spj.cpp   sample interactor source (secret read from data<N>.in)
@@ -67,7 +67,7 @@ echo
 echo "== 1. Correct player -> AC (two interactive sessions) =="
 run_judge "$BASE/out1.json" \
     --source="$BASE/ac_guess.cpp" --lang "$LANG_ID" --data "$DATA_DIR" \
-    --time 1000 --memory 262144 --spj 16 --ojhome "$OJHOME" --workbase "$WORKBASE"
+    --time 1000 --memory 262144 --spj 3 --ojhome "$OJHOME" --workbase "$WORKBASE"
 check_json "$BASE/out1.json" 4 1.0 "AC"
 python3 - "$BASE/out1.json" <<'PYEOF'
 import json, sys
@@ -84,14 +84,14 @@ echo
 echo "== 2. Wrong player -> WA =="
 run_judge "$BASE/out2.json" \
     --source="$BASE/wa_guess.cpp" --lang "$LANG_ID" --data "$DATA_DIR" \
-    --time 1000 --memory 262144 --spj 16 --ojhome "$OJHOME" --workbase "$WORKBASE"
+    --time 1000 --memory 262144 --spj 3 --ojhome "$OJHOME" --workbase "$WORKBASE"
 check_json "$BASE/out2.json" 6 0.0 "WA"
 
 echo
 echo "== 3. Hanging player -> TL =="
 run_judge "$BASE/out3.json" \
     --source="$BASE/hang.cpp" --lang "$LANG_ID" --data "$DATA_DIR" \
-    --time 1000 --memory 262144 --spj 16 --ojhome "$OJHOME" --workbase "$WORKBASE"
+    --time 1000 --memory 262144 --spj 3 --ojhome "$OJHOME" --workbase "$WORKBASE"
 check_json "$BASE/out3.json" 7 0.0 "TL"
 
 echo

@@ -1,4 +1,4 @@
-// ac_guess.cpp - 正确玩家：二分查找 secret（interactive spj=16 测试用）。
+// ac_guess.cpp - 正确玩家：二分查找 secret（interactive spj=3 测试用）。
 #include <iostream>
 #include <string>
 

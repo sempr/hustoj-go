@@ -9,7 +9,7 @@
 //     输入文件 标准输出 选手输出，tpj 为 输入文件 选手输出 标准输出
 //     （testlib 的 inf/ouf/ans 顺序）；退出码 0=AC 非 0=WA，upj 的
 //     退出码即 0–100 的分值（executor.go handleSpecialJudge）；
-//   - 交互评测（SPJ=16）用目录里预编译的 spj 作交互器，附加用例文件
+//   - 交互评测（SPJ=3）用目录里预编译的 spj 作交互器，附加用例文件
 //     作参数，经两个 FIFO 与玩家程序双向通信，退出码 0=AC 非 0=WA
 //     （interactive.go）。
 //

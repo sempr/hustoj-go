@@ -16,7 +16,7 @@ import (
 )
 
 func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
-	// 交互评测（spj=16）：玩家与 interactor 通过 FIFO 双向通信，
+	// 交互评测（spj=3）：玩家与 interactor 通过 FIFO 双向通信，
 	// verdict 以 interactor 退出码为准，任何一侧沙箱超限/崩溃优先。
 	if config.Interactive != nil {
 		return jc.runInteractiveCase(config)

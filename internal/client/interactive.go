@@ -15,7 +15,7 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// InteractorInfo 描述一次交互评测（spj=16）的 interactor 程序与 FIFO 通道。
+// InteractorInfo 描述一次交互评测（spj=3）的 interactor 程序与 FIFO 通道。
 // 复用原有 client 使用 run 命令的模式：把 interactor 二进制与数据拷进 rootfs，
 // 用两个 FIFO 充当玩家与 interactor 之间的双向管道，两个 run 各自把 FIFO
 // 当作 stdin/stdout（--stdin/--stdout 为沙箱内绝对路径）。
