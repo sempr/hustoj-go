@@ -324,7 +324,7 @@ func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs
 		return out
 	}
 
-	if ws.ExitStatus() != 0 && ccerr != nil {
+	if ccerr != nil {
 		switch ccerr {
 		case shared.ErrCgroupLimitExceeded:
 			out.UserStatus = constants.OJ_TL
