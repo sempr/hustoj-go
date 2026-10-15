@@ -14,6 +14,7 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.4
 	github.com/sevlyar/go-daemon v0.1.6
 	github.com/spf13/cobra v1.10.1
+	github.com/yuin/goldmark v1.8.6
 	golang.org/x/sys v0.39.0
 	golang.org/x/text v0.32.0
 )

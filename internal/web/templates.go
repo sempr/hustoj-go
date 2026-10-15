@@ -21,6 +21,13 @@ import (
 var templateFuncs = template.FuncMap{
 	// raw 声明一段内容为可信 HTML，按原文输出。见包注释的适用范围说明。
 	"raw": func(s string) template.HTML { return template.HTML(s) },
+	// markdown 把题目标述的 Markdown 转为 HTML。goldmark 开启 raw-HTML
+	// 透传（WithUnsafe），所以历史题目里已预渲染的 KaTeX span 原样保留；
+	// 数学定界符 $…$ / $$…$$ / \(…\) / \[…\] 也原样留在 HTML 文本里，交给
+	// 浏览器端 KaTeX auto-render 渲染。
+	"markdown": markdownHTML,
+	// katexOptions 是 KaTeX auto-render 的选项对象（JS 片段）。
+	"katexOptions": katexOptions,
 	// nullInt 把可空计数渲染成字符串；NULL 显示为空，与 PHP 把 NULL
 	// 拼成空串的行为一致。
 	"nullInt": nullIntStr,
@@ -295,8 +302,9 @@ const pageContentTmpls = `
 
 {{/* problemDetail 是题面正文。
 
-   Description 按 PHP 行为原样输出（富文本），其余字段一律走 html/template
-   的默认转义。Defunct='Y' 的题目只给提示，不展示任何内容。 */}}
+   Description 以 Markdown 存、后台转 HTML 输出，其余字段仍按 PHP 行为
+   原样输出（富文本）。数学定界符留到 HTML 文本里由浏览器端 KaTeX
+   auto-render 渲染。Defunct='Y' 的题目只给提示，不展示任何内容。 */}}
 {{define "problemDetail"}}<div class="ui container">
 {{if .Contest}}<div class="ui message">
 本题目来自比赛 <a href="contest.php?cid={{.Contest.CID}}">{{.Contest.Title}}</a> 第 {{.Contest.PID}} 题
@@ -316,14 +324,30 @@ const pageContentTmpls = `
 <span class="ui label">提交：{{if .StatsHidden}}?{{else}}{{if .SubmitStat.Valid}}{{.SubmitStat.Int32}}{{else}}0{{end}}{{end}}</span>
 <span class="ui label">通过：{{if .StatsHidden}}?{{else}}{{if .AcceptedStat.Valid}}{{.AcceptedStat.Int32}}{{else}}0{{end}}{{end}}</span>
 </div>
-{{if .Description}}<div class="problem-description">{{raw .Description}}</div>{{end}}
-{{if .Input}}<h3 class="ui header">输入</h3><div>{{raw .Input}}</div>{{end}}
-{{if .Output}}<h3 class="ui header">输出</h3><div>{{raw .Output}}</div>{{end}}
+{{if .Description}}<div class="problem-description md-body">{{markdown .Description}}</div>{{end}}
+{{if .Input}}<h3 class="ui header">输入</h3><div class="md-body">{{markdown .Input}}</div>{{end}}
+{{if .Output}}<h3 class="ui header">输出</h3><div class="md-body">{{markdown .Output}}</div>{{end}}
 {{if .SampleInput.Valid}}<h3 class="ui header">样例输入</h3><pre>{{.SampleInput.String}}</pre>{{end}}
 {{if .SampleOutput.Valid}}<h3 class="ui header">样例输出</h3><pre>{{.SampleOutput.String}}</pre>{{end}}
-{{if .Hint}}{{if not .HintHidden}}<h3 class="ui header">提示</h3><div>{{raw .Hint}}</div>{{end}}{{end}}
+{{if .Hint}}{{if not .HintHidden}}<h3 class="ui header">提示</h3><div class="md-body">{{markdown .Hint}}</div>{{end}}{{end}}
 {{if .Source.Valid}}<h3 class="ui header">来源</h3><div>{{.Source.String}}</div>{{end}}
 {{template "problemActions" .}}
+{{if .Description}}
+{{/* KaTeX auto-render：Markdown 渲染出的数学定界符原样留在 HTML 文本里，
+     由浏览器端 KaTeX auto-render 对 .md-body 整体或局部渲染。 */}}
+<script src="{{asset "/assets/katex.min.js"}}" defer></script>
+<script src="{{asset "/assets/auto-render.min.js"}}" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded',function(){
+  var nodes=document.querySelectorAll('.md-body');
+  for(var i=0;i<nodes.length;i++){
+    if(typeof renderMathInElement!=='undefined'){
+      try{renderMathInElement(nodes[i],{{katexOptions}});}catch(e){}
+    }
+  }
+});
+</script>
+{{end}}
 {{end}}
 
 {{/* 命题人异步加载：problem.php 用 $("#creator").load("problem-ajax.php?pid=")。*/}}
@@ -348,7 +372,7 @@ const pageContentTmpls = `
 {{define "contestError"}}<div class="ui container">
 <center>
 <h3>{{msgContestID}} : {{.CID}} - {{if .Title}}{{.Title}}{{else}}比赛{{.CID}}{{end}}</h3>
-<p>{{.Description}}</p>
+<div class="md-body">{{markdown .Description}}</div>
 {{if not (contestErrorIsLimited .Deny)}}<span class="text-danger">{{.Warning}}</span>
 <br><br>
 {{if contestErrorShowContestLinks .Deny}}<div class="btn-group">
@@ -466,7 +490,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 
 {{define "contestStatistics"}}
 <h3>{{msgContestID}} : {{.CID}} - {{.Title}}</h3>
-<p>{{.Description}}</p>
+<div class="md-body">{{markdown .Description}}</div>
 {{msgServerTime}} : {{.ServerTime}}<br>
 {{if .LockTime}}Lock Board Time: {{.LockTime}}<br>{{end}}
 <span class="text-{{.StatusTone}}">{{.StatusText}}</span>{{if .StatusExtra}}&nbsp;<span class="text-{{.StatusTone}}">{{.StatusExtra}}</span> {{.StatusLength}}{{end}}
@@ -1301,7 +1325,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <b style="margin-right: 30px;"><i class="calendar icon"></i> {{.NewsDate}}</b>
 </p>
 <div class="ui existing segment" style="overflow-y:overlay;">
-<div id="content" class="font-content">{{.NewsContent}}</div>
+<div id="content" class="font-content md-body">{{.NewsContent}}</div>
 </div>
 </div>
 {{if .MathJax}}
@@ -1389,7 +1413,7 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 <div class="ui container">
 <h2 class="ui header">设置登录 IP</h2>
 <p>比赛: {{.ContestName}} (CID: {{.CID}})</p>
-<p>{{.Description}}</p>
+<div class="md-body">{{markdown .Description}}</div>
 <p>开始时间: {{.StartTime}} | 结束时间: {{.EndTime}}</p>
 <p>状态:
 {{if .IsOver}}已结束{{else if .IsNotYet}}未开始{{else}}进行中{{end}}
@@ -1582,11 +1606,12 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </label>
 </p>
 <p align="left">
-<textarea class="kindeditor" name="content" rows="41" style="width:100%;">{{.Content}}</textarea>
+<textarea class="md-source" name="content" rows="41" style="width:100%;">{{.Content}}</textarea>
 </p>
 <p><center><input type="submit" value="保存" name="submit"></center></p>
 </form>
 </div>
+{{template "markdownEditorScript"}}
 {{end}}
 
 {{/* adminNewsEditPage 对应 admin/news_edit.php。 */}}
@@ -1607,11 +1632,12 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </label>
 </p>
 <p align="left">
-<textarea class="kindeditor" name="content" rows="41" style="width:100%;">{{.Content}}</textarea>
+<textarea class="md-source" name="content" rows="41" style="width:100%;">{{.Content}}</textarea>
 </p>
 <p><center><input type="submit" value="保存" name="submit"></center></p>
 </form>
 </div>
+{{template "markdownEditorScript"}}
 {{end}}
 
 {{/* adminPrivilegeListPage 对应 admin/privilege_list.php。 */}}
@@ -1964,91 +1990,93 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 {{end}}
 {{end}}
 
-{{/* kindeditorScript 是后台富文本编辑器，逐条对应 PHP admin/kindeditor.php。
-     资源放在 web 根的 /kindeditor/（静态文件由 nginx 直接下发）；上传端点是
-     上传接口同样走 /assets/kindeditor/php/（由 Go 实现）。
-     jQuery 必须先加载——初始化里用了 $(document).ready 与 $.ajax。
-     designMode:false 对应生产配置 $OJ_MARKDOWN="marked.js"（默认源码模式）。 */}}
-{{define "kindeditorScript"}}
-<link rel="stylesheet" href="/assets/kindeditor/themes/default/default.css">
-<link rel="stylesheet" href="/assets/kindeditor/plugins/code/prettify.css">
-<script src="/assets/jquery.min.js"></script>
-<script charset="utf-8" src="/assets/kindeditor/kindeditor.js?v=20251217"></script>
-<script charset="utf-8" src="/assets/kindeditor/lang/zh_CN.js"></script>
-<script charset="utf-8" src="/assets/kindeditor/plugins/code/prettify.js"></script>
+{{/* markdownEditorScript 是后台 Markdown 编辑器，替代已停更多年的 KindEditor。
+     逐字段增强 textarea.md-source：左侧写 Markdown 源码，右侧实时预览；
+     预览走 /admin/markdown_preview.php，用与题面完全相同的 goldmark 渲染，
+     因此所见即所得；上传走 /assets/editor/upload.php，在光标处插入链接。
+     数学公式交给浏览器端 KaTeX auto-render（与题面同一套资源）。 */}}
+{{define "markdownEditorScript"}}
+<link rel="stylesheet" href="{{asset "/assets/katex.min.css"}}">
+<style>
+.md-editor{display:flex;flex-wrap:wrap;gap:.5rem 1rem;align-items:flex-start;margin-bottom:.5rem}
+.md-editor textarea{flex:1 1 46%;min-width:280px;font-family:Consolas,Menlo,monospace;font-size:15px}
+.md-editor .md-pane{flex:1 1 46%;min-width:280px;min-height:6rem;max-height:32rem;overflow:auto;
+  padding:.5rem .75rem;border:1px solid #ddd;border-radius:4px;background:#fff}
+.md-editor .md-bar{flex:1 1 100%;display:flex;gap:.5rem;align-items:center}
+.md-editor .md-bar .muted{color:#888;font-size:.85em}
+@media(max-width:768px){.md-editor .md-pane{display:none}}
+</style>
+<script src="{{asset "/assets/katex.min.js"}}" defer></script>
+<script src="{{asset "/assets/auto-render.min.js"}}" defer></script>
 <script>
-function upload(file, editor1){
-    var formData = new FormData();
-    if(file.name=="image.png")
-        formData.append("imgFile",file,"img"+(new Date().getTime())+".png");
-    else
-        formData.append("imgFile",file);
-    $.ajax({
-        url : '/assets/kindeditor/php/upload_json.php?dir=image',
-        type : 'POST',
-        data : formData,
-        processData : false,
-        contentType : false,
-        dataType:"json",
-        success : function(responseStr) {
-            var src = responseStr.url;
-            var imgTag = "<img src='"+src+"' width='486px' border='0'/>";
-            if(src.endsWith('.mp3'))
-                imgTag="<audio controls src='"+src+"'></audio>";
-            if(src.endsWith('.pdf'))
-                imgTag="<iframe src='"+src+"'  width=\"100%\" height=\"800px\"  ></iframe>";
-            if(src.endsWith('.mp4'))
-                imgTag="<video controls  width=\"68%\" ><source src='"+src+"' type='video/mp4'></video>";
-            editor1.insertHtml(imgTag);
-        },
-        error : function(responseStr) {
-            console.log("error:"+responseStr);
+(function(){
+  var PREVIEW_URL="/admin/markdown_preview.php";
+  var UPLOAD_URL="/assets/editor/upload.php";
+  var MEDIA=/\.(mp3|wav|wma|wmv|mid|avi|mpg|asf|rm|rmvb|mp4|swf|flv|pdf|zip|rar|gz|bz2|doc|docx|xls|xlsx|ppt|txt)$/i;
+  function debounce(fn,ms){var t;return function(){var a=arguments,c=this;clearTimeout(t);
+    t=setTimeout(function(){fn.apply(c,a)},ms);};}
+  function renderPane(ta,pane){
+    var xhr=new XMLHttpRequest();
+    xhr.open("POST",PREVIEW_URL,true);
+    xhr.setRequestHeader("Content-Type","application/x-www-form-urlencoded");
+    xhr.onreadystatechange=function(){
+      if(xhr.readyState!==4||xhr.status!==200)return;
+      pane.innerHTML=xhr.responseText;
+      if(window.renderMathInElement){try{renderMathInElement(pane,{{katexOptions}});}catch(e){}}
+    };
+    xhr.send("text="+encodeURIComponent(ta.value));
+  }
+  function insertAtCursor(ta,text){
+    var s=ta.selectionStart,e=ta.selectionEnd,v=ta.value;
+    ta.value=v.slice(0,s)+text+v.slice(e);
+    var p=s+text.length;
+    ta.selectionStart=ta.selectionEnd=p;
+    ta.focus();
+  }
+  function enhance(ta){
+    var wrap=document.createElement("div");wrap.className="md-editor";
+    ta.parentNode.insertBefore(wrap,ta);
+    var bar=document.createElement("div");bar.className="md-bar";
+    var up=document.createElement("button");
+    up.type="button";up.className="btn btn-default btn-sm";up.textContent="上传图片/文件";
+    var hint=document.createElement("span");hint.className="muted";
+    hint.textContent="支持 Markdown 与 $LaTeX$ 公式";
+    var file=document.createElement("input");file.type="file";file.style.display="none";
+    file.accept="image/*,.pdf,.mp3,.mp4,.zip,.rar,.gz,.bz2,.doc,.docx,.xls,.xlsx,.ppt,.txt";
+    var pane=document.createElement("div");pane.className="md-pane md-body";
+    bar.appendChild(up);bar.appendChild(hint);bar.appendChild(file);
+    wrap.appendChild(bar);wrap.appendChild(ta);wrap.appendChild(pane);
+    var doRender=debounce(function(){renderPane(ta,pane);},250);
+    ta.addEventListener("input",doRender);
+    if(ta.value.trim()!=="")renderPane(ta,pane);
+    up.addEventListener("click",function(){file.click();});
+    file.addEventListener("change",function(){
+      if(!file.files.length)return;
+      var f=file.files[0],fd=new FormData();fd.append("file",f);
+      var xhr=new XMLHttpRequest();
+      xhr.open("POST",UPLOAD_URL,true);
+      xhr.onreadystatechange=function(){
+        if(xhr.readyState!==4)return;
+        var resp={};
+        try{resp=JSON.parse(xhr.responseText);}catch(e){}
+        if(xhr.status===200&&resp.url){
+          var alt=(f.name||"file").replace(/[\[\]]/g,"");
+          insertAtCursor(ta,(MEDIA.test(resp.url)?"[":"![")+alt+"]("+resp.url+")");
+          doRender();
+        }else{
+          alert(resp.message||"上传失败");
         }
+        file.value="";
+      };
+      xhr.send(fd);
     });
-}
-$(document).ready(function (){
-    KindEditor.ready(function(K) {
-        var editor1 = K.create('textarea[class="kindeditor"]', {
-            width : '100%',
-            cssPath : '/assets/kindeditor/plugins/code/prettify.css',
-            uploadJson : '/assets/kindeditor/php/upload_json.php',
-            fileManagerJson : '/assets/kindeditor/php/file_manager_json.php',
-            allowFileManager : false,
-            allowImageRemote: true,
-            newlineTag: 'br',
-            filterMode:false,
-            pasteType:1,
-            cssData: 'body { font-family:"Consolas";font-size: 18px;line-height:150% }  ',
-            designMode:false,
-            afterCreate : function() {
-                var self = this;
-                K.ctrl(document, 13, function(){ self.sync(); });
-                K.ctrl(self.edit.doc, 13, function(){ self.sync(); });
-                var editerDoc = this.edit.doc;
-                $(editerDoc).bind('paste', null, function (e) {
-                    var ele = e.originalEvent.clipboardData.items;
-                    for (var i = 0; i < ele.length; ++i) {
-                        if ( ele[i].kind == 'file' && (ele[i].type.indexOf('image/') !== -1 || ele[i].type.endsWith("pdf") ) ) {
-                            var file = ele[i].getAsFile();
-                            upload(file,self);
-                            if(ele.length==1||ele[i-1].type=="text/html") return false;
-                        }
-                    }
-                }).bind("drop",null,function(e){
-                    e.originalEvent.preventDefault();
-                    e.originalEvent.stopPropagation();
-                    var dt=e.originalEvent.dataTransfer;
-                    if(dt.files != undefined ){
-                        for(var n=0;n<dt.files.length;n++){ upload(dt.files[n],self); }
-                    }
-                });
-            },
-            afterBlur: function() { this.sync(); },
-            afterChange: function() { this.sync(); if( typeof sync === "function") sync(); }
-        });
-        prettyPrint();
-    });
-});
+  }
+  function boot(){
+    var list=document.querySelectorAll("textarea.md-source");
+    for(var i=0;i<list.length;i++){enhance(list[i]);}
+  }
+  if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",boot);}else{boot();}
+})();
 </script>
 {{end}}
 
@@ -2067,12 +2095,12 @@ $(document).ready(function (){
 内存 <input class="input input-mini" type="number" min="1" max="2048" step="1" name="memory_limit" size="20" value="128"> MiB<br><br>
 {{if .ShowCoin}}金币 <input class="input input-mini" type="number" min="0" max="9999" step="1" name="coin" size="20" value="1"><br><br>{{end}}
 </p>
-<h4>描述(&lt;64kB)</h4>
-<textarea class="kindeditor" rows="33" name="description" cols="80"></textarea><br>
+<h4>描述（Markdown，&lt;64kB）</h4>
+<textarea class="md-source" name="description" rows="33" cols="80" style="width:100%;font-family:monospace"></textarea><br>
 <h4>输入(&lt;64kB)</h4>
-<textarea class="kindeditor" rows="13" name="input" cols="80"></textarea><br>
+<textarea class="md-source" rows="13" name="input" cols="80"></textarea><br>
 <h4>输出(&lt;64kB)</h4>
-<textarea class="kindeditor" rows="13" name="output" cols="80"></textarea><br>
+<textarea class="md-source" rows="13" name="output" cols="80"></textarea><br>
 <h4>样例输入(&lt;64kB)</h4>
 <textarea style="width:100%;" rows="13" name="sample_input"></textarea><br><br>
 <h4>样例输出(&lt;64kB)</h4>
@@ -2082,7 +2110,7 @@ $(document).ready(function (){
 <h4>测试输出</h4>
 <textarea style="width:100%;" rows="13" name="test_output"></textarea><br><br>
 <h4>提示(&lt;64kB)</h4>
-<textarea class="kindeditor" rows="13" name="hint" cols="80"></textarea><br>
+<textarea class="md-source" rows="13" name="hint" cols="80"></textarea><br>
 <h4>评测方式</h4>
 <input type="radio" name="spj" value="0" checked>普通<br>
 <input type="radio" name="spj" value="1">特殊评测(SPJ)<br>
@@ -2098,7 +2126,7 @@ $(document).ready(function (){
 <div align="center"><input type="submit" value="保存" name="submit"></div>
 </form>
 </div>
-{{template "kindeditorScript"}}
+{{template "markdownEditorScript"}}
 {{end}}
 
 {{/* adminProblemAddResultPage 是新增题目的结果页。 */}}
@@ -2122,18 +2150,18 @@ $(document).ready(function (){
 内存 <input class="input input-mini" type="number" min="1" max="1024" step="1" name="memory_limit" size="20" value="{{.MemoryLimit}}"> MiB
 {{if .ShowCoin}}金币 <input class="input input-mini" type="number" min="0" max="9999" step="1" name="coin" size="20" value="{{.Coin}}">{{end}}
 </p>
-<h4>描述</h4>
-<textarea class="kindeditor" rows="33" name="description" cols="80">{{.Description}}</textarea><br>
+<h4>描述（Markdown）</h4>
+<textarea class="md-source" name="description" rows="33" cols="80" style="width:100%;font-family:monospace">{{.Description}}</textarea><br>
 <h4>输入</h4>
-<textarea class="kindeditor" rows="13" name="input" cols="80">{{.Input}}</textarea><br>
+<textarea class="md-source" rows="13" name="input" cols="80">{{.Input}}</textarea><br>
 <h4>输出</h4>
-<textarea class="kindeditor" rows="13" name="output" cols="80">{{.Output}}</textarea><br>
+<textarea class="md-source" rows="13" name="output" cols="80">{{.Output}}</textarea><br>
 <h4>样例输入</h4>
 <textarea style="width:100%;" rows="13" name="sample_input">{{.SampleInput}}</textarea><br><br>
 <h4>样例输出</h4>
 <textarea style="width:100%;" rows="13" name="sample_output">{{.SampleOut}}</textarea><br><br>
 <h4>提示</h4>
-<textarea class="kindeditor" rows="13" name="hint" cols="80">{{.Hint}}</textarea><br>
+<textarea class="md-source" rows="13" name="hint" cols="80">{{.Hint}}</textarea><br>
 <h4>评测方式</h4>
 <input type="radio" name="spj" value="0" {{if eq .Spj "0"}}checked{{end}}>普通<br>
 <input type="radio" name="spj" value="1" {{if eq .Spj "1"}}checked{{end}}>特殊评测(SPJ)<br>
@@ -2147,7 +2175,7 @@ $(document).ready(function (){
 <div align="center"><input class="btn btn-success" type="submit" value="保存" name="submit"></div>
 </form>
 </div>
-{{template "kindeditorScript"}}
+{{template "markdownEditorScript"}}
 {{end}}
 
 {{/* adminTestDataPage 是后台测试数据管理页（对应 PHP phpfm.php 里与题目数据相关的部分）。 */}}
@@ -2442,7 +2470,7 @@ user3"></textarea>
 <input class="input input-xxlarge" type="text" style="width:100%" name="cproblem" value="{{.PList}}"></p>
 <p align="left">子网 <input class="input input-xxlarge" type="text" style="width:100%" name="subnet" value="{{.Subnet}}" placeholder="0.0.0.0/0"></p>
 <p align="left"><h4>比赛-说明</h4>
-<textarea class="kindeditor" rows="13" name="description" cols="80">{{.Description}}</textarea></p>
+<textarea class="md-source" rows="13" name="description" cols="80">{{.Description}}</textarea></p>
 <table width="100%"><tr>
 <td rowspan="2"><p align="left">比赛-语言（Ctrl 多选）<br>
 <select name="lang[]" multiple="multiple" style="height:220px">
@@ -2464,6 +2492,7 @@ user3"></textarea>
 <div align="center"><input type="submit" value="保存" name="submit"></div>
 </form>
 </div>
+{{template "markdownEditorScript"}}
 {{end}}
 
 {{/* adminHelpPage 对应 admin/help.php。 */}}

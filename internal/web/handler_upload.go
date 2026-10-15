@@ -1,7 +1,8 @@
-// 编辑器上传端点，对应 PHP kindeditor/php/upload_json.php。
+// 编辑器上传端点（原 PHP kindeditor/php/upload_json.php）。
 //
 // 纯 Go 环境不再依赖 PHP-FPM：Go 自己落盘到 <OJHome>/src/web/upload/
-// （nginx 各域名的静态根），以 KindEditor 期望的 JSON 返回 /upload/... 地址。
+// （nginx 各域名的静态根），以 JSON 返回 /upload/... 地址，供 Markdown
+// 编辑器在光标处插入图片/文件链接。
 // 扩展名白名单沿用 PHP：只允许图片/媒体/文件三类，从不产出 .php，避免上传即执行。
 package web
 
@@ -75,7 +76,7 @@ func (s *Server) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 		writeUploadJSON(w, http.StatusBadRequest, uploadResponse{Error: 1, Message: "无法解析上传数据"})
 		return
 	}
-	file, header, err := r.FormFile("imgFile")
+	file, header, err := r.FormFile("file")
 	if err != nil {
 		writeUploadJSON(w, http.StatusBadRequest, uploadResponse{Error: 1, Message: "请选择图片。"})
 		return
@@ -142,21 +143,27 @@ func (s *Server) handleUploadJSON(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleFileManagerJSON 对应 PHP file_manager_json.php。
-// 编辑器里 allowFileManager=false，正常不会被调用；保留接口避免误配时 404。
-func (s *Server) handleFileManagerJSON(w http.ResponseWriter, r *http.Request) {
+// handleMarkdownPreview 是编辑器实时预览接口：把提交的 Markdown 用与题面
+// 完全相同的 goldmark 转成 HTML 片段返回，保证所见即所得。只读、无副作用，
+// 在 csrf.go 里豁免 CSRF；接口本身要求编辑器角色身份。
+func (s *Server) handleMarkdownPreview(w http.ResponseWriter, r *http.Request) {
 	identity := s.resolveIdentity(w, r)
 	if !uploadCanAccess(identity) {
-		writeUploadJSON(w, http.StatusForbidden, uploadResponse{Error: 1, Message: "Login First!"})
+		http.Error(w, "forbidden", http.StatusForbidden)
 		return
 	}
-	writeUploadJSON(w, http.StatusOK, uploadResponse{Error: 1, Message: "文件管理器未启用"})
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	text := r.FormValue("text")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write([]byte(markdownString(text)))
 }
 
-// registerUploadRoutes 注册上传接口，放在 /assets/kindeditor/php/ 下：
-// 两个域名的 nginx 都把 /assets/ 交给 Go，因此无需 PHP-FPM 也无需新增 nginx 规则。
+// registerUploadRoutes 注册编辑器相关接口（/assets/ 由 Go 处理，无需 nginx 规则）。
 func (s *Server) registerUploadRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /assets/kindeditor/php/upload_json.php", s.handleUploadJSON)
-	mux.HandleFunc("GET /assets/kindeditor/php/upload_json.php", s.handleUploadJSON)
-	mux.HandleFunc("GET /assets/kindeditor/php/file_manager_json.php", s.handleFileManagerJSON)
+	mux.HandleFunc("POST /assets/editor/upload.php", s.handleUploadJSON)
+	mux.HandleFunc("GET /assets/editor/upload.php", s.handleUploadJSON)
+	mux.HandleFunc("POST /admin/markdown_preview.php", s.handleMarkdownPreview)
 }

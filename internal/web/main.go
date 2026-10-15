@@ -164,10 +164,10 @@ func (s *Server) handler() http.Handler {
 	// 业务路由：题目来源分类页（category.php）。
 	s.registerCategoryRoutes(mux)
 
-	// 静态资源：/assets/（含 jquery、kindeditor、katex），由二进制内嵌提供。
+	// 静态资源：/assets/（含 jquery、katex），由二进制内嵌提供。
 	s.registerAssetRoutes(mux)
 
-	// 编辑器上传接口（原 PHP kindeditor/php/*.php 的位置，纯 Go 不再走 PHP-FPM）。
+	// 编辑器上传/实时预览接口（纯 Go 实现，不再走 PHP-FPM）。
 	s.registerUploadRoutes(mux)
 
 	// 后台测试数据管理（/admin/test_data.php）。

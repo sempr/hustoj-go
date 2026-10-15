@@ -121,9 +121,8 @@ func TestAdminProblemEditGet(t *testing.T) {
 	}
 }
 
-// 题目新增/编辑页必须像 PHP 一样引入 kindeditor（对应 admin/kindeditor.php），
-// 否则 textarea[class="kindeditor"] 只是个普通多行文本框。
-func TestAdminProblemPagesLoadKindEditor(t *testing.T) {
+// 新版用轻量 Markdown 编辑器替代 KindEditor，断言 md-source 与编辑器脚本已引入。
+func TestAdminProblemPagesLoadMarkdownEditor(t *testing.T) {
 	f := &fakeQuerier{
 		detail:            dbgen.Problem{ProblemID: 1001, Title: "E", Description: "D", Spj: "1", Coin: 2},
 		lastProblemSource: sql.NullString{String: "tagX", Valid: true},
@@ -144,28 +143,18 @@ func TestAdminProblemPagesLoadKindEditor(t *testing.T) {
 			}
 			body := rec.Body.String()
 			for _, want := range []string{
-				"/assets/kindeditor/kindeditor.js",
-				"/assets/kindeditor/themes/default/default.css",
-				"/assets/kindeditor/lang/zh_CN.js",
-				"/assets/kindeditor/plugins/code/prettify.js",
-				"/assets/kindeditor/php/upload_json.php", // 由 Go 实现的上传接口
-				"KindEditor.ready",
-				"/assets/jquery.min.js", // 初始化用到 $(document).ready
-				`class="kindeditor"`,
+				`class="md-source"`,
+				"/assets/editor/upload.php",   // 上传按钮（Go 实现）
+				"/admin/markdown_preview.php", // 实时预览（Go 实现）
+				"/assets/katex.min.js",        // 预览里渲染公式
 			} {
 				if !strings.Contains(body, want) {
 					t.Errorf("缺少 %q", want)
 				}
 			}
-			// 纯 Go 环境：不得再引用 PHP web 根的静态文件。
-			for _, bad := range []string{"/template/", "/include/"} {
-				if strings.Contains(body, bad) {
-					t.Errorf("不应再依赖 PHP 静态树 %q", bad)
-				}
-			}
-			// 编辑器必须在 textarea 之后加载，否则初始化时元素还不存在。
-			if a, b := strings.Index(body, `class="kindeditor"`), strings.Index(body, "KindEditor.ready"); b < a {
-				t.Errorf("KindEditor 应在 textarea 之后初始化")
+			// 不得再引用 KindEditor 静态资源。
+			if strings.Contains(body, "kindeditor") {
+				t.Errorf("不应再引用 KindEditor：%s", body)
 			}
 		})
 	}

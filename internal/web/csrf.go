@@ -51,15 +51,9 @@ func wrapCSRF(next http.Handler) http.Handler {
 	}
 	h.SetBaseCookie(cookie)
 
-	// 编辑器上传接口豁免 CSRF：KindEditor 内置上传器是自己拼的 multipart
-	// 请求，只能带 imgFile 字段，没法附带 token（工具栏的图片按钮走的就是
-	// 这条流程，不是我们 JS 里的 upload()）。
-	//
-	// 防护等级与 PHP 版 kindeditor/php/upload_json.php 一致：接口本身要求
-	// 管理员/命题人/出题人身份，扩展名走白名单、从不产出 .php，
-	// 因此跨站至多能"借用一次会话上传一个白名单后缀的文件"，无法执行。
-	h.ExemptPath("/assets/kindeditor/php/upload_json.php")
-	h.ExemptPath("/assets/kindeditor/php/file_manager_json.php")
+	// 上传接口豁免 CSRF：内置上传器无法附带 CSRF token。
+	h.ExemptPath("/assets/editor/upload.php")
+	h.ExemptPath("/admin/markdown_preview.php")
 
 	// 失败时不要用 nosurf 默认的纯文本 403 —— 迁移期两端并存，
 	// 页面直接吐出默认错误页与其它页面样式不一致，用户会以为站点坏了。

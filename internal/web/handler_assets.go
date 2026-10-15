@@ -25,7 +25,10 @@ var assetFS embed.FS
 // 字体不参与哈希：它们由 CSS 内的相对路径引用，版本跟 CSS 走。
 var assetVersion = func() string {
 	sum := sha256.New()
-	for _, name := range []string{"static/simple.min.css", "static/hustoj.css", "static/katex.min.css"} {
+	for _, name := range []string{
+		"static/simple.min.css", "static/hustoj.css", "static/katex.min.css",
+		"static/katex.min.js", "static/auto-render.min.js",
+	} {
 		b, err := assetFS.ReadFile(name)
 		if err != nil {
 			// 只有 embed 指令与目录不符时才会发生，属构建期错误。

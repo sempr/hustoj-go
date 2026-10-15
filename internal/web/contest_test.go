@@ -408,7 +408,7 @@ func TestRenderContestError(t *testing.T) {
 	if !strings.Contains(out2, msgContestClosedTitle) {
 		t.Errorf("比赛不存在时标题应为 %q: %s", msgContestClosedTitle, out2)
 	}
-	if !strings.Contains(out2, "Not in "+msgSubnet+" ") {
+	if !strings.Contains(out2, "Not in "+msgSubnet) {
 		t.Errorf("比赛不存在时描述应为网段提示: %s", out2)
 	}
 

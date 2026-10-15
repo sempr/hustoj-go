@@ -6,6 +6,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,12 +40,12 @@ func newUploadServer(t *testing.T, session string) (*Server, string) {
 	return srv, home
 }
 
-// multipartRequest 构造 KindEditor 那种带 imgFile 字段的上传请求。
+// multipartRequest 构造带 file 字段的上传请求（Markdown 编辑器上传按钮）。
 func multipartRequest(t *testing.T, target, filename string) *http.Request {
 	t.Helper()
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
-	fw, err := mw.CreateFormFile("imgFile", filename)
+	fw, err := mw.CreateFormFile("file", filename)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -59,7 +60,7 @@ func multipartRequest(t *testing.T, target, filename string) *http.Request {
 	return req
 }
 
-const uploadPath = "/assets/kindeditor/php/upload_json.php"
+const uploadPath = "/assets/editor/upload.php"
 
 // withSessionRequest 带上测试会话 cookie（doProblem 里用同一枚 sid）。
 func withSessionRequest(req *http.Request) *http.Request {
@@ -108,7 +109,7 @@ func TestUploadRejectsPhpExtension(t *testing.T) {
 }
 
 // 合法图片落盘到 <uploadDir>/image/<日期>/，并返回 /upload/... 地址；
-// 同时验证该请求不带 CSRF token 也能通过（KindEditor 自带上传器带不了）。
+// 同时验证该请求不带 CSRF token 也能通过（上传按钮带不了 token，走豁免）。
 func TestUploadSuccessLandsFile(t *testing.T) {
 	srv, home := newUploadServer(t, seedAdmin())
 	rec := httptest.NewRecorder()
@@ -136,13 +137,58 @@ func TestUploadSuccessLandsFile(t *testing.T) {
 
 // 资源与上传接口都在 /assets/ 之下，避免依赖 PHP web 根的路径约定。
 func TestUploadAndAssetsPathsAreAssetScoped(t *testing.T) {
-	for _, p := range []string{"/assets/jquery.min.js", "/assets/kindeditor/kindeditor.js",
-		"/assets/kindeditor/themes/default/default.css"} {
+	for _, p := range []string{"/assets/jquery.min.js", "/assets/katex.min.js"} {
 		srv, _ := newUploadServer(t, seedAdmin())
 		rec := httptest.NewRecorder()
 		srv.handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, p, nil))
 		if rec.Code != http.StatusOK {
 			t.Errorf("%s 状态码 = %d, 期望 200", p, rec.Code)
+		}
+	}
+}
+
+const previewPath = "/admin/markdown_preview.php"
+
+func previewRequest(t *testing.T, text string) *http.Request {
+	t.Helper()
+	form := url.Values{"text": {text}}
+	req := httptest.NewRequest(http.MethodPost, previewPath, strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	return req
+}
+
+// 实时预览接口未登录必须被拒。
+func TestMarkdownPreviewRejectsAnonymous(t *testing.T) {
+	srv, _ := newUploadServer(t, "")
+	rec := httptest.NewRecorder()
+	srv.handler().ServeHTTP(rec, previewRequest(t, "# hi"))
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("匿名预览状态码 = %d, 期望 403", rec.Code)
+	}
+}
+
+// 实时预览接口只接受 POST。
+func TestMarkdownPreviewRejectsNonPost(t *testing.T) {
+	srv, _ := newUploadServer(t, seedAdmin())
+	rec := httptest.NewRecorder()
+	srv.handler().ServeHTTP(rec, withSessionRequest(httptest.NewRequest(http.MethodGet, previewPath, nil)))
+	if rec.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET 状态码 = %d, 期望 405", rec.Code)
+	}
+}
+
+// 预览走与题面相同的 goldmark 管线：GFM、原始 HTML，以及 \(…\)、\[…\] 定界符保留。
+func TestMarkdownPreviewRenders(t *testing.T) {
+	srv, _ := newUploadServer(t, seedAdmin())
+	rec := httptest.NewRecorder()
+	srv.handler().ServeHTTP(rec, withSessionRequest(previewRequest(t, "# 标题\n\n\\(a+b\\) 与 \\[c=d\\]")))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("预览状态码 = %d, 期望 200", rec.Code)
+	}
+	out := rec.Body.String()
+	for _, want := range []string{"<h1", "\\(a+b\\)", "\\[c=d\\]"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("预览缺少 %q: %s", want, out)
 		}
 	}
 }

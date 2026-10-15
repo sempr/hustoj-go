@@ -4,7 +4,8 @@
 // 权限：administrator 或 contest_creator（Identity 不建模 session 里的 m<cid>）。
 // langmask 由 Go 侧算：`((1<<len(languageExt))-1) & ^selected`；contest_type 是复选框
 // 1<<i 的按位或。description 做 `<p>` 去除、`</p>→<br />`、`,`→`&#44;`。
-// 未复刻：kindeditor、langmask 复制下拉（依赖 session 的 m<cid> 列表）。
+// 说明字段前端用轻量 Markdown 编辑器（见 templates.go 的 markdownEditorScript）。
+// 未复刻：langmask 复制下拉（依赖 session 的 m<cid> 列表）。
 
 package web
 

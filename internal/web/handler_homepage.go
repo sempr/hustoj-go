@@ -17,7 +17,6 @@ package web
 import (
 	"database/sql"
 	"encoding/json"
-	"html"
 	"html/template"
 	"math"
 	"net/http"
@@ -495,7 +494,7 @@ func (s *Server) handleViewNews(w http.ResponseWriter, r *http.Request) {
 		Title:       n.Title,
 		OJName:      s.cfg.OJName,
 		NewsTitle:   n.Title,
-		NewsContent: template.HTML(bbcodeToHTML(n.Content)),
+		NewsContent: markdownHTML(n.Content),
 		NewsWriter:  n.UserID,
 		NewsDate:    n.Time.Format("2006-01-02 15:04:05"),
 		MathJax:     s.cfg.MathJax,
@@ -508,59 +507,4 @@ func (s *Server) registerHomepageRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /index.php", s.handleIndex)
 	mux.HandleFunc("GET /portal.php", s.handlePortal)
 	mux.HandleFunc("GET /viewnews.php", s.handleViewNews)
-}
-
-// bbcodeToHTML 将 BBCode 转换为 HTML。
-// 简化实现，支持常见标签。
-func bbcodeToHTML(input string) string {
-	if input == "" {
-		return ""
-	}
-	// 转义 HTML 特殊字符
-	input = html.EscapeString(input)
-
-	// 基本 BBCode 标签
-	replacements := []struct {
-		from string
-		to   string
-	}{
-		{"[b]", "<b>"},
-		{"[/b]", "</b>"},
-		{"[i]", "<i>"},
-		{"[/i]", "</i>"},
-		{"[u]", "<u>"},
-		{"[/u]", "</u>"},
-		{"[code]", "<pre>"},
-		{"[/code]", "</pre>"},
-		{"[quote]", "<blockquote>"},
-		{"[/quote]", "</blockquote>"},
-		{"[url]", "<a href=\""},
-		{"[url=", "<a href=\""},
-		{"[/url]", "</a>"},
-		{"[img]", "<img src=\""},
-		{"[/img]", "\">"},
-	}
-
-	for _, r := range replacements {
-		input = strings.ReplaceAll(input, r.from, r.to)
-	}
-
-	// 处理 [url=xxx]yyy[/url]
-	for strings.Contains(input, "[url=") {
-		start := strings.Index(input, "[url=")
-		end := strings.Index(input[start:], "]")
-		if end == -1 {
-			break
-		}
-		url := input[start+5 : start+end]
-		rest := input[start+end+1:]
-		closeIdx := strings.Index(rest, "[/url]")
-		if closeIdx == -1 {
-			break
-		}
-		text := rest[:closeIdx]
-		input = input[:start] + "<a href=\"" + url + "\">" + text + "</a>" + rest[closeIdx+6:]
-	}
-
-	return input
 }
