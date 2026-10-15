@@ -40,4 +40,10 @@ func TestKatexOptions(t *testing.T) {
 	if !strings.Contains(o, "$$") || !strings.Contains(o, `\\(`) || !strings.Contains(o, `\\[`) {
 		t.Fatalf("unexpected katex options: %s", o)
 	}
+	// 必须是完整的对象字面量：少了外层大括号会让
+	// renderMathInElement(target, delimiters:[...]) 成为 JS 语法错误，
+	// 整段 auto-render 脚本失效、公式全部不渲染。
+	if !strings.HasPrefix(o, "{") || !strings.HasSuffix(o, "}") {
+		t.Fatalf("katex options must be a brace-wrapped object literal, got: %s", o)
+	}
 }

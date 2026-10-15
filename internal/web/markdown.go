@@ -71,8 +71,10 @@ func markdownHTML(s string) template.HTML {
 	return template.HTML(markdownString(s))
 }
 
-// katexOptions 返回 KaTeX auto-render 的选项对象（JS 片段）。
-// 四组定界符与 mdui 模板保持一致。
+// katexOptions 返回 KaTeX auto-render 的选项对象字面量（含一对大括号的 JS
+// 片段），四组定界符与 mdui 模板保持一致。调用方直接写成
+// renderMathInElement(target, {{katexOptions}})，少写大括号会导致整段脚本
+// 语法错误、KaTeX 完全不执行。
 func katexOptions() template.JS {
-	return template.JS(`delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false},{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}],throwOnError:false,trust:true`)
+	return template.JS(`{delimiters:[{left:"$$",right:"$$",display:true},{left:"$",right:"$",display:false},{left:"\\(",right:"\\)",display:false},{left:"\\[",right:"\\]",display:true}],throwOnError:false,trust:true}`)
 }
