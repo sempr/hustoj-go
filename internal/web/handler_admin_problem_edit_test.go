@@ -74,7 +74,7 @@ func TestAdminProblemAdd(t *testing.T) {
 	f := &fakeQuerier{nextProblemID: 1050}
 	form := url.Values{
 		"title": {"Hello,World"}, "time_limit": {"1"}, "memory_limit": {"128"},
-		"description": {"D"}, "input": {"I"}, "output": {"O"},
+		"description": {"D, E"}, "input": {"I"}, "output": {"O"},
 		"sample_input": {"A\u00a0B"}, "sample_output": {"out"}, "test_input": {"t"}, "test_output": {"to"},
 		"hint": {"H"}, "source": {"src"}, "spj": {"1"}, "coin": {"3"}, "contest_id": {""},
 	}
@@ -85,6 +85,10 @@ func TestAdminProblemAdd(t *testing.T) {
 	got := f.lastInsertProblem
 	if got.Title != "Hello&#44;World" || got.Spj != "1" || got.SampleInput.String != "A B" {
 		t.Errorf("InsertProblem 参数 = %+v", got)
+	}
+	// Markdown 字段原样入库，不做 `,`→`&#44;`。
+	if got.Description != "D, E" || got.Input != "I" || got.Output != "O" || got.Hint != "H" {
+		t.Errorf("Markdown 字段应原样存储 = %+v", got)
 	}
 	if !containsCall(f.called, "SetProblemCoin") {
 		t.Errorf("应写 coin")

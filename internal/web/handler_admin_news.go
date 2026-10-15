@@ -18,7 +18,6 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/sempr/hustoj-go/pkg/dbgen"
@@ -68,15 +67,6 @@ type adminNewsEditVM struct {
 	Content    string
 	ShowInMenu bool
 	Token      *http.Request
-}
-
-// newsTransformContent 复刻 news_add.php / news_edit.php 对正文的预处理：
-// 去掉 <p>，把 </p> 换成 <br />。（setmsg.php 还多一步 ','→'&#44;' 与
-// RemoveXSS，那是 setmsg 特有的，不在此处。）
-func newsTransformContent(s string) string {
-	s = strings.ReplaceAll(s, "<p>", "")
-	s = strings.ReplaceAll(s, "</p>", "<br />")
-	return s
 }
 
 // newsMenuValue 复刻 `$showInMenu == "on" ? 1 : 0`。
@@ -240,7 +230,7 @@ func (s *Server) handleAdminNewsAdd(w http.ResponseWriter, r *http.Request) {
 	err := s.queries().InsertNews(ctx, dbgen.InsertNewsParams{
 		UserID:  identity.UserID,
 		Title:   r.FormValue("title"),
-		Content: newsTransformContent(r.FormValue("content")),
+		Content: r.FormValue("content"),
 		Menu:    newsMenuValue(r.FormValue("showInMenu")),
 	})
 	if err != nil {
@@ -269,7 +259,7 @@ func (s *Server) handleAdminNewsEdit(w http.ResponseWriter, r *http.Request) {
 		}
 		err := s.queries().UpdateNews(ctx, dbgen.UpdateNewsParams{
 			Title:   r.FormValue("title"),
-			Content: newsTransformContent(r.FormValue("content")),
+			Content: r.FormValue("content"),
 			UserID:  identity.UserID,
 			Menu:    newsMenuValue(r.FormValue("showInMenu")),
 			NewsID:  int32(parseInt(r.FormValue("news_id"))),

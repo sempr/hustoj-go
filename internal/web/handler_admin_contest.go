@@ -3,8 +3,8 @@
 //
 // 权限：administrator 或 contest_creator（Identity 不建模 session 里的 m<cid>）。
 // langmask 由 Go 侧算：`((1<<len(languageExt))-1) & ^selected`；contest_type 是复选框
-// 1<<i 的按位或。description 做 `<p>` 去除、`</p>→<br />`、`,`→`&#44;`。
-// 说明字段前端用轻量 Markdown 编辑器（见 templates.go 的 markdownEditorScript）。
+// 1<<i 的按位或。说明字段由轻量 Markdown 编辑器原样存取（见 templates.go 的
+// markdownEditorScript），不再套用旧 HTML 预处理。
 // 未复刻：langmask 复制下拉（依赖 session 的 m<cid> 列表）。
 
 package web
@@ -54,13 +54,6 @@ func parseContestTime(date, hour, minute string) sql.NullTime {
 		return sql.NullTime{}
 	}
 	return sql.NullTime{Time: t, Valid: true}
-}
-
-// contestDescription 复刻 contest_add/edit 的正文预处理。
-func contestDescription(s string) string {
-	s = strings.ReplaceAll(s, "<p>", "")
-	s = strings.ReplaceAll(s, "</p>", "<br />")
-	return strings.ReplaceAll(s, ",", "&#44;")
 }
 
 type adminContestRowVM struct {
@@ -297,7 +290,7 @@ func (s *Server) parseContestForm(r *http.Request) (adminContestFormVM, dbgen.In
 		EndTime:     parseContestTime(r.FormValue("enddate"), r.FormValue("ehour"), r.FormValue("eminute")),
 		Private:     int8(parseInt(r.FormValue("private"))),
 		Langmask:    contestLangmask(selected),
-		Description: sql.NullString{String: contestDescription(r.FormValue("description")), Valid: true},
+		Description: sql.NullString{String: r.FormValue("description"), Valid: true},
 		Password:    r.FormValue("password"),
 		Subnet:      r.FormValue("subnet"),
 		ContestType: sql.NullInt16{Int16: ctype, Valid: true},

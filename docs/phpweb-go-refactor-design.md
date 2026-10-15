@@ -303,10 +303,12 @@ Go 侧全部经 `html/template` 转义。
   - **第二批（1.3b）**：`problem_add_page.php`/`problem_add.php`、`problem_edit.php`。
     `addproblem` 以 defunct='Y' 落库（新题先隐藏），随后写 `coin`、建 `<OJHome>/data/<pid>/`
     并写 sample/test 数据文件、可选挂到未来比赛、给创建者 `p<pid>` 权限。
-    `problem_add` 对 title/description/input/output/hint 做 `,→&#44;`，对 sample/test 做
-    `normalizeSpaces`（仅 Unicode 空格 + 零宽字符，ASCII 空格不动）。编辑页 UPDATE 带
+    `problem_add` 仅对 title 做 `,→&#44;`（复刻 PHP）；description/input/output/hint 改由
+    Markdown 编辑器原样存取，不再做 HTML 转义；对 sample/test 做 `normalizeSpaces`
+    （仅 Unicode 空格 + 零宽字符，ASCII 空格不动）。编辑页 UPDATE 带
     `in_date=NOW()`；仅当 `sample.in` 已存在且新样例非空时才重写样例文件。
-    AI 生成 / 实时预览（kindeditor/marked/iframe）未复刻，表单为静态版本。
+    表单用轻量 Markdown 编辑器（源码 + `/admin/markdown_preview.php` 实时预览 + 上传按钮），
+    取代已停更多年的 KindEditor。
   - **第三批（1.3c）**：`problem_export.php`/`problem_export_xml.php` —— 产物是 FPS XML
     （可选 zip 打包），含题面字段 + 测试用例 + SPJ 源码。**有意简化**：不复刻 PHP 的
     临时文件 + session 进度 + `?last_file` 二次下载，改为一次性生成并流式返回；不嵌入图片
@@ -333,10 +335,11 @@ Go 侧全部经 `html/template` 转义。
     按 contest_id DESC；行内给出 公开/状态 切换与 编辑/复制/导出/日志/查重 链接。
   - `contest_df_change`/`contest_pr_change`：按 cid 切换 `defunct`/`private`。
   - `contest_add`/`contest_edit`：langmask 由 Go 侧算 `((1<<len(languageExt))-1) & ^selected`；
-    `contest_type` 是复选框 `1<<i` 的按位或；`description` 做 `<p>` 去除、`</p>→<br />`、`,`→`&#44;`；
+    `contest_type` 是复选框 `1<<i` 的按位或；`description` 由 Markdown 编辑器原样存取，
+    不再做 `<p>` 去除、`</p>→<br />`、`,`→`&#44;` 等 HTML 预处理；
     题号列表逐题校验存在性后写 `contest_problem`（编辑还会重算 `c_accepted/c_submit` 与
-    `solution.num`）；写 `c<cid>`（受邀用户）与 `m<cid>`（创建者，仅 add）。未复刻 kindeditor 与
-    依赖 session 的"从比赛复制用户"下拉。
+    `solution.num`）；写 `c<cid>`（受邀用户）与 `m<cid>`（创建者，仅 add）。依赖 session 的
+    "从比赛复制用户"下拉未复刻。
   - 未迁移（后续）：`team_generate*.php`、`offline_import.php`、
     `problem_import_*`/`problem_add_page_*`、`settings.php`、`backup.php`、`watch.php`、
     `phpfm.php`、`update_db.php`、`aidba.php`、`setmsg.php`。

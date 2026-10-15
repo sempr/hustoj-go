@@ -139,13 +139,15 @@ func TestAdminNewsAddPageCopy(t *testing.T) {
 
 func TestAdminNewsAdd(t *testing.T) {
 	f := &fakeQuerier{}
-	form := url.Values{"title": {"T"}, "content": {"<p>A</p>B"}, "showInMenu": {"on"}}
+	// Markdown 原样入库，不再套 <p>/<br /> 之类 HTML 预处理。
+	content := "# A\n\n`code, with, commas`"
+	form := url.Values{"title": {"T"}, "content": {content}, "showInMenu": {"on"}}
 	rec := doNews(t, f, seedAdmin(), http.MethodPost, "/admin/news_add.php", form, (*Server).handleAdminNewsAdd)
 	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/admin/news_list.php" {
 		t.Fatalf("状态码/Location = %d/%q", rec.Code, rec.Header().Get("Location"))
 	}
 	got := f.lastNewsInsert
-	if got.Title != "T" || got.Content != "A<br />B" || got.Menu != 1 || got.UserID != "admin" {
+	if got.Title != "T" || got.Content != content || got.Menu != 1 || got.UserID != "admin" {
 		t.Errorf("InsertNews 参数 = %+v", got)
 	}
 }
@@ -174,13 +176,14 @@ func TestAdminNewsEditNotFound(t *testing.T) {
 
 func TestAdminNewsEditPost(t *testing.T) {
 	f := &fakeQuerier{}
-	form := url.Values{"news_id": {"7"}, "title": {"T2"}, "content": {"x</p>y"}}
+	content := "x, y"
+	form := url.Values{"news_id": {"7"}, "title": {"T2"}, "content": {content}}
 	rec := doNews(t, f, seedAdmin(), http.MethodPost, "/admin/news_edit.php", form, (*Server).handleAdminNewsEdit)
 	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/admin/news_list.php" {
 		t.Fatalf("状态码/Location = %d/%q", rec.Code, rec.Header().Get("Location"))
 	}
 	got := f.lastNewsUpdate
-	if got.NewsID != 7 || got.Title != "T2" || got.Content != "x<br />y" || got.Menu != 0 {
+	if got.NewsID != 7 || got.Title != "T2" || got.Content != content || got.Menu != 0 {
 		t.Errorf("UpdateNews 参数 = %+v", got)
 	}
 }

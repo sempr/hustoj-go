@@ -62,7 +62,7 @@ func TestAdminContestAdd(t *testing.T) {
 		"startdate": {"2030-01-01"}, "shour": {"10"}, "sminute": {"00"},
 		"enddate": {"2030-01-02"}, "ehour": {"12"}, "eminute": {"30"},
 		"title": {"MyContest"}, "private": {"1"}, "password": {"pw"}, "subnet": {"0.0.0.0/0"},
-		"description": {"desc"}, "cproblem": {"1000,1001"}, "ulist": {"alice\nbob"},
+		"description": {"说明, 含逗号"}, "cproblem": {"1000,1001"}, "ulist": {"alice\nbob"},
 	}
 	rec := doProblem(t, f, seedAdmin(), http.MethodPost, "/admin/contest_add.php", form, t.TempDir(), (*Server).handleAdminContestAdd)
 	if rec.Code != http.StatusFound || rec.Header().Get("Location") != "/admin/contest_list.php" {
@@ -73,6 +73,10 @@ func TestAdminContestAdd(t *testing.T) {
 	wantMask := uint32(1)<<uint(len(languageExt)) - 1
 	if got.Title.String != "MyContest" || got.Private != 1 || got.Langmask != wantMask {
 		t.Errorf("InsertContest 参数 = %+v (langmask 期望 %d)", got, wantMask)
+	}
+	// 说明字段原样入库，不再做 `,`→`&#44;` 之类 HTML 预处理。
+	if got.Description.String != "说明, 含逗号" {
+		t.Errorf("Description 应原样存储，实际 %q", got.Description.String)
 	}
 	if !containsCall(f.called, "InsertContestProblem") || !containsCall(f.called, "InsertPrivilege") {
 		t.Errorf("应挂题并写权限: %v", f.called)

@@ -32,7 +32,8 @@ func normalizeSpaces(s string) string {
 	return zeroWidthRe.ReplaceAllString(s, "")
 }
 
-// commaEscape 复刻 PHP 的 str_replace(",", "&#44;")。
+// commaEscape 复刻 PHP 的 str_replace(",", "&#44;")，仅用于非 Markdown 的标题
+// 字段；描述/输入/输出/提示按 Markdown 原样存取，不做此转义。
 func commaEscape(s string) string { return strings.ReplaceAll(s, ",", "&#44;") }
 
 // writeDataFile 把内容写进 <OJHome>/data/<pid>/<name>，并把 CRLF 归一成 LF。
@@ -119,10 +120,10 @@ func (s *Server) handleAdminProblemAdd(w http.ResponseWriter, r *http.Request) {
 	}
 
 	title := commaEscape(r.FormValue("title"))
-	description := commaEscape(r.FormValue("description"))
-	input := commaEscape(r.FormValue("input"))
-	output := commaEscape(r.FormValue("output"))
-	hint := commaEscape(r.FormValue("hint"))
+	description := r.FormValue("description")
+	input := r.FormValue("input")
+	output := r.FormValue("output")
+	hint := r.FormValue("hint")
 	sampleInput := normalizeSpaces(r.FormValue("sample_input"))
 	sampleOutput := normalizeSpaces(r.FormValue("sample_output"))
 	testInput := normalizeSpaces(r.FormValue("test_input"))
