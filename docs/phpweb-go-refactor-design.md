@@ -497,6 +497,9 @@ systemd 单元需 `EnvironmentFile=/home/judge/etc/judge.conf`，
 - **Cangjie 掩码**：`$OJ_LANGMASK=33356816`（`= 16579600 | (1<<24)`，新增屏蔽 id 24）。
   可见语言：`0 1 2 3 5 6 7 8 9 16 17 25`，Rust 25 保留。
 - **collation**：PHP 四处 `SET NAMES utf8mb4_general_ci` 与 Go `repository.DSN()`。
+- **编辑器实时预览路由**：新增的 `/admin/markdown_preview.php` 必须加进 `oj.uod.edu.kg`
+  的 nginx `/admin/` Go location 正则（`/assets/editor/upload.php` 已在 `^~ /assets/` 内），
+  否则预览请求落到 PHP-FPM 得到 404。
 
 ### 6.5 切流
 

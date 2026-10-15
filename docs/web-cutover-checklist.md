@@ -62,9 +62,13 @@
 | GET | `/admin/contest_list.php`、`/admin/contest_df_change.php`、`/admin/contest_pr_change.php`、`/admin/contest_edit.php` |
 | GET/POST | `/admin/contest_add.php` |
 | GET | `/admin/suspect_list.php`、`/admin/watch.php` |
+| POST | `/admin/markdown_preview.php`（后台 Markdown 编辑器实时预览，登录/出题人角色；CSRF 豁免） |
 
 > 注：`/admin/watch.php?json` 供监控图表轮询；`/admin/problem_export.php` 会 302 到
 > `/admin/problem_export_xml.php`（后者直接产出下载）。
+> 编辑器上传走 `/assets/editor/upload.php`（已在 `^~ /assets/` 反代内，字段 `file`，CSRF 豁免）；
+> **切流时须把 `markdown_preview` 加进 nginx 的 `/admin/` Go location 正则**，否则预览会落到
+> PHP-FPM 得到 404。
 
 ---
 
