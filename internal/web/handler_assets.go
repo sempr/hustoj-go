@@ -28,6 +28,8 @@ var assetVersion = func() string {
 	for _, name := range []string{
 		"static/simple.min.css", "static/hustoj.css", "static/katex.min.css",
 		"static/katex.min.js", "static/auto-render.min.js",
+		"static/highlight.min.js", "static/highlight-delphi.min.js",
+		"static/highlight-github.min.css", "static/highlight-github-dark.min.css",
 	} {
 		b, err := assetFS.ReadFile(name)
 		if err != nil {

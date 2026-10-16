@@ -256,6 +256,8 @@ type CompareSourceVM struct {
 	OJName      string
 	LeftSource  string
 	RightSource string
+	LeftLang    string // highlight.js 语言名（language-<Lang> 类），空表示不高亮。
+	RightLang   string
 	LeftInfo    SourceInfo
 	RightInfo   SourceInfo
 }
@@ -322,6 +324,8 @@ func (s *Server) handleCompareSource(w http.ResponseWriter, r *http.Request) {
 		OJName:      s.cfg.OJName,
 		LeftSource:  leftSource,
 		RightSource: rightSource,
+		LeftLang:    hljsLang(sourceBrush(uint32(leftInfo.Language))),
+		RightLang:   hljsLang(sourceBrush(uint32(rightInfo.Language))),
 		LeftInfo:    leftInfo,
 		RightInfo:   rightInfo,
 	})

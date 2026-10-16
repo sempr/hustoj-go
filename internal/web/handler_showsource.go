@@ -27,7 +27,7 @@ const (
 // showsourceView 是 showsource 模板的数据。
 type showsourceView struct {
 	OK     bool
-	Brush  string
+	Lang   string // highlight.js 语言名（language-<Lang> 类），空表示不高亮。
 	Source string
 }
 
@@ -109,7 +109,7 @@ func (s *Server) handleShowsource(w http.ResponseWriter, r *http.Request) {
 
 	view := showsourceView{OK: ok}
 	if ok {
-		view.Brush = sourceBrush(sol.Language)
+		view.Lang = hljsLang(sourceBrush(sol.Language))
 		view.Source = showsourceText(sol, viewSource)
 	}
 	s.renderPage(w, r, http.StatusOK, "showsourcePage",
@@ -197,6 +197,30 @@ func sourceBrush(lang uint32) string {
 		return ""
 	}
 	return brush
+}
+
+// hljsLang 把注册表里的 SyntaxHighlighter brush 名翻译成 highlight.js 的语言名。
+//
+// 两套命名体系不同：SH 用 c++/c#/obj-c/vb，hljs 用 cpp/csharp/objectivec/vbnet；
+// Pascal 两边都叫 delphi。这里只做展示层别名翻译，认不出时原样返回，最终由前端
+// 用 hljs.getLanguage 过滤掉当前 bundle 未收录的语言（退化成纯文本）。
+func hljsLang(brush string) string {
+	switch strings.ToLower(strings.TrimSpace(brush)) {
+	case "":
+		return ""
+	case "c++", "cpp":
+		return "cpp"
+	case "c#", "csharp":
+		return "csharp"
+	case "obj-c", "objc", "objective-c":
+		return "objectivec"
+	case "vb", "vbnet":
+		return "vbnet"
+	case "pascal", "delphi":
+		return "delphi"
+	default:
+		return strings.ToLower(strings.TrimSpace(brush))
+	}
 }
 
 // showsourceFailure 记录错误并返回 500。

@@ -82,7 +82,7 @@ func TestShowsourceOwnerCanView(t *testing.T) {
 	for _, want := range []string{
 		"int main(){}", "Problem: 1001", "User: alice [Alice]",
 		"Language: C", "Result: 正确", "Time:12 ms", "Memory:2048 kb",
-		"brush:c",
+		"language-c", "highlight.min.js", "highlight-github.min.css",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("缺少 %q\n%s", want, trunc(body, 1000))
@@ -244,6 +244,28 @@ func TestSourceBrush(t *testing.T) {
 	for lang, want := range tests {
 		if got := sourceBrush(lang); got != want {
 			t.Errorf("sourceBrush(%d) = %q，期望 %q", lang, got, want)
+		}
+	}
+}
+
+// hljsLang 把 SyntaxHighlighter brush 名映射到 highlight.js 语言名。
+func TestHljsLang(t *testing.T) {
+	tests := map[string]string{
+		"":           "",
+		"c":          "c",
+		"c++":        "cpp",
+		"cpp":        "cpp",
+		"c#":         "csharp",
+		"obj-c":      "objectivec",
+		"vb":         "vbnet",
+		"pascal":     "delphi",
+		"delphi":     "delphi",
+		"python":     "python",
+		"javascript": "javascript",
+	}
+	for brush, want := range tests {
+		if got := hljsLang(brush); got != want {
+			t.Errorf("hljsLang(%q) = %q，期望 %q", brush, got, want)
 		}
 	}
 }

@@ -1042,13 +1042,36 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </div>
 {{end}}
 
+{{/* highlightAssets 引入本地 highlight.js（v11.12.0）与 GitHub 明/暗主题，
+   并只对当前 bundle 收录的语言调用高亮（未收录的保持纯文本，避免控制台告警）。
+
+   资源随二进制内嵌在 /assets/ 下，不依赖 CDN；delphi 是 common 构建之外的
+   额外语法，单独引入。 */}}
+{{define "highlightAssets"}}
+<link rel="stylesheet" href="{{asset "/assets/highlight-github.min.css"}}">
+<link rel="stylesheet" href="{{asset "/assets/highlight-github-dark.min.css"}}" media="(prefers-color-scheme: dark)">
+<script src="{{asset "/assets/highlight.min.js"}}" defer></script>
+<script src="{{asset "/assets/highlight-delphi.min.js"}}" defer></script>
+<script defer>
+document.addEventListener("DOMContentLoaded", function () {
+  if (!window.hljs) { return; }
+  document.querySelectorAll('pre code[class*="language-"]').forEach(function (el) {
+    var m = /language-([\w-]+)/.exec(el.className);
+    if (m && hljs.getLanguage(m[1])) { hljs.highlightElement(el); }
+  });
+});
+</script>
+{{end}}
+
 {{/* showsourcePage 是源代码查看页，对应 template/syzoj/showsource.php。
 
-   PHP 用 SyntaxHighlighter 高亮 + ob 抓取的注释头；Go 退化成单个 <pre>，
+   PHP 用 SyntaxHighlighter 高亮 + ob 抓取的注释头；Go 用本地 highlight.js，
    内容由 handler 拼好并交给 html/template 转义（源码/昵称里的尖括号不再裸奔）。 */}}
 {{define "showsourcePage"}}
 <div class="padding">
-{{if .OK}}<pre class="brush:{{.Brush}};">{{.Source}}</pre>
+{{if .OK}}
+{{template "highlightAssets"}}
+<pre><code class="language-{{.Lang}}">{{.Source}}</code></pre>
 {{else}}I am sorry, You could not view this code!{{end}}
 </div>
 {{end}}
@@ -2661,13 +2684,14 @@ $(document).ready(function() { update(); window.setInterval(update, 2000); });
 {{/* compareSourcePage 对应 comparesource.php（原页用 mergely 前端对比，这里改为双栏 <pre>）。 */}}
 {{define "compareSourcePage"}}
 <div class="padding">
+{{template "highlightAssets"}}
 <table style="width:100%"><tr>
 <td style="width:50%">{{.LeftInfo.UserID}} / P{{.LeftInfo.ProblemID}}</td>
 <td style="width:50%">{{.RightInfo.UserID}} / P{{.RightInfo.ProblemID}}</td>
 </tr></table>
 <table style="width:100%"><tr>
-<td style="width:50%;vertical-align:top"><pre>{{.LeftSource}}</pre></td>
-<td style="width:50%;vertical-align:top"><pre>{{.RightSource}}</pre></td>
+<td style="width:50%;vertical-align:top"><pre><code class="language-{{.LeftLang}}">{{.LeftSource}}</code></pre></td>
+<td style="width:50%;vertical-align:top"><pre><code class="language-{{.RightLang}}">{{.RightSource}}</code></pre></td>
 </tr></table>
 </div>
 {{end}}
