@@ -38,6 +38,10 @@
 #   --db-recreate     重建库（DROP DATABASE，破坏性）
 #   --db-force        目标库非空时仍继续（会丢表内数据）
 #
+# 示例题库（可选，转发给同目录 demo/install_demo.sh；详见 demo/README.md）：
+#   --demo            装载示例题（普通/子任务/SPJ/交互/文件IO 各一）+ 演示比赛
+#   --no-demo-contest --demo 时不创建演示比赛
+#
 # 幂等：重复执行只会刷新二进制/unit，默认不覆盖既有配置；--init-db 对非空库会拒绝。
 set -euo pipefail
 
@@ -67,6 +71,8 @@ DB_RECREATE=0
 DB_FORCE=0
 DB_ADMIN_USER=""
 DB_ADMIN_PASSWORD=""
+DO_DEMO=0
+DEMO_CONTEST=1
 
 die()  { printf '错误: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
@@ -108,6 +114,8 @@ while [ $# -gt 0 ]; do
         --db-force)     DB_FORCE=1; shift ;;
         --db-admin-user) DB_ADMIN_USER="$2"; shift 2 ;;
         --db-admin-password) DB_ADMIN_PASSWORD="$2"; shift 2 ;;
+        --demo)         DO_DEMO=1; shift ;;
+        --no-demo-contest) DEMO_CONTEST=0; shift ;;
         -h|--help)      usage; exit 0 ;;
         *)              die "未知参数: $1（用 --help 查看用法）" ;;
     esac
@@ -226,6 +234,24 @@ if [ "$INIT_DB" -eq 1 ]; then
     fi
 fi
 
+# ── 示例题库（可选，转发给同目录 demo/install_demo.sh）────────────────
+if [ "$DO_DEMO" -eq 1 ]; then
+    [ -f "$SRC_DIR/demo/install_demo.sh" ] || die "包内缺少 demo/install_demo.sh，无法 --demo"
+    demo_args=(--ojhome "$OJHOME")
+    [ "$DEMO_CONTEST" -eq 0 ] && demo_args+=(--no-contest)
+    [ "$DRY" -eq 1 ] && demo_args+=(--dry-run)
+    if [ "$DRY" -eq 1 ]; then
+        printf '  [dry-run] demo/install_demo.sh %s\n' "${demo_args[*]}"
+    else
+        info "装载示例题库"
+        # 说明：install_demo.sh 从 <OJHome>/etc/judge.conf 读取 DB 凭据，
+        # 故须在 --init-db（写 judge.conf）之后执行。未初始化数据库时会失败，
+        # 这里只告警、不中断安装。
+        bash "$SRC_DIR/demo/install_demo.sh" "${demo_args[@]}" \
+            || warn "示例题装载失败（请先初始化数据库并确认 judge.conf 凭据）"
+    fi
+fi
+
 # ── systemd unit ─────────────────────────────────────────────────────
 render_unit() { # <src> <dst> <web?>
     local src="$1" dst="$2" web="$3"
@@ -288,4 +314,8 @@ fi
 printf '  - 判题语言运行时（g++/python 等）需另行准备：\n'
 printf '      cd langs && sudo ./install_langs.sh --ojhome %s   # 需要 docker\n' "$OJHOME"
 printf '  - 语言 rootfs 生成后，重启判题服务：systemctl restart judged-go.service\n'
+if [ "$DO_DEMO" -eq 0 ]; then
+    printf '  - 需要示例题时可另行装载：\n'
+    printf '      sudo ./demo/install_demo.sh --ojhome %s   # 或安装时加 --demo\n' "$OJHOME"
+fi
 printf '  - nginx 需把对应路径反代到 127.0.0.1:8080（详见 README / 迁移清单）\n'

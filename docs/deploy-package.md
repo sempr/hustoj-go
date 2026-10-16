@@ -43,6 +43,7 @@ hustoj-go-<version>-linux-<arch>/
 ├── schema/schema.sql           # 表结构（23 张表）
 ├── schema/triggers.sql         # 触发器 firstAC / simfilter（新库必装）
 ├── schema/seed.sql             # 种子：管理员账号 + administrator 权限
+├── demo/                       # 示例题库（5 题 + 演示比赛 + 预编译判题程序）
 ├── install.sh / uninstall.sh / init_db.sh
 ├── VERSION / SHA256SUMS / README.md / LICENSE
 ```
@@ -75,6 +76,8 @@ sudo ./install.sh              # 默认装到 /usr/bin + /home/judge
 --skip-systemd           只落地文件，不 enable（容器/排查用）
 --dry-run                只打印动作
 --init-db                部署时初始化数据库（见下一节），需配 --db-password
+--demo                   装载示例题库 + 演示比赛（见「四、示例题库」）
+--no-demo-contest        --demo 时不创建演示比赛
 ```
 
 把数据库凭据写入 `judge.conf` 后重启：
@@ -122,7 +125,36 @@ sudo ./init_db.sh --db hustoj --user hustoj --password '强口令' \
   11261/1081/1001/1007 等），新库从 `id=1000` 起分配；这是该文件相对纯 dump 的
   唯一人为改动，列级结构未变（`extra/check_schema.py` 门禁照常通过）。
 
-## 四、判题语言运行时（需 Docker）
+## 四、示例题库（可选）
+
+首次安装可顺带装入 5 道示例题 + 1 个演示比赛，用来演示普通评测、子任务部分分、
+特殊评测（SPJ）、交互评测、文件 IO：
+
+| 题号 | 标题 | 演示点 |
+| --- | --- | --- |
+| 1000 | A+B Problem | 普通评测、多测试点、多语言 |
+| 1001 | 子任务与部分分：数列求和 | OI 子任务、`[N]` 分值、部分分 |
+| 1002 | 特殊评测：构造幻方 | SPJ（多解） |
+| 1003 | 交互题：猜数字 | 交互评测 |
+| 1004 | 文件 IO：读 sum.in 写 sum.out | 文件读写 |
+
+```bash
+# 方式 A：安装时一并装载（须与 --init-db 一起，或 judge.conf 已配好凭据）
+sudo ./install.sh --init-db --db-password '强口令' --demo
+
+# 方式 B：安装后单独装载（凭据取自 <OJHome>/etc/judge.conf）
+sudo ./demo/install_demo.sh --ojhome /home/judge
+sudo ./demo/install_demo.sh --only 1000,1002 --no-contest   # 只装部分题
+```
+
+`install_demo.sh` 幂等：已存在的题默认跳过，`--force` 才覆盖；`--dry-run`
+可预演。判题数据写到 `<OJHome>/data/<题号>/`，属主为 `judge`。各题的参考解
+在 `demo/problems/<题号>/solutions/`，可直接提交验证。
+
+题目里的 SPJ/交互器是**打包机交叉编译好的静态二进制**（随包分发，目标机
+无需编译器）；缺失时会告警跳过。更多说明见 `demo/README.md`。
+
+## 五、判题语言运行时（需 Docker）
 
 判题把语言镜像的 overlay 层当 rootfs 挂载，路径与**本机 Docker** 绑定，
 因此必须在目标机本地构建，不能随包分发：
@@ -138,13 +170,13 @@ sudo systemctl restart judged-go.service
 `/home/judge/etc/langs/`。各 Dockerfile 默认走清华 apt 镜像，非中国网络
 可按注释改回官方源。
 
-## 五、nginx
+## 六、nginx
 
 Web 服务默认只监听 `127.0.0.1:8080`（见 `etc/web.toml` 的 `listen`），需
 由 nginx 按路径反代。已迁移路径与回滚步骤见
 `docs/web-cutover-checklist.md`。
 
-## 六、卸载
+## 七、卸载
 
 卸载是破坏性操作，默认会在终端里二次确认；非交互环境必须显式 `--yes`：
 

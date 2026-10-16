@@ -15,6 +15,7 @@
 #   --version STR     覆盖版本号（默认取 git describe）
 #   --no-tini         不打包 tini（判题会缺 /usr/local/bin/tini）
 #   --no-fetch-tini   交叉编译 tini 失败时不从 GitHub 下载官方静态二进制
+#   --no-demo         不打包示例题库（demo/）
 #   -h, --help
 #
 # 产物：
@@ -29,6 +30,7 @@ MODULE="github.com/sempr/hustoj-go"
 OUT_DIR="$ROOT/dist"
 WANT_TINI=1
 FETCH_TINI=1
+WANT_DEMO=1
 VERSION_OVERRIDE=""
 TARGETS=()
 
@@ -38,7 +40,7 @@ info() { printf '==> %s\n' "$*"; }
 warn() { printf '警告: %s\n' "$*" >&2; }
 die()  { printf '错误: %s\n' "$*" >&2; exit 1; }
 
-usage() { sed -n '3,28p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '3,/^set /p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set /d'; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -46,6 +48,7 @@ while [ $# -gt 0 ]; do
         --version)       VERSION_OVERRIDE="$2"; shift 2 ;;
         --no-tini)       WANT_TINI=0; shift ;;
         --no-fetch-tini) FETCH_TINI=0; shift ;;
+        --no-demo)       WANT_DEMO=0; shift ;;
         -h|--help)       usage; exit 0 ;;
         -*|--*)          die "未知选项: $1" ;;
         *)
@@ -166,6 +169,20 @@ make_package() { # <goos> <goarch>
     chmod 0755 "$dir/langs/install_langs.sh" "$dir/langs/prepare_langs.sh" \
                "$dir/langs/replace.sh" "$dir/langs/build_rootfs.sh"
 
+    if [ "$WANT_DEMO" -eq 1 ] && [ -d "$SCRIPT_DIR/demo" ]; then
+        info "  收集示例题库并编译判题程序（$goarch）"
+        rm -rf "$dir/demo"
+        cp -r "$SCRIPT_DIR/demo" "$dir/demo"
+        rm -f "$dir/demo/go.mod"   # 仅供仓库内 Go 工具链忽略该子树，不进部署包
+        chmod 0755 "$dir/demo/install_demo.sh" "$dir/demo/build_data.sh"
+        if [ "$goos" = "linux" ]; then
+            bash "$SCRIPT_DIR/demo/build_data.sh" "$goarch" "$dir/demo" \
+                || warn "$goos/$goarch: 示例题判题程序未全部编译（对应题将无法判题）"
+        else
+            warn "$goos/$goarch: 跳过示例题判题程序编译（仅支持 linux）"
+        fi
+    fi
+
     cat > "$dir/VERSION" <<EOF
 version: ${VERSION}
 commit:  ${COMMIT}
@@ -183,6 +200,9 @@ EOF
     ( cd "$OUT_DIR" && tar -czf "$name.tar.gz" "$name" )
     ( cd "$OUT_DIR" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" )
     info "  -> $OUT_DIR/$name.tar.gz"
+    # 清掉暂存目录：dist/ 只留交付物，且避免 Go 工具链把展开后的
+    # 参考解目录也当成包（`go build ./...` 会因此报错）。
+    rm -rf "$dir"
 }
 
 mkdir -p "$OUT_DIR"

@@ -58,7 +58,8 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
           shellcheck extra/check_all.sh extra/check_lang_index.sh \
-                     extra/package.sh extra/install.sh extra/uninstall.sh extra/install_langs.sh extra/init_db.sh
+                     extra/package.sh extra/install.sh extra/uninstall.sh extra/install_langs.sh extra/init_db.sh \
+                     extra/demo/install_demo.sh extra/demo/build_data.sh
 
   # 离线部署包的冒烟：构建 amd64 包 → 校验 SHA256SUMS → dry-run 试装。
   package:
@@ -78,5 +79,11 @@ jobs:
           cd hustoj-go-*-linux-amd64
           sha256sum -c --quiet SHA256SUMS
           test -f schema/schema.sql && test -f schema/triggers.sql && test -f schema/seed.sql
+          test -f demo/install_demo.sh && test -x demo/install_demo.sh
+          test -f demo/problems/1002-spj-magic/data/spj
+          test -f demo/problems/1003-interactive/data/spj
           ./install.sh --dry-run
           ./init_db.sh --db ci --user ci --password ci --dry-run
+          # 示例题装载脚本 dry-run（凭据用一个临时 judge.conf）
+          mkdir -p tmpetc && printf 'OJ_HOST_NAME=127.0.0.1\nOJ_PORT_NUMBER=3306\nOJ_USER_NAME=ci\nOJ_PASSWORD=ci\nOJ_DB_NAME=ci\n' > tmpetc/judge.conf
+          ./demo/install_demo.sh --ojhome "$PWD/tmp" --conf "$PWD/tmpetc/judge.conf" --dry-run
