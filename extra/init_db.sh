@@ -218,7 +218,19 @@ if [ "$DO_SEED" -eq 1 ]; then
         --init-command="SET @admin_user='$(sq "$ADMIN_USER")', @admin_password='$(sq "$ADMIN_PASSWORD")'"
 fi
 
-# ── 6) 写 judge.conf ─────────────────────────────────────────────────
+# ── 6) 迁移基线：schema.sql 即最新结构，把对应版本登记为已应用 ───────
+if [ -f "$SCRIPT_DIR/migrate.sh" ] && { [ -d "$SCRIPT_DIR/migrations" ] || [ -d "$SCRIPT_DIR/../migrations" ]; }; then
+    log "登记迁移基线（全新库已是最新结构，无需执行 00002+）"
+    if [ "$DRY" -eq 1 ]; then
+        printf '  [dry-run] migrate.sh --db %s --user %s --baseline\n' "$DB" "$DBUSER"
+    else
+        bash "$SCRIPT_DIR/migrate.sh" --host "$HOST" --port "$PORT" --db "$DB" \
+            --user "$DBUSER" --password "$DBPASSWORD" --baseline \
+            || warn "迁移基线登记失败；可稍后运行 migrate.sh --baseline 补登"
+    fi
+fi
+
+# ── 7) 写 judge.conf ─────────────────────────────────────────────────
 [ "$WRITE_CONF" -eq 1 ] && write_conf
 
 # ── 7) 用应用账号自检 ────────────────────────────────────────────────

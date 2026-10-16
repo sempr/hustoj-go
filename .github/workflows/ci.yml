@@ -37,6 +37,13 @@ jobs:
           grep -q '^ExecStart=/usr/bin/hustoj web' extra/hustoj-web.service
           grep -q '^ExecStart=/usr/bin/hustoj daemon' extra/judged-go.service
 
+      - name: 迁移脚本与 schema 同步
+        run: |
+          # 00003 就是 schema/triggers.sql，二者必须逐字一致，防止只改一处。
+          diff -q schema/triggers.sql migrations/00003_triggers.sql
+          # sink 校验：迁移脚本只应向前、不删数据。
+          ! grep -qiE 'DROP[[:space:]]+(TABLE|DATABASE)' migrations/0000[2-9]*.sql
+
       - name: 凭据不得入库
         run: |
           # 用 git ls-files 判断"是否被跟踪"，而不是判断文件是否存在：
@@ -59,6 +66,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
           shellcheck extra/check_all.sh extra/check_lang_index.sh \
                      extra/package.sh extra/install.sh extra/uninstall.sh extra/install_langs.sh extra/init_db.sh \
+                     extra/migrate.sh \
                      extra/demo/install_demo.sh extra/demo/build_data.sh
 
   # 离线部署包的冒烟：构建 amd64 包 → 校验 SHA256SUMS → dry-run 试装。
@@ -79,11 +87,59 @@ jobs:
           cd hustoj-go-*-linux-amd64
           sha256sum -c --quiet SHA256SUMS
           test -f schema/schema.sql && test -f schema/triggers.sql && test -f schema/seed.sql
+          test -f migrate.sh && test -x migrate.sh
+          test -f migrations/00002_legacy_to_schema.sql && test -f migrations/00003_triggers.sql
           test -f demo/install_demo.sh && test -x demo/install_demo.sh
           test -f demo/problems/1002-spj-magic/data/spj
           test -f demo/problems/1003-interactive/data/spj
           ./install.sh --dry-run
           ./init_db.sh --db ci --user ci --password ci --dry-run
+          ./migrate.sh --db ci --user ci --password ci --dry-run
           # 示例题装载脚本 dry-run（凭据用一个临时 judge.conf）
           mkdir -p tmpetc && printf 'OJ_HOST_NAME=127.0.0.1\nOJ_PORT_NUMBER=3306\nOJ_USER_NAME=ci\nOJ_PASSWORD=ci\nOJ_DB_NAME=ci\n' > tmpetc/judge.conf
           ./demo/install_demo.sh --ojhome "$PWD/tmp" --conf "$PWD/tmpetc/judge.conf" --dry-run
+
+  # 存量库升级路径：造一个“旧结构”库 → migrate.sh → check_schema 必须通过。
+  migrate:
+    runs-on: ubuntu-latest
+    services:
+      mariadb:
+        image: mariadb:11
+        env:
+          MARIADB_ROOT_PASSWORD: root
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    env:
+      DB_HOST: 127.0.0.1
+      DB_PORT: '3306'
+      DB_USER: root
+      DB_PASS: root
+      DB_NAME: legacy
+    steps:
+      - uses: actions/checkout@v4
+      - name: 造一个“旧结构”库
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq mariadb-client
+          mysql -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASS" \
+            -e "CREATE DATABASE \`$DB_NAME\` CHARACTER SET utf8mb4"
+          # 新结构 → 回退成老结构（夹具覆盖 00002 要修的每一类差异）
+          mysql -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < schema/schema.sql
+          mysql -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < extra/testdata/legacy_downgrade.sql
+          n="$(python3 extra/check_schema.py 2>&1 | grep -c '✗' || true)"
+          echo "降级后差异数 = $n"
+          test "$n" -gt 0
+      - name: 迁移并对齐到 schema.sql
+        run: |
+          bash extra/migrate.sh --host "$DB_HOST" --port "$DB_PORT" --db "$DB_NAME" \
+               --user "$DB_USER" --password "$DB_PASS" --check
+          # 列级逐项核对（夹具未引入注释差异，严格模式即可）
+          python3 extra/check_schema.py
+          # 幂等：再跑一次应全部跳过、退出 0
+          bash extra/migrate.sh --host "$DB_HOST" --port "$DB_PORT" --db "$DB_NAME" \
+               --user "$DB_USER" --password "$DB_PASS"
+

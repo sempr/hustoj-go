@@ -41,3 +41,7 @@ tests/rs/1
 
 # 本地 agent 工具配置（会话级，不属于项目源码）
 .commandcode/
+
+# Python 字节码缓存（extra/schema_diff.py 会 import check_schema）
+__pycache__/
+*.pyc

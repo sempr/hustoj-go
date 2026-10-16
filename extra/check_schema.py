@@ -31,7 +31,11 @@ AUTO_INCREMENT、列注释、主键、索引（含唯一性与列序）、存储
 用法
 ----
     python3 extra/check_schema.py
+    python3 extra/check_schema.py --ignore-comments     # 存量库迁移后复核结构用
     DB_HOST=... DB_USER=... DB_PASS=... DB_NAME=... python3 extra/check_schema.py
+
+`--ignore-comments` 跳过列注释比对：注释是文档、不影响行为，老版 HUSTOJ 库
+与 schema.sql 的注释普遍不同，这正是 `extra/migrate.sh` 迁移后建议的复核口径。
 """
 
 from __future__ import annotations
@@ -47,6 +51,15 @@ SCHEMA = ROOT / "schema" / "schema.sql"
 DB_INFO = ROOT / "phpweb" / "include" / "db_info.inc.php"
 
 WS = re.compile(r"\s+")
+
+# 不计入结构比对的表：
+#   schema_migrations —— extra/migrate.sh 的版本台账（应用基础设施，不是业务结构，
+#   只存在于跑过迁移的存量库，schema.sql 里刻意没有它）。
+IGNORED_TABLES = {"schema_migrations"}
+
+# --ignore-comments：跳过列注释比对。注释是文档、不影响行为；老版 HUSTOJ 库
+# 的列注释与 schema.sql 普遍不同，迁移后用它复核结构即可（migrate.sh 文档同此口径）。
+IGNORE_COMMENTS = "--ignore-comments" in sys.argv
 
 
 def _canon_type(t: str) -> str:
@@ -240,6 +253,8 @@ def main() -> int:
     schema_sql = SCHEMA.read_text(encoding="utf-8")
     want = parse_schema_ddl(schema_sql)
     live = fetch_live(credentials())
+    want = {t: v for t, v in want.items() if t not in IGNORED_TABLES}
+    live = {t: v for t, v in live.items() if t not in IGNORED_TABLES}
 
     problems: list[str] = []
     for t in sorted(set(live) - set(want)):
@@ -273,7 +288,10 @@ def main() -> int:
             if col not in lmap:
                 continue
             ldef = lmap[col]
-            for field in ("type", "nullable", "auto_increment", "comment"):
+            fields = ["type", "nullable", "auto_increment"]
+            if not IGNORE_COMMENTS:
+                fields.append("comment")
+            for field in fields:
                 if ldef[field] != wdef[field]:
                     problems.append(
                         f"{t}.{col}.{field} 不一致\n"

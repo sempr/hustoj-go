@@ -74,6 +74,21 @@ step "PHP 变量插值"   php extra/check_php_interpolation.php extra
 step "CSRF 回归"      php extra/test_csrf.php
 step "语言索引"       bash extra/check_lang_index.sh
 
+# ── 迁移脚本 ─────────────────────────────────────────────────────────
+migrations_sync() {
+    local e=0
+    if ! cmp -s schema/triggers.sql migrations/00003_triggers.sql; then
+        echo "  migrations/00003_triggers.sql 与 schema/triggers.sql 不一致（改一处要同步另一处）"
+        e=1
+    fi
+    if grep -rqiE 'DROP[[:space:]]+(TABLE|DATABASE)' migrations/0000[2-9]_*.sql 2>/dev/null; then
+        echo "  migrations/ 里出现 DROP TABLE/DATABASE（迁移只应向前、不删数据）"
+        e=1
+    fi
+    return $e
+}
+step "迁移脚本"       migrations_sync
+
 # ── schema / codegen ──────────────────────────────────────────────────
 # 这两项需要能连到数据库 / 需要 sqlc，本地缺失时跳过而非报错；
 # CI 里两者都必须真实执行（见 .github/workflows/ci.yml）。

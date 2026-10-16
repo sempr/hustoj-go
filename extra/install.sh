@@ -38,6 +38,10 @@
 #   --db-recreate     重建库（DROP DATABASE，破坏性）
 #   --db-force        目标库非空时仍继续（会丢表内数据）
 #
+# 存量库结构迁移（可选，转发给同目录 migrate.sh；详见 docs/deploy-package.md）：
+#   --migrate         按 migrations/ 把已有库结构对齐到 schema.sql（只 ALTER，不清数据；
+#                     未给 --db-password 时凭据取自 <ojhome>/etc/judge.conf）
+#
 # 示例题库（可选，转发给同目录 demo/install_demo.sh；详见 demo/README.md）：
 #   --demo            装载示例题（普通/子任务/SPJ/交互/文件IO 各一）+ 演示比赛
 #   --no-demo-contest --demo 时不创建演示比赛
@@ -59,6 +63,7 @@ FORCE=0
 DRY=0
 WEB_HEALTH_PORT=8080
 INIT_DB=0
+MIGRATE_DB=0
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_NAME=hustoj
@@ -102,6 +107,7 @@ while [ $# -gt 0 ]; do
         --force)        FORCE=1; shift ;;
         --dry-run)      DRY=1; shift ;;
         --init-db)      INIT_DB=1; shift ;;
+        --migrate)      MIGRATE_DB=1; shift ;;
         --db-host)      DB_HOST="$2"; shift 2 ;;
         --db-port)      DB_PORT="$2"; shift 2 ;;
         --db-name)      DB_NAME="$2"; shift 2 ;;
@@ -234,6 +240,25 @@ if [ "$INIT_DB" -eq 1 ]; then
     fi
 fi
 
+# ── 存量库结构迁移（可选，转发给同目录 migrate.sh）────────────────────
+if [ "$MIGRATE_DB" -eq 1 ]; then
+    [ -f "$SRC_DIR/migrate.sh" ] || die "包内缺少 migrate.sh，无法 --migrate"
+    [ -d "$SRC_DIR/migrations" ] || die "包内缺少 migrations/，无法 --migrate"
+    migrate_args=(--ojhome "$OJHOME" --check)
+    # 未显式给口令时，交给 migrate.sh 从 judge.conf 读取
+    if [ -n "$DB_PASSWORD" ]; then
+        migrate_args=(--host "$DB_HOST" --port "$DB_PORT" --db "$DB_NAME" \
+                      --user "$DB_USER" --password "$DB_PASSWORD" "${migrate_args[@]}")
+    fi
+    [ "$DRY" -eq 1 ] && migrate_args+=(--dry-run)
+    if [ "$DRY" -eq 1 ]; then
+        printf '  [dry-run] migrate.sh %s\n' "${migrate_args[*]}"
+    else
+        info "迁移存量库 '$DB_NAME'（migrations/ → schema.sql）"
+        bash "$SRC_DIR/migrate.sh" "${migrate_args[@]}"
+    fi
+fi
+
 # ── 示例题库（可选，转发给同目录 demo/install_demo.sh）────────────────
 if [ "$DO_DEMO" -eq 1 ]; then
     [ -f "$SRC_DIR/demo/install_demo.sh" ] || die "包内缺少 demo/install_demo.sh，无法 --demo"
@@ -306,10 +331,12 @@ if [ "$DO_WEB" -eq 1 ] && [ "$SKIP_SYSTEMD" -ne 1 ] && [ "$DRY" -ne 1 ]; then
 fi
 
 printf '\n安装完成。\n'
-if [ "$INIT_DB" -eq 0 ]; then
+if [ "$INIT_DB" -eq 0 ] && [ "$MIGRATE_DB" -eq 0 ]; then
     printf '  - 若为全新库，数据库尚未初始化：\n'
     printf '      sudo ./init_db.sh --db hustoj --user hustoj --password ... --ojhome %s --write-conf\n' "$OJHOME"
     printf '      （或安装时直接加 --init-db --db-password ...）\n'
+    printf '  - 若为老版本库（结构不同、数据要保留），迁移到新结构：\n'
+    printf '      sudo ./migrate.sh --ojhome %s --check        # 或安装时加 --migrate\n' "$OJHOME"
 fi
 printf '  - 判题语言运行时（g++/python 等）需另行准备：\n'
 printf '      cd langs && sudo ./install_langs.sh --ojhome %s   # 需要 docker\n' "$OJHOME"
