@@ -23,7 +23,22 @@
 #   --dry-run         只打印将要执行的动作
 #   -h, --help        显示帮助
 #
-# 幂等：重复执行只会刷新二进制/unit，默认不覆盖既有配置。
+# 全新库初始化（可选，转发给同目录的 init_db.sh；详见 docs/deploy-package.md）：
+#   --init-db         部署时初始化数据库（建库/建表/触发器/管理员，并写 judge.conf）
+#   --db-host HOST    应用连接地址（默认 127.0.0.1）
+#   --db-port PORT    应用连接端口（默认 3306）
+#   --db-name NAME    库名（默认 hustoj）
+#   --db-user NAME    应用账号（默认 hustoj）
+#   --db-password PWD 应用账号口令（--init-db 时必填）
+#   --db-root-user U  管理员账号（默认 root，走 unix socket）
+#   --db-root-password PWD  管理员口令
+#   --db-socket PATH  管理员 unix socket 路径
+#   --db-admin-user U       种子管理员账号（默认 admin）
+#   --db-admin-password PWD 种子管理员口令（默认 admin，建议改）
+#   --db-recreate     重建库（DROP DATABASE，破坏性）
+#   --db-force        目标库非空时仍继续（会丢表内数据）
+#
+# 幂等：重复执行只会刷新二进制/unit，默认不覆盖既有配置；--init-db 对非空库会拒绝。
 set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -39,6 +54,19 @@ SKIP_SYSTEMD=0
 FORCE=0
 DRY=0
 WEB_HEALTH_PORT=8080
+INIT_DB=0
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=hustoj
+DB_USER=hustoj
+DB_PASSWORD=""
+DB_ROOT_USER=root
+DB_ROOT_PASSWORD=""
+DB_SOCKET=""
+DB_RECREATE=0
+DB_FORCE=0
+DB_ADMIN_USER=""
+DB_ADMIN_PASSWORD=""
 
 die()  { printf '错误: %s\n' "$*" >&2; exit 1; }
 info() { printf '==> %s\n' "$*"; }
@@ -52,7 +80,7 @@ run() {
     fi
 }
 
-usage() { sed -n '3,26p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,/^set /p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set /d'; }
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -67,6 +95,19 @@ while [ $# -gt 0 ]; do
         --skip-systemd) SKIP_SYSTEMD=1; shift ;;
         --force)        FORCE=1; shift ;;
         --dry-run)      DRY=1; shift ;;
+        --init-db)      INIT_DB=1; shift ;;
+        --db-host)      DB_HOST="$2"; shift 2 ;;
+        --db-port)      DB_PORT="$2"; shift 2 ;;
+        --db-name)      DB_NAME="$2"; shift 2 ;;
+        --db-user)      DB_USER="$2"; shift 2 ;;
+        --db-password)  DB_PASSWORD="$2"; shift 2 ;;
+        --db-root-user) DB_ROOT_USER="$2"; shift 2 ;;
+        --db-root-password) DB_ROOT_PASSWORD="$2"; shift 2 ;;
+        --db-socket)    DB_SOCKET="$2"; shift 2 ;;
+        --db-recreate)  DB_RECREATE=1; shift ;;
+        --db-force)     DB_FORCE=1; shift ;;
+        --db-admin-user) DB_ADMIN_USER="$2"; shift 2 ;;
+        --db-admin-password) DB_ADMIN_PASSWORD="$2"; shift 2 ;;
         -h|--help)      usage; exit 0 ;;
         *)              die "未知参数: $1（用 --help 查看用法）" ;;
     esac
@@ -163,6 +204,28 @@ else
     "$PREFIX/hustoj" langinfo --ojhome "$OJHOME" || warn "langinfo 生成失败（可稍后重试）"
 fi
 
+# ── 全新库初始化（可选，转发给同目录 init_db.sh）────────────────────
+if [ "$INIT_DB" -eq 1 ]; then
+    [ -n "$DB_PASSWORD" ] || die "--init-db 需要 --db-password"
+    [ -f "$SRC_DIR/init_db.sh" ] || die "包内缺少 init_db.sh，无法 --init-db"
+    if [ "$DRY" -eq 1 ]; then
+        printf '  [dry-run] init_db.sh --db %s --user %s --password **** --host %s:%s --ojhome %s --write-conf\n' \
+            "$DB_NAME" "$DB_USER" "$DB_HOST" "$DB_PORT" "$OJHOME"
+    else
+        info "初始化数据库 '$DB_NAME'（账号 '$DB_USER'）"
+        init_args=(--db "$DB_NAME" --user "$DB_USER" --password "$DB_PASSWORD"
+                   --host "$DB_HOST" --port "$DB_PORT" --ojhome "$OJHOME" --write-conf)
+        [ -n "$DB_ROOT_USER" ] && init_args+=(--root-user "$DB_ROOT_USER")
+        [ -n "$DB_ROOT_PASSWORD" ] && init_args+=(--root-password "$DB_ROOT_PASSWORD")
+        [ -n "$DB_SOCKET" ] && init_args+=(--socket "$DB_SOCKET")
+        [ -n "$DB_ADMIN_USER" ] && init_args+=(--admin-user "$DB_ADMIN_USER")
+        [ -n "$DB_ADMIN_PASSWORD" ] && init_args+=(--admin-password "$DB_ADMIN_PASSWORD")
+        [ "$DB_RECREATE" -eq 1 ] && init_args+=(--recreate)
+        [ "$DB_FORCE" -eq 1 ] && init_args+=(--force)
+        bash "$SRC_DIR/init_db.sh" "${init_args[@]}"
+    fi
+fi
+
 # ── systemd unit ─────────────────────────────────────────────────────
 render_unit() { # <src> <dst> <web?>
     local src="$1" dst="$2" web="$3"
@@ -217,6 +280,11 @@ if [ "$DO_WEB" -eq 1 ] && [ "$SKIP_SYSTEMD" -ne 1 ] && [ "$DRY" -ne 1 ]; then
 fi
 
 printf '\n安装完成。\n'
+if [ "$INIT_DB" -eq 0 ]; then
+    printf '  - 若为全新库，数据库尚未初始化：\n'
+    printf '      sudo ./init_db.sh --db hustoj --user hustoj --password ... --ojhome %s --write-conf\n' "$OJHOME"
+    printf '      （或安装时直接加 --init-db --db-password ...）\n'
+fi
 printf '  - 判题语言运行时（g++/python 等）需另行准备：\n'
 printf '      cd langs && sudo ./install_langs.sh --ojhome %s   # 需要 docker\n' "$OJHOME"
 printf '  - 语言 rootfs 生成后，重启判题服务：systemctl restart judged-go.service\n'

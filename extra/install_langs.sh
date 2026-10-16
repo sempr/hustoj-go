@@ -20,7 +20,7 @@ while [ $# -gt 0 ]; do
     case "$1" in
         --ojhome) OJHOME="$2"; shift 2 ;;
         -h|--help)
-            sed -n '3,10p' "$0" | sed 's/^# \{0,1\}//'
+            sed -n '2,/^set /p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set /d'
             exit 0 ;;
         *) die "未知参数: $1" ;;
     esac

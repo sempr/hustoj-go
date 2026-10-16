@@ -37,7 +37,7 @@ run() {
     fi
 }
 
-usage() { sed -n '3,19p' "$0" | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '2,/^set /p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set /d'; }
 
 while [ $# -gt 0 ]; do
     case "$1" in

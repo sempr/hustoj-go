@@ -154,8 +154,11 @@ make_package() { # <goos> <goarch>
     cp "$SCRIPT_DIR/web.toml.example" "$dir/etc/web.toml.example"
     cp "$SCRIPT_DIR/judge.conf.example" "$dir/etc/judge.conf.example"
     cp "$SCRIPT_DIR/etc/langs/all.toml" "$dir/etc/langs/all.toml"
-    cp "$SCRIPT_DIR/install.sh" "$SCRIPT_DIR/uninstall.sh" "$dir/"
-    chmod 0755 "$dir/install.sh" "$dir/uninstall.sh"
+    cp "$SCRIPT_DIR/install.sh" "$SCRIPT_DIR/uninstall.sh" "$SCRIPT_DIR/init_db.sh" "$dir/"
+    chmod 0755 "$dir/install.sh" "$dir/uninstall.sh" "$dir/init_db.sh"
+    info "  收集 schema（建表/触发器/种子）"
+    mkdir -p "$dir/schema"
+    cp "$ROOT/schema/schema.sql" "$ROOT/schema/triggers.sql" "$ROOT/schema/seed.sql" "$dir/schema/"
     [ -f "$ROOT/LICENSE" ] && cp "$ROOT/LICENSE" "$dir/"
     [ -f "$ROOT/docs/deploy-package.md" ] && cp "$ROOT/docs/deploy-package.md" "$dir/README.md"
 
