@@ -1071,6 +1071,24 @@ document.addEventListener("DOMContentLoaded", function () {
 <div class="padding">
 {{if .OK}}
 {{template "highlightAssets"}}
+<table class="ui celled table" style="margin-bottom:1em">
+<tbody>
+<tr>
+<th style="width:6em">题目</th><td><a href="/problem.php?id={{.Meta.Problem}}">{{.Meta.Problem}}</a></td>
+<th style="width:6em">用户</th><td>{{.Meta.User}}{{if .Meta.Nick}} [{{.Meta.Nick}}]{{end}}</td>
+</tr>
+<tr>
+<th>语言</th><td>{{.Meta.Language}}</td>
+<th>结果</th><td><span class="{{judgeResultClass .Meta.Result}}">{{judgeResultLabel .Meta.Result}}</span></td>
+</tr>
+{{if .Meta.ShowTime}}
+<tr>
+<th>耗时</th><td>{{.Meta.Time}} ms</td>
+<th>内存</th><td>{{.Meta.Memory}} kb</td>
+</tr>
+{{end}}
+</tbody>
+</table>
 <pre><code class="language-{{.Lang}}">{{.Source}}</code></pre>
 {{else}}I am sorry, You could not view this code!{{end}}
 </div>

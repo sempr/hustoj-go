@@ -10,7 +10,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -24,11 +23,27 @@ const (
 	msgSourceCode       = "源代码"               // $MSG_SOURCE_CODE
 )
 
+// showsourceMeta 是源码上方表格里展示的提交信息。
+//
+// PHP 把这些字段以注释形式拼在源码末尾（showsource.php:28-40）；Go 拆成结构化
+// 字段，由模板渲染成代码上方的表格，源码本身保持原样。
+type showsourceMeta struct {
+	Problem  int32
+	User     string
+	Nick     string
+	Language string
+	Result   int32
+	ShowTime bool // 仅 AC（result==4）时展示耗时/内存。
+	Time     int32
+	Memory   int32
+}
+
 // showsourceView 是 showsource 模板的数据。
 type showsourceView struct {
 	OK     bool
 	Lang   string // highlight.js 语言名（language-<Lang> 类），空表示不高亮。
 	Source string
+	Meta   showsourceMeta
 }
 
 func (s *Server) handleShowsource(w http.ResponseWriter, r *http.Request) {
@@ -110,7 +125,17 @@ func (s *Server) handleShowsource(w http.ResponseWriter, r *http.Request) {
 	view := showsourceView{OK: ok}
 	if ok {
 		view.Lang = hljsLang(sourceBrush(sol.Language))
-		view.Source = showsourceText(sol, viewSource)
+		view.Source = showsourceCode(viewSource)
+		view.Meta = showsourceMeta{
+			Problem:  sol.ProblemID,
+			User:     sol.UserID,
+			Nick:     sol.Nick,
+			Language: languageName(int32(sol.Language)),
+			Result:   int32(sol.Result),
+			ShowTime: sol.Result == 4,
+			Time:     sol.Time,
+			Memory:   sol.Memory,
+		}
 	}
 	s.renderPage(w, r, http.StatusOK, "showsourcePage",
 		strconv.Itoa(id)+" - "+msgSourceCode+" - "+s.cfg.OJName, view)
@@ -164,27 +189,12 @@ func showsourceLockMessage(cid int32) string {
 		"<p> " + msgSourceNotAllowed + " </p><br></center><br><br>"
 }
 
-// showsourceText 拼出 <pre> 内容，对应模板里的 source + 注释头。
+// showsourceCode 规范化源码的行尾（PHP 的 str_replace("\n\r","\n")）。
 //
-// PHP 把源码 htmlentities 后接一段注释（problem/user/language/result[/time/memory]）。
-// Go 交给 html/template 转义，因此这里返回未转义原文。
-func showsourceText(sol dbgen.GetSolutionByIDRow, viewSource string) string {
-	lang := ""
-	names := languageNamesAll()
-	if int(sol.Language) < len(names) {
-		lang = names[sol.Language]
-	}
-	var b strings.Builder
-	b.WriteString(strings.ReplaceAll(viewSource, "\n\r", "\n"))
-	b.WriteString("\n/**************************************************************\n")
-	fmt.Fprintf(&b, "\tProblem: %d\n\tUser: %s [%s]\n", sol.ProblemID, sol.UserID, sol.Nick)
-	fmt.Fprintf(&b, "\tLanguage: %s\n\tResult: %s\n", lang, judgeResultLabel(int32(sol.Result)))
-	if sol.Result == 4 {
-		fmt.Fprintf(&b, "\tTime:%d ms\n", sol.Time)
-		fmt.Fprintf(&b, "\tMemory:%d kb\n", sol.Memory)
-	}
-	b.WriteString("****************************************************************/\n\n")
-	return b.String()
+// 提交信息不再拼成注释贴在代码末尾，改由模板在代码上方以表格展示。
+// 内容交给 html/template 转义，因此这里返回未转义原文。
+func showsourceCode(viewSource string) string {
+	return strings.ReplaceAll(viewSource, "\n\r", "\n")
 }
 
 // sourceBrush 复刻 showsource 模板对 SyntaxHighlighter brush 的改写。

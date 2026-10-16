@@ -77,16 +77,20 @@ func TestShowsourceOwnerCanView(t *testing.T) {
 	f := &fakeQuerier{ssSolution: baseShowsourceSolution(), ssSource: "int main(){}"}
 	session := showsourceSeed(testOJName + `_user_id|s:5:"alice";`)
 	body := showsourceRequest(t, f, nil, session, "/showsource.php?id=42").Body.String()
-	// html/template 会把 "+" 转义成 "&#43;"（见设计文档 3.7），
-	// 因此断言用不含 "+" 的前缀即可。
+	// 提交信息改在代码上方以表格展示；"+" 会被 html/template 转义成
+	// "&#43;"（见设计文档 3.7），因此断言用不含 "+" 的前缀即可。
 	for _, want := range []string{
-		"int main(){}", "Problem: 1001", "User: alice [Alice]",
-		"Language: C", "Result: 正确", "Time:12 ms", "Memory:2048 kb",
+		"int main(){}", "problem.php?id=1001", "alice", "[Alice]",
 		"language-c", "highlight.min.js", "highlight-github.min.css",
+		"正确", "12 ms", "2048 kb",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("缺少 %q\n%s", want, trunc(body, 1000))
 		}
+	}
+	// 提交信息不再以注释形式贴在源码末尾。
+	if strings.Contains(body, "/******") {
+		t.Errorf("源码末尾不应再有提交信息注释\n%s", trunc(body, 1000))
 	}
 	if strings.Contains(body, "I am sorry") {
 		t.Errorf("本人应能查看源码")
