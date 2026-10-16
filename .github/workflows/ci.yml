@@ -57,4 +57,24 @@ jobs:
       - name: shellcheck
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-          shellcheck extra/check_all.sh extra/check_lang_index.sh
+          shellcheck extra/check_all.sh extra/check_lang_index.sh \
+                     extra/package.sh extra/install.sh extra/uninstall.sh extra/install_langs.sh
+
+  # 离线部署包的冒烟：构建 amd64 包 → 校验 SHA256SUMS → dry-run 试装。
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+          cache: true
+      - name: 构建离线包（amd64）
+        run: bash extra/package.sh linux/amd64 --no-fetch-tini
+      - name: 校验并 dry-run 试装
+        run: |
+          cd dist
+          tar -xzf hustoj-go-*-linux-amd64.tar.gz
+          cd hustoj-go-*-linux-amd64
+          sha256sum -c --quiet SHA256SUMS
+          ./install.sh --dry-run

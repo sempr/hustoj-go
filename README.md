@@ -40,6 +40,10 @@ make
 
 ### Installation
 
+> 生产环境推荐用**离线部署包**（目标机只需 Bash/systemd，无需 Go/GCC）：
+> `make dist` 产出 `dist/hustoj-go-<version>-linux-<arch>.tar.gz`，
+> 解压后 `sudo ./install.sh`。详见 `docs/deploy-package.md`。
+
 1. Copy `hustoj` binary to `/usr/bin/`
 2. Copy `extra/judged-go.service` to `/etc/systemd/system/`
 3. Set up language rootfs: `cd extra && bash build_rootfs.sh <lang_id>`

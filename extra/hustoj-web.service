@@ -65,7 +65,9 @@ UMask=0077
 #   /home/judge/data          题目测试数据（判题与题目导入共用）
 #   /home/judge/src/web       站内上传（头像、附件、用户提交的内容）
 #   /var/lib/php/sessions     迁移期只读 PHP 会话桥；PHP 侧仍会继续写入自己的会话
-ReadWritePaths=/home/judge/data /home/judge/src/web /var/lib/php/sessions
+# 前缀 "-" 让 systemd 容忍路径不存在：纯 Go 部署可能没有 src/web 或 PHP 会话目录，
+# 否则 ProtectSystem=strict 下缺目录会导致 unit 启动失败。
+ReadWritePaths=-/home/judge/data -/home/judge/src/web -/var/lib/php/sessions
 
 # 资源上限，避免单个 Web 实例拖垮整机
 MemoryMax=1G

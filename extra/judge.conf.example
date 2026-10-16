@@ -1,0 +1,14 @@
+# judge 数据库连接配置（systemd EnvironmentFile 注入）。
+#
+# 安装位置：/home/judge/etc/judge.conf
+# 权限建议：root:root 0600（内容含 DB 凭据，systemd 以 PID 1 读取后降权执行，
+# 因此无需为 www-data 放宽权限）。
+#
+# Web 服务（hustoj web）与判题守护进程（hustoj daemon）都从这里取数据库凭据。
+# 首次部署时把它复制成 judge.conf 并填入真实值，不要提交进版本库。
+
+OJ_HOST_NAME=localhost
+OJ_PORT_NUMBER=3306
+OJ_USER_NAME=hustoj
+OJ_PASSWORD=change-me
+OJ_DB_NAME=hustoj

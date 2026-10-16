@@ -16,6 +16,16 @@ JUDGEHOME ?= /home/judge
 build:
 	go mod tidy && go build -trimpath -ldflags "$(LDFLAGS)" .
 
+# 离线部署包：交叉编译 amd64/arm64，目标机只需 bash。
+dist:
+	cd extra && bash package.sh
+
+dist-amd64:
+	cd extra && bash package.sh linux/amd64
+
+dist-arm64:
+	cd extra && bash package.sh linux/arm64
+
 langs:
 	cd extra && bash prepare_langs.sh
 
