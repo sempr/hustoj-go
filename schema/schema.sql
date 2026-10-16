@@ -17,6 +17,14 @@
 /*M!100616 SET @OLD_NOTE_VERBOSITY=@@NOTE_VERBOSITY, NOTE_VERBOSITY=0 */;
 
 --
+-- 注意：下列 CREATE TABLE 末尾的表级 AUTO_INCREMENT 起点已被有意统一改为 1000。
+-- 原 mysqldump 会带上生产库的当前计数（solution=11261、problem=1081、contest=1001、
+-- news=1007、loginlog=123、openai_task_queue=65），随包部署到新库会从这些号起步。
+-- 统一为 1000 后，全新库（extra/init_db.sh）从 id=1000 开始分配，可读且可预期。
+-- 这是本文件相对"纯 dump"的唯一人为改动；列级结构未改，见 extra/check_schema.py。
+--
+
+--
 -- Table structure for table `balloon`
 --
 
@@ -72,7 +80,7 @@ CREATE TABLE `contest` (
   KEY `key_c_def` (`defunct`),
   KEY `key_c_end` (`end_time`),
   KEY `key_c_dend` (`defunct`,`end_time`)
-) ENGINE=InnoDB AUTO_INCREMENT=1001 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -123,7 +131,7 @@ CREATE TABLE `loginlog` (
   PRIMARY KEY (`log_id`),
   KEY `user_log_index` (`user_id`,`time`),
   KEY `user_time_index` (`user_id`,`time`)
-) ENGINE=InnoDB AUTO_INCREMENT=123 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -165,7 +173,7 @@ CREATE TABLE `news` (
   `menu` int(11) NOT NULL DEFAULT 0,
   `defunct` char(1) NOT NULL DEFAULT 'N',
   PRIMARY KEY (`news_id`)
-) ENGINE=InnoDB AUTO_INCREMENT=1007 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -210,7 +218,7 @@ CREATE TABLE `openai_task_queue` (
   PRIMARY KEY (`id`),
   KEY `idx_status_create` (`status`,`create_date`),
   KEY `idx_user_status` (`user_id`,`status`)
-) ENGINE=InnoDB AUTO_INCREMENT=65 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='异步任务队列-MyISAM版';
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci COMMENT='异步任务队列-MyISAM版';
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -278,7 +286,7 @@ CREATE TABLE `problem` (
   `remote_id` varchar(32) DEFAULT NULL,
   PRIMARY KEY (`problem_id`),
   KEY `key_p_def` (`defunct`)
-) ENGINE=InnoDB AUTO_INCREMENT=1081 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -391,7 +399,7 @@ CREATE TABLE `solution` (
   KEY `idx_uid_pid_res` (`user_id`,`problem_id`,`result`),
   KEY `idx_contest_result` (`contest_id`,`result`),
   KEY `idx_contest_num` (`contest_id`,`num`,`result`)
-) ENGINE=InnoDB AUTO_INCREMENT=11261 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=1000 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --

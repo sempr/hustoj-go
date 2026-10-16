@@ -118,8 +118,9 @@ sudo ./init_db.sh --db hustoj --user hustoj --password '强口令' \
   **首次登录请立刻改密**。
 - `schema/triggers.sql` 不能省：Go 只**读** `solution.first_time=1`，不自己写；
   缺 `firstAC` 会让排名/首页/用户页的「首杀」统计恒为空、金币不增长。
-- `schema.sql` 里 `solution/problem/contest/news` 的 `AUTO_INCREMENT` 带着
-  生产值（11261/1081/1001/1007），新库会从这些号起步，需要从 1 开始可改。
+- `schema.sql` 里所有表级 `AUTO_INCREMENT` 已**统一为 1000**（原 dump 带生产计数
+  11261/1081/1001/1007 等），新库从 `id=1000` 起分配；这是该文件相对纯 dump 的
+  唯一人为改动，列级结构未变（`extra/check_schema.py` 门禁照常通过）。
 
 ## 四、判题语言运行时（需 Docker）
 
