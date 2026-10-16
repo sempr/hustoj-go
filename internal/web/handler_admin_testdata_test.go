@@ -327,6 +327,92 @@ func TestTestDataDownloadAndView(t *testing.T) {
 	}
 }
 
+// ── 在线编辑 ────────────────────────────────────────────────────────
+
+func TestTestDataEditAndSave(t *testing.T) {
+	srv, home := newTestDataServer(t, seedAdmin(), "")
+	seedDataDir(t, home, 1001, map[string]string{"1.in": "1 2\n"})
+	dir := dataDir(home, 1001)
+
+	// 打开编辑页：应有 textarea 且回填原内容。
+	rec := doTestData(srv, http.MethodGet, "/admin/test_data.php?pid=1001&action=edit&name=1.in", nil, true)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("编辑页状态码 = %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "<textarea") || !strings.Contains(body, "1 2") {
+		t.Errorf("编辑页缺 textarea 或原内容:\n%s", body)
+	}
+	if !strings.Contains(body, `value="save"`) {
+		t.Errorf("编辑页缺保存 action")
+	}
+
+	// 保存：内容落盘。
+	if rec := doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"save"}, "name": {"1.in"}, "content": {"3 4\n"}}, true); rec.Code != http.StatusSeeOther {
+		t.Fatalf("保存状态码 = %d", rec.Code)
+	}
+	if data, err := os.ReadFile(filepath.Join(dir, "1.in")); err != nil || string(data) != "3 4\n" {
+		t.Errorf("保存未生效: %v %q", err, data)
+	}
+
+	// CRLF 归一为 LF。
+	doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"save"}, "name": {"1.in"}, "content": {"a\r\nb\r\n"}}, true)
+	if data, _ := os.ReadFile(filepath.Join(dir, "1.in")); string(data) != "a\nb\n" {
+		t.Errorf("CRLF 未归一: %q", data)
+	}
+
+	// 允许保存为空内容。
+	doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"save"}, "name": {"1.in"}, "content": {""}}, true)
+	if info, err := os.Stat(filepath.Join(dir, "1.in")); err != nil || info.Size() != 0 {
+		t.Errorf("空内容保存失败: %v", err)
+	}
+}
+
+func TestTestDataEditRejects(t *testing.T) {
+	srv, home := newTestDataServer(t, seedAdmin(), "")
+	big := strings.Repeat("a", (1<<20)+1)
+	seedDataDir(t, home, 1001, map[string]string{
+		"spj":    "binary",
+		"1.in":   string([]byte{0xff, 0xfe, 0x00}),
+		"big.in": big,
+	})
+	dir := dataDir(home, 1001)
+
+	// 非文本扩展名
+	if body := doTestData(srv, http.MethodGet, "/admin/test_data.php?pid=1001&action=edit&name=spj", nil, true).Body.String(); !strings.Contains(body, "无法在线编辑") {
+		t.Errorf("非文本文件应拒绝编辑:\n%s", body)
+	}
+	// 非法 UTF-8
+	if body := doTestData(srv, http.MethodGet, "/admin/test_data.php?pid=1001&action=edit&name=1.in", nil, true).Body.String(); !strings.Contains(body, "合法的 UTF-8") {
+		t.Errorf("非法 UTF-8 应拒绝编辑:\n%s", body)
+	}
+	// 超限
+	if body := doTestData(srv, http.MethodGet, "/admin/test_data.php?pid=1001&action=edit&name=big.in", nil, true).Body.String(); !strings.Contains(body, "无法在线编辑") {
+		t.Errorf("超限文件应拒绝编辑:\n%s", body)
+	}
+
+	// 保存到非文本文件：拒绝，内容不变。
+	doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"save"}, "name": {"spj"}, "content": {"x"}}, true)
+	if data, _ := os.ReadFile(filepath.Join(dir, "spj")); string(data) != "binary" {
+		t.Errorf("非文本文件被改写: %q", data)
+	}
+
+	// 越界名保存：拒绝，目录外不受影响。
+	outside := filepath.Join(home, "data", "keep.txt")
+	if err := os.WriteFile(outside, []byte("keep"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"save"}, "name": {"../keep.txt"}, "content": {"pwned"}}, true)
+	if data, _ := os.ReadFile(outside); string(data) != "keep" {
+		t.Errorf("越界保存改写了目录外文件: %q", data)
+	}
+}
+
 func TestTestDataZipDownload(t *testing.T) {
 	srv, home := newTestDataServer(t, seedAdmin(), "")
 	seedDataDir(t, home, 1001, map[string]string{"0.in": "a\n", "0.out": "b\n"})

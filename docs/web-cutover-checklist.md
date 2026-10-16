@@ -57,7 +57,7 @@
 | POST | `/admin/privilege_delete.php` |
 | GET | `/admin/problem_list.php`、`/admin/problem_add_page.php`、`/admin/problem_edit.php`、`/admin/problem_export.php`、`/admin/problem_copy.php`、`/admin/problem_del.php` |
 | GET/POST | `/admin/problem_df_change.php`、`/admin/problem_changeid.php`、`/admin/problem_add.php`、`/admin/problem_export_xml.php` |
-| GET/POST | `/admin/test_data.php`（测试数据管理：列表/上传+zip解压/下载/打包/查看/新建/重命名/删除） |
+| GET/POST | `/admin/test_data.php`（测试数据管理：列表/上传+zip解压/下载/打包/查看/编辑/新建/重命名/删除） |
 | GET/POST | `/admin/rejudge.php`、`/admin/solution_statistics.php`；GET `/admin/ranklist_export.php` |
 | GET | `/admin/contest_list.php`、`/admin/contest_df_change.php`、`/admin/contest_pr_change.php`、`/admin/contest_edit.php` |
 | GET/POST | `/admin/contest_add.php` |

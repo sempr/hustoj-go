@@ -2231,7 +2231,7 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 <td>{{if .IsText}}<a href="{{.ViewURL}}">{{.Name}}</a>{{else}}{{.Name}}{{end}}</td>
 <td>{{.SizeText}}</td>
 <td>{{.ModTime}}</td>
-<td><a href="{{.DownURL}}">下载</a></td>
+<td><a href="{{.DownURL}}">下载</a>{{if .IsText}} · <a href="{{.EditURL}}">编辑</a>{{end}}</td>
 </tr>
 {{else}}
 <tr><td colspan="5">（暂无数据文件）</td></tr>
@@ -2255,10 +2255,28 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 {{/* adminTestDataViewPage 是数据文件的文本查看页（超出上限只显示前段）。 */}}
 {{define "adminTestDataViewPage"}}
 <div class="padding">
-<p><a href="/admin/test_data.php?pid={{.PID}}">← 返回题目 {{.PID}} 的测试数据</a></p>
+<p><a href="/admin/test_data.php?pid={{.PID}}">← 返回题目 {{.PID}} 的测试数据</a> · <a href="/admin/test_data.php?pid={{.PID}}&amp;action=edit&amp;name={{.Name|urlquery}}">编辑本文件</a></p>
 <h3>{{.Name}}</h3>
 {{if .Truncated}}<div class="ui warning message">文件较大，仅显示前 256KB。</div>{{end}}
 <pre style="white-space:pre-wrap">{{.Content}}</pre>
+</div>
+{{end}}
+
+{{/* adminTestDataEditPage 是数据文件的在线编辑页（仅文本类，上限 1MiB）。 */}}
+{{define "adminTestDataEditPage"}}
+<div class="padding">
+<p><a href="/admin/test_data.php?pid={{.PID}}">← 返回题目 {{.PID}} 的测试数据</a> · <a href="/admin/test_data.php?pid={{.PID}}&amp;action=view&amp;name={{.Name|urlquery}}">只读查看</a></p>
+<h3>编辑 {{.Name}}</h3>
+<div class="ui message">
+保存会覆盖原文件。行尾统一为 LF（<code>\n</code>）；请保留末尾换行等对判题有意义的字节。仅文本类文件可在线编辑，超过 1MiB 请下载后修改再上传。
+</div>
+<form method="post" action="/admin/test_data.php?pid={{.PID}}">
+{{template "csrfInput" .}}
+<input type="hidden" name="action" value="save">
+<input type="hidden" name="name" value="{{.Name}}">
+<p><textarea name="content" rows="24" style="width:100%;font-family:monospace;white-space:pre">{{.Content}}</textarea></p>
+<p><button type="submit" class="ui button">保存</button> <a href="/admin/test_data.php?pid={{.PID}}">取消</a></p>
+</form>
 </div>
 {{end}}
 

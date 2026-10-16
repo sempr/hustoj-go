@@ -1,7 +1,7 @@
 // 后台测试数据管理（对应 PHP admin/phpfm.php 里与题目数据相关的那部分）。
 //
 // 页面 /admin/test_data.php?pid=N 管理 <OJHome>/data/<pid>/：
-// 列表 / 上传（含 zip 自动解压）/ 下载 / 打包下载 / 查看 / 新建 / 重命名 / 删除。
+// 列表 / 上传（含 zip 自动解压）/ 下载 / 打包下载 / 查看 / 编辑 / 新建 / 重命名 / 删除。
 //
 // 判题侧的约定（internal/client/run.go、executor.go、interactive.go）：
 //   - 扫描 *.in，按同名 X.in → X.out 严格配对；没有 .ans 回退；
@@ -34,11 +34,14 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 const (
 	// testDataViewLimit 是"查看"能显示的字节上限，超出只显示前段。
 	testDataViewLimit = 256 << 10
+	// testDataEditLimit 是"在线编辑"能打开并保存的字节上限，超出请下载后修改再上传。
+	testDataEditLimit = 1 << 20
 	// testDataUploadLimit 是单次上传（含 zip 包体）的体积上限。
 	testDataUploadLimit = 64 << 20
 	// testDataZipTotal / testDataZipEntries 防 zip 炸弹。
@@ -53,9 +56,10 @@ type testDataFile struct {
 	SizeText string
 	ModTime  string
 	IsText   bool
-	// ViewURL / DownURL 预先拼好并转义，避免在模板里直接拼文件名（含 &、+ 等会出错）。
+	// ViewURL / DownURL / EditURL 预先拼好并转义，避免在模板里直接拼文件名（含 &、+ 等会出错）。
 	ViewURL template.URL
 	DownURL template.URL
+	EditURL template.URL
 }
 
 // testDataReport 是完整性检查结果。
@@ -91,6 +95,15 @@ type adminTestDataViewVM struct {
 	Truncated bool
 }
 
+type adminTestDataEditVM struct {
+	Title   string
+	OJName  string
+	PID     int32
+	Name    string
+	Content string
+	Token   *http.Request
+}
+
 // ── 路由 ────────────────────────────────────────────────────────────
 
 func (s *Server) registerTestDataRoutes(mux *http.ServeMux) {
@@ -115,6 +128,8 @@ func (s *Server) handleTestData(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Query().Get("action") {
 		case "view":
 			s.testDataView(w, r, pid, dir)
+		case "edit":
+			s.testDataEdit(w, r, pid, dir)
 		case "download":
 			s.testDataDownload(w, r, pid, dir)
 		case "zip":
@@ -184,6 +199,8 @@ func (s *Server) applyTestDataAction(r *http.Request, dir, action string) (msg, 
 		}
 		f.Close()
 		return "已新建 " + name, ""
+	case "save":
+		return s.testDataSave(r, dir)
 	case "rename":
 		oldName := strings.TrimSpace(r.FormValue("old"))
 		newName := strings.TrimSpace(r.FormValue("new"))
@@ -320,6 +337,7 @@ func (s *Server) testDataList(w http.ResponseWriter, r *http.Request, pid int32,
 			IsText:   isTextLikeName(e.Name()),
 			ViewURL:  testDataHref(pid, "view", e.Name()),
 			DownURL:  testDataHref(pid, "download", e.Name()),
+			EditURL:  testDataHref(pid, "edit", e.Name()),
 		})
 		names = append(names, e.Name())
 	}
@@ -363,6 +381,100 @@ func (s *Server) testDataView(w http.ResponseWriter, r *http.Request, pid int32,
 		Content:   string(data),
 		Truncated: truncated,
 	})
+}
+
+// testDataEdit 渲染在线编辑页：仅文本类且体积与编码都合法的文件可编辑。
+//
+// 打不开时退回列表页并带上 err，而不是 http.Error —— 这样能复用列表页的
+// 提示样式，用户也不会脱离测试数据管理上下文。
+func (s *Server) testDataEdit(w http.ResponseWriter, r *http.Request, pid int32, dir string) {
+	name := r.URL.Query().Get("name")
+	p, err := testDataPath(dir, name)
+	if err != nil {
+		s.testDataList(w, r, pid, dir, "", "文件名不合法")
+		return
+	}
+	if !isTextLikeName(name) {
+		s.testDataList(w, r, pid, dir, "", "该文件不是文本类型，无法在线编辑，请下载后修改再上传")
+		return
+	}
+	info, err := os.Stat(p)
+	if err != nil {
+		s.testDataList(w, r, pid, dir, "", "文件不存在："+name)
+		return
+	}
+	if info.Size() > testDataEditLimit {
+		s.testDataList(w, r, pid, dir, "", fmt.Sprintf("文件超过 %s，无法在线编辑，请下载后修改再上传", humanSize(testDataEditLimit)))
+		return
+	}
+	data, err := os.ReadFile(p)
+	if err != nil {
+		s.testDataList(w, r, pid, dir, "", "读取文件失败")
+		return
+	}
+	if !utf8.Valid(data) {
+		s.testDataList(w, r, pid, dir, "", "文件不是合法的 UTF-8 文本，无法在线编辑")
+		return
+	}
+	s.renderPage(w, r, http.StatusOK, "adminTestDataEditPage", "编辑 "+name, adminTestDataEditVM{
+		Title:   name,
+		OJName:  s.cfg.OJName,
+		PID:     pid,
+		Name:    name,
+		Content: string(data),
+		Token:   r,
+	})
+}
+
+// testDataSave 处理在线编辑的保存：文本类型 + UTF-8 校验后原子覆盖写。
+func (s *Server) testDataSave(r *http.Request, dir string) (msg, errMsg string) {
+	name := strings.TrimSpace(r.FormValue("name"))
+	p, err := testDataPath(dir, name)
+	if err != nil {
+		return "", "文件名不合法：" + err.Error()
+	}
+	if !isTextLikeName(name) {
+		return "", "该文件不是文本类型，无法保存"
+	}
+	if _, err := os.Stat(p); err != nil {
+		return "", "文件不存在：" + name
+	}
+	content := r.FormValue("content")
+	// textarea 提交的行尾恒为 CRLF，统一成 LF，避免每次保存都悄悄改变字节。
+	content = strings.ReplaceAll(content, "\r\n", "\n")
+	if len(content) > testDataEditLimit {
+		return "", fmt.Sprintf("内容超过 %s 上限", humanSize(testDataEditLimit))
+	}
+	if !utf8.ValidString(content) {
+		return "", "内容不是合法的 UTF-8 文本"
+	}
+	if err := writeFileAtomic(p, content); err != nil {
+		return "", "保存失败"
+	}
+	return fmt.Sprintf("已保存 %s（%d 字节）", name, len(content)), ""
+}
+
+// writeFileAtomic 先写同目录临时文件再 rename，避免保存中断留下半截内容。
+func writeFileAtomic(path, content string) error {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName) // rename 成功后 Remove 无害（文件已不在原路径）。
+	if _, err := tmp.WriteString(content); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+	return os.Rename(tmpName, path)
 }
 
 func (s *Server) testDataDownload(w http.ResponseWriter, r *http.Request, pid int32, dir string) {
