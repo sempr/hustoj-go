@@ -173,14 +173,22 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 	os.Chmod(destSpjFile, 0o755)
 	defer os.ReadDir(destSpjFile)
 
+	// 与用户程序、交互器保持一致：以语言 rootfs 为根、cwd=/code 运行，判题
+	// 程序放在 /code 下按其完整路径调用。
+	// 注意：不能拿 <rootfs>/code 当 rootfs —— 它只是 overlay 里的普通目录、
+	// 不是挂载点，tini 的 pivot_root 会返回 EINVAL，导致 SPJ 一律判 WA。
 	runArgs := []string{
 		"run",
-		fmt.Sprintf("--rootfs=%s", filepath.Join(config.Rootdir, "code")),
-		fmt.Sprintf("--cmd=/%s", strings.Join(spjCmds, " ")),
+		fmt.Sprintf("--rootfs=%s", config.Rootdir),
+		fmt.Sprintf("--cmd=/code/%s", strings.Join(spjCmds, " ")),
 		fmt.Sprintf("--time=%d", config.Timelimit),
 		fmt.Sprintf("--memory=%d", config.MemoryLimit<<10),
 		fmt.Sprintf("--sid=%d", jc.solutionID),
-		"--cwd=/",
+		"--cwd=/code",
+		// run 子命令总会 os.Create 自己的 stdout（缺省为 /code/data.usr），
+		// 那会先把选手输出截断成空文件、SPJ 再读就是空的。故给 SPJ 单开一个
+		// 输出文件，保住 data.usr。
+		"--stdout=/code/spj.out",
 	}
 
 	r, w, err := os.Pipe()
@@ -213,6 +221,9 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 	exitStatus := output.ExitStatus
 
 	slog.Info("spj result", "status", exitStatus, "program", spjName)
+	if exitStatus != 0 && output.CombinedOutput != "" {
+		slog.Info("spj 诊断输出", "program", spjName, "output", output.CombinedOutput)
+	}
 
 	if config.SpjProgram == constants.OJ_SPJ_PROGRAM_UPJ {
 		score := float64(exitStatus) / 100.0
