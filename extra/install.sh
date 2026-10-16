@@ -72,8 +72,12 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-# sed 替换用 | 作分隔符，路径里不能有它或换行。
+# 路径必须是绝对路径；sed 替换用 | 作分隔符，路径里不能有它或换行。
 for v in "$PREFIX" "$OJHOME" "$SYSDIR" "$TINI_DIR"; do
+    case "$v" in
+        /*) ;;
+        *) die "路径必须是绝对路径: $v" ;;
+    esac
     case "$v" in
         *"|"*|*$'\n'*) die "路径不能包含 '|' 或换行: $v" ;;
     esac

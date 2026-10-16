@@ -104,10 +104,17 @@ Web 服务默认只监听 `127.0.0.1:8080`（见 `etc/web.toml` 的 `listen`）�
 
 ## 五、卸载
 
+卸载是破坏性操作，默认会在终端里二次确认；非交互环境必须显式 `--yes`：
+
 ```bash
-sudo ./uninstall.sh            # 移除二进制与 unit，保留数据/配置
+sudo ./uninstall.sh            # 交互确认；移除二进制与 unit，保留数据/配置
 sudo ./uninstall.sh --purge    # 连 web.toml / judge.conf / all.toml 一起删
+sudo ./uninstall.sh --yes      # 跳过确认（脚本/CI 用）
+sudo ./uninstall.sh --dry-run  # 只预览，不动手
 ```
 
 数据目录 `/home/judge/data`、语言 rootfs (`/home/judge/etc/langs/*.lang.toml`)
 与 Docker 镜像一律保留。
+
+`--ojhome` / `--prefix` / `--tini-dir` / `--systemd-dir` 均要求**绝对路径**
+（脚本会用 sed 改写 unit，路径不能含 `|` 或换行）。
