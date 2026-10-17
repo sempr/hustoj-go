@@ -13,6 +13,12 @@
 #   --ojhome DIR    OJ 根目录（默认 /home/judge）
 #   --conf FILE     judge.conf 路径（默认 <ojhome>/etc/judge.conf）
 #   --only LIST     只装载列出的题号（逗号/空格分隔），如 --only 1000,1002
+#   --pid-base N    把示例题固有序号 1000..1004 整体顺延到 N 起（如 N=1739 得
+#                   1739..1743），用于把示例题追加到已有题库末尾；--only 仍按
+#                   原始题号（1000..1004）筛选
+#   --auto-pid      取库中最大题号 +1 作为起始序号（等价于 --pid-base <该值>），
+#                   即自动追加到题库末尾
+#   --contest-id N  演示比赛编号（默认 1000）；仅在创建比赛时生效
 #   --no-contest    不创建演示比赛
 #   --force         覆盖已存在的题号（默认跳过已存在的题与比赛）
 #   --dry-run       只打印将要执行的动作，不改库、不写文件
@@ -30,6 +36,9 @@ ONLY=""
 DO_CONTEST=1
 FORCE=0
 DRY=0
+PID_BASE=""
+AUTO_PID=0
+CONTEST_ID_OVERRIDE=""
 
 info() { printf '==> %s\n' "$*"; }
 warn() { printf '警告: %s\n' "$*" >&2; }
@@ -41,6 +50,9 @@ while [ $# -gt 0 ]; do
         --ojhome)     OJHOME="$2"; shift 2 ;;
         --conf)       CONF="$2"; shift 2 ;;
         --only)       ONLY="$2"; shift 2 ;;
+        --pid-base)   PID_BASE="$2"; shift 2 ;;
+        --auto-pid)   AUTO_PID=1; shift ;;
+        --contest-id) CONTEST_ID_OVERRIDE="$2"; shift 2 ;;
         --no-contest) DO_CONTEST=0; shift ;;
         --force)      FORCE=1; shift ;;
         --dry-run)    DRY=1; shift ;;
@@ -48,6 +60,21 @@ while [ $# -gt 0 ]; do
         *)            die "未知参数: $1（用 --help 查看用法）" ;;
     esac
 done
+
+if [ -n "$PID_BASE" ] && [ "$AUTO_PID" -eq 1 ]; then
+    die "--pid-base 与 --auto-pid 不能同时使用"
+fi
+if [ -n "$PID_BASE" ]; then
+    case "$PID_BASE" in
+        ''|*[!0-9]*) die "--pid-base 必须是正整数: $PID_BASE" ;;
+    esac
+    [ "$PID_BASE" -ge 1 ] || die "--pid-base 必须 >= 1: $PID_BASE"
+fi
+if [ -n "$CONTEST_ID_OVERRIDE" ]; then
+    case "$CONTEST_ID_OVERRIDE" in
+        ''|*[!0-9]*) die "--contest-id 必须是正整数: $CONTEST_ID_OVERRIDE" ;;
+    esac
+fi
 
 [ -n "$CONF" ] || CONF="$OJHOME/etc/judge.conf"
 [ -f "$CONF" ] || die "找不到 $CONF（可用 --conf 指定，或先运行 init_db.sh）"
@@ -65,7 +92,12 @@ if [ "$DRY" -ne 1 ]; then
     MYSQL_BIN="$(command -v mysql || command -v mariadb || true)"
     [ -n "$MYSQL_BIN" ] || die "未找到 mysql/mariadb 客户端"
 else
-    MYSQL_BIN="mysql"
+    # dry-run 默认不连库；--auto-pid 需要查最大题号，故仍尝试找客户端。
+    MYSQL_BIN="$(command -v mysql || command -v mariadb || true)"
+    if [ -z "$MYSQL_BIN" ]; then
+        [ "$AUTO_PID" -eq 0 ] || die "未找到 mysql/mariadb 客户端"
+        MYSQL_BIN="mysql"
+    fi
 fi
 
 mysql_run() { # <sql>
@@ -84,6 +116,25 @@ mysql_scalar() { # <sql>
 sqlq() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\'/\'\'}"; printf "'%s'" "$s"; }
 # 读文件为 SQL 字符串字面量。
 sqlfile() { local s; s="$(cat "$1")"; s="${s//\\/\\\\}"; s="${s//\'/\'\'}"; printf "'%s'" "$s"; }
+
+# 示例题固有序号是 1000..1004；--pid-base N 把它们整体平移到 N..N+4。
+# --auto-pid 则取库中最大题号 +1 作起始，追加到题库末尾。
+if [ "$AUTO_PID" -eq 1 ]; then
+    [ "$DRY" -eq 1 ] || [ -n "$MYSQL_BIN" ] || die "未找到 mysql/mariadb 客户端（--auto-pid 需要查库）"
+    PID_BASE="$(mysql_scalar "SELECT COALESCE(MAX(problem_id),999)+1 FROM problem")" \
+        || die "查询最大题号失败（--auto-pid）"
+    case "$PID_BASE" in
+        ''|*[!0-9]*) die "无法确定起始题号（--auto-pid 取到 '$PID_BASE'）" ;;
+    esac
+fi
+
+remap_pid() { # <orig-pid>：把 1000 基序号平移到 PID_BASE
+    if [ -n "$PID_BASE" ]; then
+        printf '%s' "$(( $1 - 1000 + PID_BASE ))"
+    else
+        printf '%s' "$1"
+    fi
+}
 
 want_pid() { # <pid>
     [ -z "$ONLY" ] && return 0
@@ -119,7 +170,10 @@ for d in "$PROBLEMS_DIR"/*/; do
     # shellcheck disable=SC1090
     . "$d/meta.env"
     [ -n "$PID" ] && [ -n "$TITLE" ] || { warn "$d/meta.env 缺少 PID/TITLE，跳过"; continue; }
+    # --only 按原始题号（1000..1004）筛选，再按 --pid-base/--auto-pid 平移。
     want_pid "$PID" || continue
+    orig_pid="$PID"
+    PID="$(remap_pid "$orig_pid")"
 
     if [ "$DRY" -ne 1 ]; then
         existing="$(mysql_scalar "SELECT COUNT(*) FROM problem WHERE problem_id=$PID")"
@@ -137,7 +191,11 @@ for d in "$PROBLEMS_DIR"/*/; do
     outp="$(sqlfile "$d/statement/output.md")"
     hint="$(sqlfile "$d/statement/hint.md")"
 
-    info "装载题 $PID：$TITLE（spj=$SPJ）"
+    if [ "$PID" != "$orig_pid" ]; then
+        info "装载题 $PID：$TITLE（spj=$SPJ，原序号 $orig_pid）"
+    else
+        info "装载题 $PID：$TITLE（spj=$SPJ）"
+    fi
     mysql_run "INSERT INTO problem
         (problem_id,title,time_limit,memory_limit,description,input,output,
          sample_input,sample_output,hint,source,spj,in_date,defunct,coin)
@@ -159,9 +217,11 @@ done
 if [ "$DO_CONTEST" -eq 1 ] && [ -f "$SCRIPT_DIR/contest.env" ]; then
     # shellcheck disable=SC1090
     . "$SCRIPT_DIR/contest.env"
+    [ -n "$CONTEST_ID_OVERRIDE" ] && CONTEST_ID="$CONTEST_ID_OVERRIDE"
 
     members=""
     for pid in ${CONTEST_PIDS:-}; do
+        pid="$(remap_pid "$pid")"
         if [ "$DRY" -eq 1 ]; then
             members="$members $pid"
         elif [ "$(mysql_scalar "SELECT COUNT(*) FROM problem WHERE problem_id=$pid")" != 0 ]; then

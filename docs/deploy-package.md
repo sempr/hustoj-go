@@ -204,6 +204,10 @@ sudo ./install.sh --init-db --db-password '强口令' --demo
 # 方式 B：安装后单独装载（凭据取自 <OJHome>/etc/judge.conf）
 sudo ./demo/install_demo.sh --ojhome /home/judge
 sudo ./demo/install_demo.sh --only 1000,1002 --no-contest   # 只装部分题
+
+# 已有题库：把示例题顺延到末尾（--auto-pid 取库中最大题号 +1 起）
+sudo ./demo/install_demo.sh --ojhome /srv/hustoj --auto-pid --no-contest
+sudo ./demo/install_demo.sh --ojhome /srv/hustoj --pid-base 1739 --contest-id 1119
 ```
 
 `install_demo.sh` 幂等：已存在的题默认跳过，`--force` 才覆盖；`--dry-run`

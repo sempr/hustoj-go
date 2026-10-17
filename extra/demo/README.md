@@ -33,6 +33,25 @@ sudo ./demo/install_demo.sh --ojhome /home/judge
 常用选项：`--only 1000,1002`、`--no-contest`、`--force`（覆盖已存在的题）、
 `--dry-run`。脚本幂等，重复执行默认跳过已存在的题。
 
+### 追加到已有题库末尾
+
+已有题库时，示例题固有序号 1000..1004 往往被占用。用 `--pid-base`/`--auto-pid`
+把示例题整体顺延到末尾（`--only` 仍按原始序号 1000..1004 筛选）：
+
+```bash
+# 取库中最大题号 +1 作起始，追加到题库末尾（如库里到 1738，则装成 1739..1743）
+sudo ./demo/install_demo.sh --ojhome /srv/hustoj --auto-pid --no-contest
+
+# 或显式指定起始序号
+sudo ./demo/install_demo.sh --ojhome /srv/hustoj --pid-base 1739 --no-contest
+
+# 需要演示比赛时用 --contest-id 指定一个未被占用的编号
+sudo ./demo/install_demo.sh --ojhome /srv/hustoj --auto-pid --contest-id 1119
+```
+
+`--auto-pid` 只改示例题的题号（problem_id 与 `<ojhome>/data/<题号>/` 目录），
+题目正文、判题数据与 SPJ/交互器二进制都不变。
+
 ## 目录结构
 
 ```
