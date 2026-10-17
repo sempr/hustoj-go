@@ -15,6 +15,11 @@
 # install_langs.sh 会把 LANG_ROOTFS_DIR 设为 $OJHOME/var/rootfs，直接落到运行时
 # 位置，避免装完再拷一份。
 #
+# env 合并约定：<id>.lang.toml 的 env 只写「镜像 ENV 里没有的 key」(delta)。
+# 镜像已有的 key 一律以【镜像值】为准，避免「上次构建把镜像 ENV 写回模板、下次
+# 构建又用旧值反向覆盖新版本镜像」的冻结问题。确需覆盖镜像值时设
+# ALLOW_ENV_OVERRIDE=1 显式开启。
+#
 # 用法: replace.sh <image> <lang.toml>
 set -e
 set -o pipefail
@@ -67,22 +72,56 @@ while IFS= read -r tok; do
 	envmap[$key]=$val
 done < <(printf '%s' "$env_json" | grep -o '"[^"]*"' | tr -d '"')
 
-manual=$(sed -n 's/.*env[[:space:]]*=[[:space:]]*\[\(.*\)\][[:space:]]*$/\1/p' "$conf")
-	if [ -n "$manual" ]; then
-		while IFS= read -r t; do
-			t=${t//\"/}
-			t=$(printf '%s' "$t" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
-			[ -n "$t" ] || continue
-			key=${t%%=*}
-			val=${t#*=}
-			if [ -n "$key" ]; then
-				if [ -z "${envmap[$key]+x}" ]; then
-					linear+=("$key")
-				fi
-				envmap[$key]=$val
-			fi
-		done < <(printf '%s\n' "$manual" | tr ',' '\n')
+# 告警输出（写 stderr；stderr 是终端时加颜色）。
+warn_env() {
+	if [ -t 2 ]; then
+		printf '\033[33m[replace.sh][env] %s\033[0m\n' "$*" >&2
+	else
+		printf '[replace.sh][env] %s\n' "$*" >&2
 	fi
+}
+
+# 模板 env 只作为「镜像没有的 key」的 delta 合并；镜像已有的 key 以镜像值为准。
+manual=$(sed -n 's/.*env[[:space:]]*=[[:space:]]*\[\(.*\)\][[:space:]]*$/\1/p' "$conf")
+if [ -n "$manual" ]; then
+	while IFS= read -r t; do
+		t=${t//\"/}
+		t=$(printf '%s' "$t" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
+		[ -n "$t" ] || continue
+		key=${t%%=*}
+		val=${t#*=}
+		[ -n "$key" ] || continue
+
+		if [ -z "${envmap[$key]+x}" ]; then
+			# 镜像没有：真正的 delta，采纳
+			linear+=("$key")
+			envmap[$key]=$val
+			# 顺带体检：delta 值是否像「钉死版本 / 绝对库路径」
+			looks_pinned=0
+			case "$val" in
+				/*)
+					if printf '%s' "$val" | grep -Eq '(^|/)[A-Za-z0-9._-]*([0-9]+\.[0-9]+|[A-Za-z_]+-[0-9]+)[A-Za-z0-9._-]*(/|$)'; then
+						looks_pinned=1
+					fi
+					;;
+			esac
+			if printf '%s' "$key" | grep -Eq '(_VERSION|_SHA|LIBRARY_PATH)$'; then
+				looks_pinned=1
+			fi
+			if [ "$looks_pinned" = 1 ]; then
+				warn_env "delta '$key=$val' 疑似钉死版本/绝对库路径，基础镜像升级后易失效；建议改由镜像提供，或放进 rootfs 内的 wrapper"
+			fi
+		elif [ "${envmap[$key]}" = "$val" ]; then
+			# 与镜像值一致：保留镜像值，无需动作
+			:
+		elif [ -n "${ALLOW_ENV_OVERRIDE:-}" ]; then
+			warn_env "按 ALLOW_ENV_OVERRIDE 覆盖镜像值: $key 镜像='${envmap[$key]}' -> 模板='$val'"
+			envmap[$key]=$val
+		else
+			warn_env "冲突: $key 镜像='${envmap[$key]}' vs 模板='$val'；已按【镜像值】为准（防止旧值冻结）。确需覆盖请设 ALLOW_ENV_OVERRIDE=1"
+		fi
+	done < <(printf '%s\n' "$manual" | tr ',' '\n')
+fi
 
 env_items=()
 for key in "${linear[@]}"; do
