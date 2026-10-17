@@ -66,7 +66,7 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
           shellcheck extra/check_all.sh extra/check_lang_index.sh \
                      extra/package.sh extra/install.sh extra/uninstall.sh extra/install_langs.sh extra/init_db.sh \
-                     extra/migrate.sh \
+                     extra/migrate.sh extra/prepare_env.sh \
                      extra/demo/install_demo.sh extra/demo/build_data.sh
 
   # 离线部署包的冒烟：构建 amd64 包 → 校验 SHA256SUMS → dry-run 试装。

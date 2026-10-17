@@ -44,6 +44,10 @@ make
 > `make dist` 产出 `dist/hustoj-go-<version>-linux-<arch>.tar.gz`，
 > 解压后 `sudo ./install.sh`。详见 `docs/deploy-package.md`。
 
+全新目标机可先用包内 `prepare_env.sh` 装好并启动 MariaDB / Redis / Docker
+（Debian/Ubuntu + systemd）：`sudo ./prepare_env.sh`，详见
+`docs/deploy-package.md`「二、目标机：部署」。
+
 1. Copy `hustoj` binary to `/usr/bin/`
 2. Copy `extra/judged-go.service` to `/etc/systemd/system/`
 3. Build language rootfs and install configs (needs Docker):

@@ -46,6 +46,7 @@ hustoj-go-<version>-linux-<arch>/
 ├── migrations/                 # 存量库迁移脚本（00002 结构对齐 / 00003 触发器）
 ├── demo/                       # 示例题库（5 题 + 演示比赛 + 预编译判题程序）
 ├── install.sh / uninstall.sh / init_db.sh / migrate.sh
+├── prepare_env.sh /            # 目标机环境准备（MariaDB/Redis/Docker，见「二」）
 ├── VERSION / SHA256SUMS / README.md / LICENSE
 ```
 
@@ -53,6 +54,20 @@ hustoj-go-<version>-linux-<arch>/
 
 前置：MariaDB（沿用既有 HUSTOJ 库）、可选 Redis、Docker（仅判题语言运行时
 需要）、`www-data` 用户。
+
+**全新目标机**可先用包内的 `prepare_env.sh` 装好并启动 MariaDB / Redis / Docker
+（Debian/Ubuntu + systemd；已装的会跳过，可重复执行）：
+
+```bash
+sudo ./prepare_env.sh                                  # 三件套全装
+sudo ./prepare_env.sh --no-db --no-redis               # 只装 Docker
+sudo ./prepare_env.sh --docker-mirror https://docker.1ms.run
+```
+
+它会 `apt-get install` 相应软件包、`systemctl enable --now`，并写一份
+`/etc/docker/daemon.json`（镜像加速 / `live-restore` / 日志轮转；已存在时默认
+保留，`--force` 覆盖）。数据库建库建表仍由 `init_db.sh` 完成，语言 rootfs 仍由
+`langs/install_langs.sh` 完成。**沿用已有数据库**时用 `--no-db` 跳过 MariaDB。
 
 ```bash
 tar -xzf hustoj-go-<version>-linux-amd64.tar.gz
