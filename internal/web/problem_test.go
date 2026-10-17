@@ -60,10 +60,9 @@ type fakeQuerier struct {
 	contestForSubmit dbgen.GetContestForSubmitRow
 	// contestInvites 是私有比赛受邀人数。
 	contestInvites int64
-	// spj / nick / remoteOJ 分别对应 GetProblemSPJ / GetUserNick /
-	// GetProblemRemoteOJ。默认值由各测试按需覆盖。
+	// spj / remoteOJ 分别对应 GetProblemSPJ / GetProblemRemoteOJ。
+	// 默认值由各测试按需覆盖。
 	spj      string
-	nick     string
 	remoteOJ sql.NullString
 	// lastRecentSubmit 非 0 表示冷却期内已有提交。
 	lastRecentSubmit uint32
@@ -936,14 +935,6 @@ func (f *fakeQuerier) CountContestInvites(_ context.Context, _ dbgen.CountContes
 func (f *fakeQuerier) GetProblemSPJ(_ context.Context, _ int32) (string, error) {
 	f.note("GetProblemSPJ")
 	return f.spj, f.fail()
-}
-
-func (f *fakeQuerier) GetUserNick(_ context.Context, _ string) (string, error) {
-	f.note("GetUserNick")
-	if err := f.fail(); err != nil {
-		return "", err
-	}
-	return f.nick, nil
 }
 
 func (f *fakeQuerier) GetLastRecentSubmit(_ context.Context, _ dbgen.GetLastRecentSubmitParams) (uint32, error) {

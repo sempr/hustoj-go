@@ -20,6 +20,22 @@ import (
 	"fmt"
 )
 
+// solutionNickMaxLen 是 solution.nick 的字符容量。
+//
+// schema/schema.sql 定义该列为 char(20)。MySQL 严格模式下超长会整条
+// INSERT 失败（Error 1406 Data too long），表现为"点提交就报错"，而
+// 问题其实只在这一列的显示上。写入前按此宽度截断，提交不因昵称长短而失败。
+const solutionNickMaxLen = 20
+
+// truncateRunes 按 rune 截断，避免在 UTF-8 字符中间切断。
+func truncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
+}
+
 // SubmitParams 是一次提交的完整参数。
 type SubmitParams struct {
 	// ProblemID 是目标题目的**正** id（练习/比赛模式）。
@@ -44,6 +60,11 @@ type SubmitParams struct {
 	UserID string
 
 	// Nick 冗余写入 solution.nick，供列表页免 JOIN users。
+	//
+	// 调用方传什么就写什么（当前传提交者的 user_id，不再取 users.nick：
+	// 昵称可能被 user_import / modifypage / 后台改资料写成超过 solution.nick
+	// 容量的长度）。写入时按列容量截断，见 insertSolutionRow —— 这一列只
+	// 影响显示，不该让整次提交失败。
 	Nick string
 
 	// Language 是语言下标（$language_ext 的下标）。
@@ -195,14 +216,19 @@ func insertSolutionRow(ctx context.Context, tx *sql.Tx, p SubmitParams) (int64, 
 		pid = 0
 	}
 
+	// solution.nick 只作显示快照，按列容量截断，保证超长值不会让整条
+	// INSERT 以 1406 失败（真实发生过：users.nick 被导入加宽后，其用户
+	// 一提交就报 Data too long for column 'nick'）。
+	nick := truncateRunes(p.Nick, solutionNickMaxLen)
+
 	var res sql.Result
 	var err error
 	if p.IsContest {
 		res, err = tx.ExecContext(ctx, contest,
-			pid, p.UserID, p.Nick, p.Language, p.IP, p.CodeLength, p.ContestID, p.Num)
+			pid, p.UserID, nick, p.Language, p.IP, p.CodeLength, p.ContestID, p.Num)
 	} else {
 		res, err = tx.ExecContext(ctx, base,
-			pid, p.UserID, p.Nick, p.Language, p.IP, p.CodeLength)
+			pid, p.UserID, nick, p.Language, p.IP, p.CodeLength)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("写入提交记录失败: %w", err)

@@ -310,8 +310,6 @@ type Querier interface {
 	GetUserDefunct(ctx context.Context, userID string) (string, error)
 	// ── 密码重置（lostpassword.php、lostpassword2.php）──────────────────
 	GetUserEmail(ctx context.Context, userID string) (sql.NullString, error)
-	// 取用户昵称，写入 solution.nick 以便列表页免 JOIN users。
-	GetUserNick(ctx context.Context, userID string) (string, error)
 	// ── 门户（portal.php）────────────────────────────────────────────────
 	// 用户已提交/已通过的题目
 	GetUserSubmittedProblems(ctx context.Context, userID string) ([]GetUserSubmittedProblemsRow, error)

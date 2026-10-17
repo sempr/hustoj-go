@@ -264,18 +264,6 @@ func (q *Queries) GetSubmitProblem(ctx context.Context, problemID int32) (GetSub
 	return i, err
 }
 
-const getUserNick = `-- name: GetUserNick :one
-SELECT nick FROM users WHERE user_id = ?
-`
-
-// 取用户昵称，写入 solution.nick 以便列表页免 JOIN users。
-func (q *Queries) GetUserNick(ctx context.Context, userID string) (string, error) {
-	row := q.db.QueryRowContext(ctx, getUserNick, userID)
-	var nick string
-	err := row.Scan(&nick)
-	return nick, err
-}
-
 const incrementContestProblemSubmit = `-- name: IncrementContestProblemSubmit :exec
 UPDATE contest_problem SET c_submit = c_submit + 1
 WHERE contest_id = ? AND num = ?

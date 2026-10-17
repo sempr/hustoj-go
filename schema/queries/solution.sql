@@ -57,10 +57,6 @@ WHERE user_id = sqlc.arg(user_id)
 -- name: GetProblemSPJ :one
 SELECT spj FROM problem WHERE problem_id = sqlc.arg(problem_id);
 
--- 取用户昵称，写入 solution.nick 以便列表页免 JOIN users。
--- name: GetUserNick :one
-SELECT nick FROM users WHERE user_id = sqlc.arg(user_id);
-
 -- 提交冷却。submit.php:286：
 --   select in_date, solution_id from solution
 --    where user_id=? and in_date>? order by in_date desc limit 1

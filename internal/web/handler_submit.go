@@ -429,11 +429,12 @@ func (s *Server) submitOnce(w http.ResponseWriter, r *http.Request, identity Ide
 	// 测试运行存真实 problem_id（不取负），由 repository 停在 result=14。
 	// 取负会让判题机去找不存在的 data/<负数>，详见 SubmitParams.ProblemID。
 
-	nick, err := s.submitterNick(ctx, identity)
-	if err != nil {
-		s.log.Error("查询用户昵称失败", "err", err, "user_id", identity.UserID)
-		return submitResult{}, submitEmpty
-	}
+	// solution.nick 只作列表页显示用的快照。历史上它取 users.nick，但
+	// users.nick 会被 user_import / modifypage / 后台改资料写成超过
+	// solution.nick(char(20)) 的长度，使整次提交在 MySQL 严格模式下报
+	// Error 1406（Data too long for column 'nick'）而失败。改为写提交者的
+	// user_id（写入时再按列容量截断，见 repository.insertSolutionRow）。
+	nick := identity.UserID
 
 	// OI/NOIP 只保留最后一次提交。
 	//
@@ -610,23 +611,6 @@ func (s *Server) buildJudgeSource(ctx context.Context, problemID int32, language
 		source = source + "\n" + string(appendCode)
 	}
 	return source, nil
-}
-
-// submitterNick 取写入 solution.nick 的昵称。
-//
-// PHP 查不到用户时用 "Guest"，昵称为空时退回 user_id。
-func (s *Server) submitterNick(ctx context.Context, identity Identity) (string, error) {
-	nick, err := s.queries().GetUserNick(ctx, identity.UserID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "Guest", nil
-		}
-		return "", err
-	}
-	if nick == "" {
-		return identity.UserID, nil
-	}
-	return nick, nil
 }
 
 // inSubmitCooldown 判断是否处于提交冷却期。
