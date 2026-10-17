@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 #
-# 在目标机用 Docker 构建各语言运行时镜像，并把生成的 <id>.lang.toml 装到
-# $OJHOME/etc/langs/。判题时把镜像的 overlay 层当作 rootfs 挂载，因此生成的
-# *.lang.toml 与本机 docker 的层路径强绑定，必须在目标机本地构建。
+# 在目标机用 Docker 构建各语言运行时镜像，把镜像 rootfs「拍平」成目录、生成
+# <id>.lang.toml，并装到 $OJHOME/etc/langs/。判题把该目录当 overlay 的 lowerdir
+# 挂载，因此 rootfs 与本机强绑定，必须在目标机本地构建（不能随包分发）。
 #
 # 需要：docker、可访问 apt/npm/go 等上游（受各 Dockerfile 控制）、root 或 docker 组。
 #
@@ -28,8 +28,10 @@ done
 
 command -v docker >/dev/null 2>&1 || die "未找到 docker"
 
-info "构建语言镜像并重写 etc/langs/*.lang.toml（较慢，取决于网络）"
-( cd "$SRC_DIR" && bash prepare_langs.sh )
+info "构建语言镜像、拍平 rootfs 并重写 etc/langs/*.lang.toml（较慢，取决于网络）"
+# LANG_ROOTFS_DIR 让 replace.sh 把拍平后的 rootfs 直接落到运行时目录，省一次拷贝。
+# 放在 <ojhome>/var/rootfs（变量数据），与 etc/ 下的配置分开。
+( cd "$SRC_DIR" && LANG_ROOTFS_DIR="$OJHOME/var/rootfs" bash prepare_langs.sh )
 
 info "安装语言配置到 $OJHOME/etc/langs"
 mkdir -p "$OJHOME/etc/langs"

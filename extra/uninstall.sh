@@ -97,7 +97,7 @@ run rm -f "$PREFIX/hustoj" "$TINI_DIR/tini"
 if [ "$PURGE" -eq 1 ]; then
     info "清除配置文件（--purge）"
     run rm -f "$OJHOME/etc/web.toml" "$OJHOME/etc/judge.conf" "$OJHOME/etc/langs/all.toml"
-    info "数据目录与语言 rootfs 一律保留：$OJHOME/data $OJHOME/etc/langs"
+    info "数据目录与语言 rootfs 一律保留：$OJHOME/data $OJHOME/var/rootfs $OJHOME/etc/langs"
 fi
 
 printf '\n卸载完成。\n'

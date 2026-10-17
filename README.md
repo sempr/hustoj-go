@@ -46,9 +46,10 @@ make
 
 1. Copy `hustoj` binary to `/usr/bin/`
 2. Copy `extra/judged-go.service` to `/etc/systemd/system/`
-3. Set up language rootfs: `cd extra && bash build_rootfs.sh <lang_id>`
-4. Copy language configs: `cp -r extra/etc/langs /home/judge/etc/`
-5. Start service: `systemctl enable --now judged-go`
+3. Build language rootfs and install configs (needs Docker):
+   `cd extra && sudo bash install_langs.sh --ojhome /home/judge`
+   （单语言：`bash build_rootfs.sh <lang_id>`，rootfs 落在 `extra/var/rootfs/<id>`）
+4. Start service: `systemctl enable --now judged-go`
 
 ## Usage
 

@@ -39,6 +39,9 @@ extra/_csrf_probe.php
 # 需按 Makefile 重新编译；11MB 且带 debug_info，不应进版本库）
 tests/rs/1
 
+# 语言 rootfs 拍平产物（build_rootfs.sh / prepare_langs.sh 生成，机器相关，不入库）
+extra/var/rootfs/
+
 # 本地 agent 工具配置（会话级，不属于项目源码）
 .commandcode/
 

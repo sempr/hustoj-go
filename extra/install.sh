@@ -179,10 +179,10 @@ else
 fi
 
 # ── 目录 ─────────────────────────────────────────────────────────────
-info "创建运行目录：$OJHOME/{etc/langs,data,run}"
-run mkdir -p "$OJHOME/etc/langs" "$OJHOME/data" "$OJHOME/run"
+info "创建运行目录：$OJHOME/{etc/langs,data,run,var/rootfs}"
+run mkdir -p "$OJHOME/etc/langs" "$OJHOME/data" "$OJHOME/run" "$OJHOME/var/rootfs"
 if id judge >/dev/null 2>&1 && [ "$DRY" -ne 1 ]; then
-    chown judge:judge "$OJHOME/etc" "$OJHOME/data" "$OJHOME/run" 2>/dev/null || true
+    chown judge:judge "$OJHOME/etc" "$OJHOME/data" "$OJHOME/run" "$OJHOME/var" 2>/dev/null || true
 fi
 
 # ── 语言注册表（仅 all.toml；host 相关的 *.lang.toml 由 install_langs.sh 生成）

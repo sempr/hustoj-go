@@ -200,8 +200,10 @@ sudo ./demo/install_demo.sh --only 1000,1002 --no-contest   # 只装部分题
 
 ## 六、判题语言运行时（需 Docker）
 
-判题把语言镜像的 overlay 层当 rootfs 挂载，路径与**本机 Docker** 绑定，
-因此必须在目标机本地构建，不能随包分发：
+判题把每种语言的 rootfs 当作 overlay 的 lowerdir 挂载。rootfs 由本地 Docker
+镜像「拍平」成一个普通目录（`docker export`），与镜像存储后端无关（Docker
+Engine 29 起全新安装默认的 containerd image store 也能用），但与本机绑定，
+必须在目标机本地构建，不能随包分发：
 
 ```bash
 cd langs
@@ -209,10 +211,12 @@ sudo ./install_langs.sh --ojhome /home/judge
 sudo systemctl restart judged-go.service
 ```
 
-`install_langs.sh` 会为 `langs/<id>/Dockerfile` 逐个 `docker build`，重写
-`etc/langs/<id>.lang.toml` 里的 `base`/`env`，再安装到
-`/home/judge/etc/langs/`。各 Dockerfile 默认走清华 apt 镜像，非中国网络
-可按注释改回官方源。
+`install_langs.sh` 会为 `langs/<id>/Dockerfile` 逐个 `docker build`，把镜像
+rootfs 拍平到 `/home/judge/var/rootfs/<id>`，重写
+`etc/langs/<id>.lang.toml` 里的 `base`/`env`，再安装到 `/home/judge/etc/langs/`。
+每种语言一份完整 rootfs（约数百 MB/语言），注意预留磁盘；装好后可用
+`docker rmi hustoj:lang-<id>` 回收镜像（Dockerfile 仍在，需要时重建）。各
+Dockerfile 默认走清华 apt 镜像，非中国网络可按注释改回官方源。
 
 ## 七、nginx
 
@@ -231,8 +235,8 @@ sudo ./uninstall.sh --yes      # 跳过确认（脚本/CI 用）
 sudo ./uninstall.sh --dry-run  # 只预览，不动手
 ```
 
-数据目录 `/home/judge/data`、语言 rootfs (`/home/judge/etc/langs/*.lang.toml`)
-与 Docker 镜像一律保留。
+数据目录 `/home/judge/data`、语言 rootfs (`/home/judge/var/rootfs/`)、
+语言配置 (`/home/judge/etc/langs/*.lang.toml`) 与 Docker 镜像一律保留。
 
 `--ojhome` / `--prefix` / `--tini-dir` / `--systemd-dir` 均要求**绝对路径**
 （脚本会用 sed 改写 unit，路径不能含 `|` 或换行）。

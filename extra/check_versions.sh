@@ -4,8 +4,9 @@ set -u
 
 # Print the compiler version info of every configured language by running its
 # `ver` command inside the language rootfs, without relying on Docker.
-# The rootfs is reconstructed from the `[fs].base` overlay layer paths already
-# recorded in each language config, mounted as an overlay, then chrooted.
+# The rootfs comes from `[fs].base`: either a single directory (the default,
+# materialized by replace.sh) or a colon-separated list of docker overlay
+# layers (legacy graphdriver layout); both are handled below.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 LANGS_DIR="${1:-$SCRIPT_DIR/etc/langs}"
