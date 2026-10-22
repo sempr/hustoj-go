@@ -74,22 +74,36 @@ showsource.php?id=<提交号>   →  「各用例结果」里就是探针的输�
 | `Uid` / `CapEff` / `NoNewPrivs` | `65534` / `0` / `1` | 已降权、无能力、不可提权 |
 | `pids.max` | 第 63 次 fork 失败（EAGAIN） | 进程数上限生效 |
 | `RLIMIT_FSIZE` | 67108864（64MB） | 输出上限生效 |
+| 内存上限 | 探针申请到 320MB 即被 OOM killer 干掉 | cgroup 的 memory.max 从第一条指令就生效 |
 
-但有 5 处值得加固：
+**没有"启动瞬间不受限"的窗口**：tini 在 fork 用户程序之前会先 `raise(SIGSTOP)`
+把自己停住，判题器建好 cgroup、把 pid 挪进去之后才 `PtraceCont` 放行 ——
+用户程序出生时就已经在 cgroup 里了。
 
-1. **cgroup 生效前有竞态窗口**（最要紧）。判题器是"先启动进程、再建 cgroup、
-   最后把 pid 挪进去"，窗口里内存不受限。`race_alloc_probe` 抢到了：
-   分配到 **2.4GB**（测试运行的限制本来是 256MB）才被 OOM killer 干掉。
-   判定结果仍是 ML（按实测峰值），但"当场杀掉"这条兜底没生效。
-   修法：先建好 cgroup，用 `clone3(CLONE_INTO_CGROUP)` 或先把进程停住再挪进去。
-2. **没有 seccomp**（`Seccomp: 0`）。mount/unshare/ptrace 现在只靠 uid 挡，
+### 自检顺带挖出来的两个真 bug（已修）
+
+1. **测试运行的内存上限单位错了**：`RunConfig.MemoryLimit` 是 MB，测试运行却按
+   KB 填（256MB 写成 262144），沙箱再 `<<10` 换算一次 → cgroup 的 memory.max
+   变成 256TB，**内存限制等于没有**。探针一口气申请 2.4GB 才被宿主机的 OOM
+   killer 收走。修法：单位统一到 MB，换算收口到一个 `sandboxMemoryKB()`，
+   并补了单测（`internal/client/client_test.go`）。
+2. **判题器的进程计数有竞态**：clone 事件与子进程的退出事件是异步投递的，
+   短命子进程的退出事件可能先于它父进程的 clone 事件被处理，计数会瞬间掉到 1
+   → 判题器以为只剩残留进程，把**还在跑的用户程序**整个命名空间 SIGTERM 掉
+   （表现为程序被误杀、判 RE，且 stdout 全丢）。修法：不再用"活着的进程数掉到 1"
+   触发清理，改成按 tini（命名空间 init）退出这个确定事件收尾 —— 内核本来就会
+   在 init 退出时把命名空间里剩下的进程一起杀掉。
+
+### 仍建议加固的地方
+
+1. **没有 seccomp**（`Seccomp: 0`）。mount/unshare/ptrace 现在只靠 uid 挡，
    一旦出现提权就会被放大。建议加 syscall 白名单。
-3. **非特权用户命名空间可用**：`unshare(CLONE_NEWUSER)` 成功，进程在新的
+2. **非特权用户命名空间可用**：`unshare(CLONE_NEWUSER)` 成功，进程在新的
    用户命名空间里拿到满权限（只限该命名空间，尚未发现逃逸路径），
    同样交给 seccomp 挡。
-4. **`/proc/kallsyms` 可读** → 内核符号地址泄露，KASLR 形同虚设。
+3. **`/proc/kallsyms` 可读** → 内核符号地址泄露，KASLR 形同虚设。
    建议挂 procfs 时限制，或用 seccomp 挡 `openat`。
-5. **`/dev/console` 可打开**（语言镜像里带的字符设备）→ 程序能往宿主机控制台
+4. **`/dev/console` 可打开**（语言镜像里带的字符设备）→ 程序能往宿主机控制台
    写东西。镜像里去掉这个节点，或用 cgroup 的 `devices` 限制。
 
 另外，探针能看到 tini 的命令行（含宿主机 rootfs 路径 `/srv/hustoj/run0/rootfs`），

@@ -238,16 +238,17 @@ func RunMain(cfg *models.SandboxArgs) {
 
 		slog.Debug("tracing", "pid", pidTmp, "ws", fmt.Appendf(nil, "%X", ws))
 		if ws.Exited() {
-			slog.Debug("process exit ", "pid", pidTmp, "exitCode", ws.ExitStatus())
+			slog.Debug("process exit ", "pid", pidTmp, "exitCode", ws.ExitStatus(), "process_cnt", processCnt)
 			processCnt--
 			if pidTmp == mainPid {
 				mainExitStatus = ws.ExitStatus()
-			}
-			if processCnt == 1 {
-				stopFunc()
-				continue
-			}
-			if pidTmp == mainPid {
+				// tini（命名空间的 init）退出了：内核会顺手把命名空间里剩下的
+				// 进程一起杀掉，残留的后台进程不用我们再收。
+				//
+				// 这里刻意不用"活着的进程数掉到 1"来触发清理：clone 事件与子进程
+				// 的退出事件是异步投递的，短命子进程的退出事件可能先于它父进程的
+				// clone 事件被处理，计数会瞬间掉到 1 —— 那样会在用户程序还在跑的
+				// 时候把整个命名空间 SIGTERM 掉（表现为程序被误杀、判 RE）。
 				break
 			}
 			continue
@@ -294,6 +295,7 @@ func RunMain(cfg *models.SandboxArgs) {
 						ptree[int(msg)] = []int{}
 						ptree[pidTmp] = append(ptree[pidTmp], int(msg))
 						processCnt++
+						slog.Debug("clone event", "pid", pidTmp, "child", int(msg), "process_cnt", processCnt)
 					} else if eventNumber == unix.PTRACE_EVENT_EXEC {
 						slog.Info("trace event: exec", "eventNumber", eventNumber)
 						data, _ := os.ReadFile(fmt.Sprintf("/proc/%d/cmdline", msg))

@@ -55,7 +55,7 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 		fmt.Sprintf("--rootfs=%s", config.Rootdir),
 		fmt.Sprintf("--cmd=%s", langConfig.Cmd.Run),
 		fmt.Sprintf("--time=%d", config.Timelimit),
-		fmt.Sprintf("--memory=%d", config.MemoryLimit<<10),
+		fmt.Sprintf("--memory=%d", sandboxMemoryKB(config.MemoryLimit)),
 		fmt.Sprintf("--sid=%d", jc.solutionID),
 		"--cwd=/code",
 	}
@@ -202,7 +202,7 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 		fmt.Sprintf("--rootfs=%s", config.Rootdir),
 		fmt.Sprintf("--cmd=/code/%s", strings.Join(spjCmds, " ")),
 		fmt.Sprintf("--time=%d", config.Timelimit),
-		fmt.Sprintf("--memory=%d", config.MemoryLimit<<10),
+		fmt.Sprintf("--memory=%d", sandboxMemoryKB(config.MemoryLimit)),
 		fmt.Sprintf("--sid=%d", jc.solutionID),
 		"--cwd=/code",
 		// run 子命令总会 os.Create 自己的 stdout（缺省为 /code/data.usr），

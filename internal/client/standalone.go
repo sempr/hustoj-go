@@ -177,9 +177,13 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 }
 
 // 测试运行的默认资源限制（problem_id=0 时读不到题目，用固定值）。
+//
+// 注意 MemoryLimit 的单位是 MB（见 RunConfig 的注释）：沙箱侧会 <<10 换成
+// KB 再写进 cgroup 的 memory.max。这里若写成 KB，cgroup 的上限会被放大
+// 1000 倍，内存限制形同虚设。
 const (
 	testRunTimeLimitMS = 10000
-	testRunMemoryKB    = 262144
+	testRunMemoryMB    = 256
 )
 
 // Run 执行一次数据库驱动的评测。
@@ -253,7 +257,7 @@ func (jc *JudgeClient) runCustomInput(input string) (*StandaloneResult, error) {
 		Workdir:     filepath.Join(workDir, "code"),
 		InFile:      tmp.Name(),
 		Timelimit:   testRunTimeLimitMS,
-		MemoryLimit: testRunMemoryKB,
+		MemoryLimit: testRunMemoryMB,
 		TestRun:     true,
 	}
 	res, timeUsed, memUsed := jc.runAndCompare(rc)

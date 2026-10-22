@@ -14,14 +14,19 @@ import (
 )
 
 type RunConfig struct {
-	Lang        int
-	Rootdir     string
-	Workdir     string
-	InFile      string
-	OutFile     string
-	InName      string
-	OutName     string
-	Timelimit   int
+	Lang      int
+	Rootdir   string
+	Workdir   string
+	InFile    string
+	OutFile   string
+	InName    string
+	OutName   string
+	Timelimit int // 毫秒
+	// MemoryLimit 的单位是 **MB**（与 problem.mem_limit 一致）。
+	//
+	// 传给沙箱时会 <<10 换成 KB 再写进 cgroup 的 memory.max；这里若填成 KB
+	// 会被再放大一次，cgroup 的上限就成了几百 TB —— 内存限制等于没有
+	// （测试运行曾经就栽在这上面：探针一口气申请了 2.4GB 才被宿主 OOM 收走）。
 	MemoryLimit int
 	Spj         int
 	SpjProgram  int
@@ -30,6 +35,12 @@ type RunConfig struct {
 	// 结果一律按程序自身状态返回（AC/RE/TL...）。
 	TestRun bool
 }
+
+// sandboxMemoryKB 把 RunConfig.MemoryLimit（MB）换成沙箱 --memory 用的 KB。
+//
+// 单位只在这一处转换：沙箱侧拿到 KB 后再换算成 cgroup 的 memory.max（字节）。
+// 混一次单位就会差 1024 倍 —— 内存限制要么形同虚设，要么连普通程序都跑不动。
+func sandboxMemoryKB(mb int) int { return mb << 10 }
 
 type JudgeClient struct {
 	config      *config.JudgeConfig

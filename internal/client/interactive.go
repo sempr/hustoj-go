@@ -73,7 +73,7 @@ func (jc *JudgeClient) buildInteractiveRunArgs(config RunConfig, cmdline, fileIn
 		fmt.Sprintf("--rootfs=%s", config.Rootdir),
 		fmt.Sprintf("--cmd=%s", cmdline),
 		fmt.Sprintf("--time=%d", config.Timelimit),
-		fmt.Sprintf("--memory=%d", config.MemoryLimit<<10),
+		fmt.Sprintf("--memory=%d", sandboxMemoryKB(config.MemoryLimit)),
 		fmt.Sprintf("--sid=%d", jc.solutionID),
 		"--cwd=/code",
 	}
