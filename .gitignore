@@ -35,6 +35,11 @@ hustoj-go-interactive/
 # 一次性排查 CSRF 时的临时探针；check_all.sh 引用的是 test_csrf.php
 extra/_csrf_probe.php
 
+# 手工从 MySQL 导出的表结构快照（old-hustoj.sql 是旧版 HUSTOJ 的 20 张表，
+# schema-2.sql 是 PHP 期新版 schema 的 28 张表）；仅作对照用，不入库
+old-hustoj.sql
+schema-2.sql
+
 # tests/ 下的判题程序编译产物（源码 *.rs / *.py / spj 源码均入库，
 # 需按 Makefile 重新编译；11MB 且带 debug_info，不应进版本库）
 tests/rs/1
