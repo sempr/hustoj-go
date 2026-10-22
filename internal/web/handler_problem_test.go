@@ -533,6 +533,71 @@ func TestPaginationKeepsSearch(t *testing.T) {
 	if !strings.Contains(got, "search=a+b") {
 		t.Errorf("分页链接丢失搜索词: %s", got)
 	}
+	// 每个页码链接都要带搜索词，不能只有上一页/下一页带。
+	if n := strings.Count(got, "search=a+b"); n != len(vm.Pages)+4 {
+		t.Errorf("带搜索词的链接数 = %d，期望 %d（每个页码 + 首页/上一页/下一页/末页）: %s", n, len(vm.Pages)+4, got)
+	}
+}
+
+// 翻页条要列出页码，而不是只能一页一页翻：中间页应显示当前页 ±4，
+// 两端用首页/末页 + 省略号收口。
+func TestPaginationShowsPageNumbers(t *testing.T) {
+	vm := buildPageVM(ProblemListPage{Page: 10, TotalPage: 30, Total: 1500})
+	got := html.UnescapeString(mustRender(t, "pagination", vm))
+
+	for _, want := range []string{
+		`href="problemset.php?page=1"`,
+		`href="problemset.php?page=6"`,
+		`href="problemset.php?page=14"`,
+		`href="problemset.php?page=30"`,
+		`class="active item" href="problemset.php?page=10"`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("分页条缺少 %s: %s", want, got)
+		}
+	}
+	for _, unwant := range []string{
+		`href="problemset.php?page=5"`,
+		`href="problemset.php?page=15"`,
+	} {
+		if strings.Contains(got, unwant) {
+			t.Errorf("窗口外页码不应出现 %s: %s", unwant, got)
+		}
+	}
+	if n := strings.Count(got, "…"); n != 2 {
+		t.Errorf("省略号数量 = %d，期望 2: %s", n, got)
+	}
+}
+
+// 首页不给“首页/上一页”，末页不给“下一页/末页”，避免点到越界页。
+func TestPaginationEdges(t *testing.T) {
+	first := html.UnescapeString(mustRender(t, "pagination",
+		buildPageVM(ProblemListPage{Page: 1, TotalPage: 10})))
+	if strings.Contains(first, "上一页") || strings.Contains(first, "«") {
+		t.Errorf("首页不应出现上一页/首页链接: %s", first)
+	}
+	if !strings.Contains(first, `href="problemset.php?page=10"`) {
+		t.Errorf("首页应有末页链接: %s", first)
+	}
+
+	last := html.UnescapeString(mustRender(t, "pagination",
+		buildPageVM(ProblemListPage{Page: 10, TotalPage: 10})))
+	if strings.Contains(last, "下一页") || strings.Contains(last, "»") {
+		t.Errorf("末页不应出现下一页/末页链接: %s", last)
+	}
+}
+
+// 越界页（?page=9999）没有数据可显示，但页码窗口要夹到末页，
+// 否则用户看到一条只剩“上一页”的空白分页条。
+func TestPaginationOutOfRangeShowsLastWindow(t *testing.T) {
+	vm := buildPageVM(ProblemListPage{Page: 9999, TotalPage: 5})
+	got := html.UnescapeString(mustRender(t, "pagination", vm))
+	if !strings.Contains(got, `href="problemset.php?page=5"`) {
+		t.Errorf("越界页应仍能跳到末页: %s", got)
+	}
+	if strings.Contains(got, `active item`) {
+		t.Errorf("越界页没有真实页码可高亮: %s", got)
+	}
 }
 
 // 题目列表页只能有一组分页：曾经 problemsetTable 与 problemset 各含一次，

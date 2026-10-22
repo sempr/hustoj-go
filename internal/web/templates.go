@@ -376,12 +376,17 @@ document.addEventListener('DOMContentLoaded',function(){
 </center>
 </div>{{end}}
 
-{{define "pagination"}}{{if or .HasPrev .HasNext}}
-{{$tp := .TotalPage}}
+{{/* pagination 是题目列表的分页条：首页/末页、上一页/下一页，以及
+   当前页附近的页码窗口。只给“上一页/下一页”没法一眼看到自己在哪、
+   也跳不到远处，PHP 模板原本就有这一排页码。 */}}
+{{define "pagination"}}{{if .Pages}}
 <div class="ui pagination menu">
-{{if .HasPrev}}<a class="item" href="{{.PrevHref}}">上一页</a>{{end}}
-<span class="active item">第 {{.Page}} / {{$tp}} 页（共 {{.Total}} 条）</span>
-{{if .HasNext}}<a class="item" href="{{.NextHref}}">下一页</a>{{end}}
+{{if .HasPrev}}<a class="item" href="{{.FirstHref}}" title="第一页">«</a>
+<a class="item" href="{{.PrevHref}}" rel="prev">‹ 上一页</a>{{end}}
+{{range .Pages}}{{if .Ellipsis}}<span class="item" style="border-color:transparent;">…</span>{{else}}<a class="{{if .Active}}active {{end}}item" href="{{.Href}}">{{.Num}}</a>{{end}}{{end}}
+{{if .HasNext}}<a class="item" href="{{.NextHref}}" rel="next">下一页 ›</a>
+<a class="item" href="{{.LastHref}}" title="最后一页">»</a>{{end}}
+<span class="item" style="border-color:transparent;color:#888;">第 {{.Page}} / {{.TotalPage}} 页（共 {{.Total}} 条）</span>
 </div>{{end}}{{end}}
 
 {{define "alertAndBack"}}<script language="javascript">

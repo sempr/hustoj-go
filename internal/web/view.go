@@ -183,11 +183,32 @@ type pageVM struct {
 	Search    string
 	Viewer    string
 	// 分页链接
-	PrevHref template.URL
-	NextHref template.URL
-	HasPrev  bool
-	HasNext  bool
+	FirstHref template.URL
+	PrevHref  template.URL
+	NextHref  template.URL
+	LastHref  template.URL
+	HasPrev   bool
+	HasNext   bool
+	// Pages 是页码窗口；为空表示只有一页，不渲染分页条。
+	Pages []pageItemVM
 }
+
+// pageItemVM 是分页条里的一格：页码，或两端省略号。
+//
+// 页码在 Go 侧算好而不是丢给模板做区间判断：模板里写区间运算既难读，
+// 也没法在纯函数层面测试窗口边界。
+type pageItemVM struct {
+	Num      int
+	Href     template.URL
+	Active   bool
+	Ellipsis bool
+}
+
+// paginationWindow 是当前页左右各显示多少个页码。
+//
+// PHP 模板用 $section=8（最多 17 个数字），对窄屏太长；这里取 4，
+// 配合首页/末页与省略号，既能看到邻近页也能一跳到底。
+const paginationWindow = 4
 
 // problemsetHref 拼出 problemset.php 的分页链接。
 //
@@ -223,7 +244,51 @@ func buildPageVM(page ProblemListPage) pageVM {
 	if vm.HasNext {
 		vm.NextHref = problemsetHref(page.Page+1, page.Search)
 	}
+	vm.Pages = buildPageItems(page.Page, vm.TotalPage, page.Search)
+	if len(vm.Pages) > 0 {
+		vm.FirstHref = problemsetHref(1, page.Search)
+		vm.LastHref = problemsetHref(vm.TotalPage, page.Search)
+	}
 	return vm
+}
+
+// buildPageItems 生成页码窗口：首页 + 省略号 + 当前页 ±paginationWindow + 省略号 + 末页。
+//
+// 越界页（?page=9999）没有对应数据，PHP 那边 for 循环一次都不执行；
+// 这里把窗口夹到末页，让用户还能点回去，且不高亮任何一格（因为当前页确实不存在）。
+func buildPageItems(page, total int, search string) []pageItemVM {
+	if total <= 1 {
+		return nil
+	}
+	cur := page
+	if cur > total {
+		cur = total
+	}
+	start, end := cur-paginationWindow, cur+paginationWindow
+	if start < 1 {
+		start = 1
+	}
+	if end > total {
+		end = total
+	}
+
+	items := make([]pageItemVM, 0, end-start+5)
+	if start > 1 {
+		items = append(items, pageItemVM{Num: 1, Href: problemsetHref(1, search)})
+		if start > 2 {
+			items = append(items, pageItemVM{Ellipsis: true})
+		}
+	}
+	for n := start; n <= end; n++ {
+		items = append(items, pageItemVM{Num: n, Href: problemsetHref(n, search), Active: n == page})
+	}
+	if end < total {
+		if end < total-1 {
+			items = append(items, pageItemVM{Ellipsis: true})
+		}
+		items = append(items, pageItemVM{Num: total, Href: problemsetHref(total, search)})
+	}
+	return items
 }
 
 // parseHexPrefix 解析十六进制字符串的前 n 位，超出部分忽略。
