@@ -634,7 +634,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <td>{{.SolutionID}}</td>
 <td><a href="/userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
 <td>{{if gt .ProblemID 0}}<a href="/problem.php?id={{.ProblemID}}">{{.ProblemID}}</a>{{else}}{{.ProblemID}}{{end}}</td>
-<td>{{if .Masked}}<span class="{{.ResultClass}}">{{.ResultLabel}}</span>{{else}}<a href="/reinfo.php?sid={{.SolutionID}}" class="{{.ResultClass}}" title="查看判题信息{{with .ScoreText}}（{{.}}）{{end}}">{{.ResultLabel}}</a>{{end}}</td>
+<td>{{if .Masked}}<span class="{{.ResultClass}}">{{.ResultLabel}}</span>{{else}}<a href="/showsource.php?id={{.SolutionID}}" class="{{.ResultClass}}" title="查看代码与判题信息{{with .ScoreText}}（{{.}}）{{end}}">{{.ResultLabel}}</a>{{end}}</td>
 <td class="center">{{.MemoryText}}</td>
 <td class="center">{{.TimeText}}</td>
 <td class="center">{{if .CanViewSource}}<a href="/showsource.php?id={{.SolutionID}}" title="查看代码">{{languageName .Language}}</a>{{else}}{{languageName .Language}}{{end}}</td>

@@ -892,6 +892,23 @@ func TestStatusTableHasCodeLengthColumn(t *testing.T) {
 	}
 }
 
+// 结果列链到源码页：判题信息（reinfo）与编译错误（ceinfo）都已并入 showsource。
+func TestStatusResultLinksToShowsource(t *testing.T) {
+	s := newTestServer(t, &fakeQuerier{}, nil)
+	rec := httptest.NewRecorder()
+	rows := []StatusRow{{SolutionID: 7, ProblemID: 1001, UserID: "alice", Language: 6, Result: 4}}
+	s.renderPage(rec, httptest.NewRequest(http.MethodGet, "/status.php", nil), http.StatusOK,
+		"statusPage", "状态", newStatusPage(rows, StatusFilter{}))
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `href="/showsource.php?id=7"`) {
+		t.Errorf("结果列应链到源码页:\n%s", body)
+	}
+	if strings.Contains(body, "reinfo.php") {
+		t.Errorf("结果列不应再链到 reinfo.php:\n%s", body)
+	}
+}
+
 // 非 AC 提交要显示部分得分（solution.pass_rate × 100）。
 //
 // AC、封榜行、判题未结束以及通过率 > 99 的情形都不显示 —— 封榜期靠得分
@@ -931,13 +948,13 @@ func TestStatusPageRendersScoreInTitle(t *testing.T) {
 		"statusPage", "状态", newStatusPage(rows, StatusFilter{}))
 
 	body := rec.Body.String()
-	if !strings.Contains(body, `title="查看判题信息（得分 60）"`) {
+	if !strings.Contains(body, `title="查看代码与判题信息（得分 60）"`) {
 		t.Errorf("失败提交的悬停提示缺少得分:\n%s", body)
 	}
 	if n := strings.Count(body, "得分 60"); n != 1 {
 		t.Errorf("得分出现 %d 次，期望 1（AC 行不该带得分）", n)
 	}
-	if !strings.Contains(body, `title="查看判题信息">`) {
+	if !strings.Contains(body, `title="查看代码与判题信息">`) {
 		t.Errorf("AC 行的悬停提示不应带得分:\n%s", body)
 	}
 	// 得分只放进 title，页面上不能再有占宽度的可见文本。
