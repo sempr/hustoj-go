@@ -15,6 +15,43 @@ import (
 	"github.com/sempr/hustoj-go/pkg/dbgen"
 )
 
+// toInt 把模板传入的数值统一成 int。
+//
+// 模板函数不做隐式类型转换：形参写 int 时，传进来的 int32 会直接报
+// "wrong type for value; expected int; got int32"，整页渲染成 500。
+// 视图模型里 int32 / int64 混用很常见（数据库列大多是 int32），
+// 所以加减乘这类辅助函数统一收口到这里，按值转换而不是按类型报错。
+func toInt(v any) int {
+	switch n := v.(type) {
+	case int:
+		return n
+	case int8:
+		return int(n)
+	case int16:
+		return int(n)
+	case int32:
+		return int(n)
+	case int64:
+		return int(n)
+	case uint:
+		return int(n)
+	case uint8:
+		return int(n)
+	case uint16:
+		return int(n)
+	case uint32:
+		return int(n)
+	case uint64:
+		return int(n)
+	case float32:
+		return int(n)
+	case float64:
+		return int(n)
+	default:
+		return 0
+	}
+}
+
 // templateFuncs 汇总模板可用的辅助函数。
 //
 // 所有函数必须是纯函数、无副作用，且不直接输出 HTML（由 template 自动转义）。
@@ -98,8 +135,8 @@ var templateFuncs = template.FuncMap{
 	"msgRatio":                     func() string { return msgRatio },
 	"msgSearch":                    func() string { return msgSearch },
 	"contestErrorShowContestLinks": contestErrorShowContestLinks,
-	"add":                          func(a, b int) int { return a + b },
-	"sub":                          func(a, b int) int { return a - b },
+	"add":                          func(a, b any) int { return toInt(a) + toInt(b) },
+	"sub":                          func(a, b any) int { return toInt(a) - toInt(b) },
 	// until 返回 [0, n) 的整数序列，供模板 range 分页用。
 	"until": func(n int) []int {
 		result := make([]int, n)
@@ -208,7 +245,7 @@ const pageContentTmpls = `
 <a href="/faqs.php" style="margin-right:12px;text-decoration:none;">常见问答</a>
 {{if .CID}}<a href="/contest.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">赛题</a><a href="/status.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">比赛状态</a><a href="/contestrank.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">比赛排名</a><a href="/contestrank-oi.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">OI 排名</a>{{end}}
 <span style="float:right;">
-{{if .LoggedIn}}<a href="/userinfo.php?user={{.UserID}}" style="margin-right:12px;text-decoration:none;">{{.UserID}}{{if .Nick}}（{{.Nick}}）{{end}}</a><a href="/modifypage.php" style="margin-right:12px;text-decoration:none;">修改资料</a><a href="/portal.php" style="margin-right:12px;text-decoration:none;">待办</a>{{if .IsAdmin}}<a href="/admin/" style="margin-right:12px;text-decoration:none;">后台管理</a>{{end}}<a href="/logout.php" style="text-decoration:none;">退出</a>
+{{if .LoggedIn}}<a href="/userinfo.php?user={{.UserID}}" style="margin-right:12px;text-decoration:none;">{{.UserID}}{{if .Nick}}（{{.Nick}}）{{end}}</a><a href="/modifypage.php" style="margin-right:12px;text-decoration:none;">修改资料</a><a href="/portal.php" style="margin-right:12px;text-decoration:none;">待办</a>{{if .IsAdmin}}<a href="/admin/index.php" style="margin-right:12px;text-decoration:none;">后台管理</a>{{end}}<a href="/logout.php" style="text-decoration:none;">退出</a>
 {{else}}<a href="/loginpage.php" style="margin-right:12px;text-decoration:none;">登录</a>{{if .ShowRegister}}<a href="/registerpage.php" style="text-decoration:none;">注册</a>{{end}}
 {{end}}</span>
 </div>
@@ -2977,6 +3014,10 @@ func (s *Server) buildNav(w http.ResponseWriter, r *http.Request) navVM {
 func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, code int, name, title string, data any) {
 	var body bytes.Buffer
 	if err := pageTemplates.ExecuteTemplate(&body, name, data); err != nil {
+		// 模板执行失败只回一句"页面渲染失败"是不够的：没有日志就只能对着
+		// 空白页猜。这里把模板名和原始错误记下来，排查时一眼能看到根因
+		// （例如 "wrong type for value; expected int; got int32"）。
+		s.log.Error("渲染页面失败", "template", name, "err", err)
 		http.Error(w, "页面渲染失败", http.StatusInternalServerError)
 		return
 	}
@@ -2990,6 +3031,7 @@ func (s *Server) renderPage(w http.ResponseWriter, r *http.Request, code int, na
 		Content: template.HTML(body.String()),
 		Nav:     nav,
 	}); err != nil {
+		s.log.Error("渲染页面外壳失败", "template", "layout", "err", err)
 		http.Error(w, "页面渲染失败", http.StatusInternalServerError)
 		return
 	}

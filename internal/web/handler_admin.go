@@ -185,6 +185,17 @@ func (s *Server) registerAdminRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /admin/admin-header.php", s.handleAdminHeader)
 	mux.HandleFunc("/admin/problem_batch_delete.php", s.handleProblemBatchDelete)
 
+	// PHP 的页头用的是相对链接 href="admin/"（见 phpweb/template/syzoj/header.php:217），
+	// 靠 Apache 的 DirectoryIndex 落到 admin/index.php。Go 这边没有目录索引，
+	// 直接访问 /admin/ 会 404，所以这里补一个跳转。
+	//
+	// 用 /admin/{$} 精确匹配："/admin/" 在 ServeMux 里是子树匹配，会把
+	// /admin/ 下所有路径都抢走（GET /admin/markdown_preview.php 本该 405，
+	// 会被这里重定向掉）。{$} 表示路径到此为止。
+	mux.HandleFunc("/admin/{$}", func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "/admin/index.php", http.StatusFound)
+	})
+
 	// 公告管理（admin/news_*.php）。
 	s.registerAdminNewsRoutes(mux)
 

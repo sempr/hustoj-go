@@ -31,7 +31,7 @@ func TestSiteHeaderNavAnonymous(t *testing.T) {
 func TestSiteHeaderNavLoggedIn(t *testing.T) {
 	rec := doProblem(t, &fakeQuerier{}, seedAdmin(), http.MethodGet, "/admin/index.php", nil, t.TempDir(), (*Server).handleAdminIndex)
 	body := rec.Body.String()
-	for _, want := range []string{"/logout.php", "/userinfo.php?user=admin", "/admin/", "/modifypage.php"} {
+	for _, want := range []string{"/logout.php", "/userinfo.php?user=admin", "/admin/index.php", "/modifypage.php"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("登录后导航缺少 %q", want)
 		}

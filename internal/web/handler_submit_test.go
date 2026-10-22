@@ -650,6 +650,41 @@ func TestSubmitPageRequiresLogin(t *testing.T) {
 	}
 }
 
+// TestSubmitPageInContest 钉住比赛提交页的渲染。
+//
+// 回归点：比赛模式要显示 "Problem A of Contest N"，模板里用了
+// {{add .Num 65 | printf "%c"}}，而 .Num 是 int32 —— 模板函数形参写 int 时
+// 不做隐式转换，整页会 500（只回一句"页面渲染失败"，日志里也没线索）。
+func TestSubmitPageInContest(t *testing.T) {
+	f := newSubmitFixture(t)
+	seedProblem(t, f.db, 900001, "N")
+	if _, err := f.db.Exec(`INSERT INTO contest (contest_id, title, start_time, end_time, defunct, contest_type)
+		VALUES (1, '测试比赛', '2026-01-01 00:00:00', '2027-01-01 00:00:00', 'N', 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.db.Exec(`INSERT INTO contest_problem (contest_id, num, problem_id, title)
+		VALUES (1, 0, 900001, 'A+B')`); err != nil {
+		t.Fatal(err)
+	}
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/submitpage.php?cid=1&pid=0&langmask=33423284", nil)
+	req.AddCookie(&http.Cookie{Name: f.srv.cfg.GoSessionCookie, Value: submitTestSID})
+	f.srv.handler().ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("状态码 = %d，期望 200：%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "of Contest") {
+		t.Errorf("比赛提交页应显示 Contest 编号：\n%s", body)
+	}
+	// 题目字母：pid=0 → 'A'（add(.Num, 65)）
+	if !strings.Contains(body, ">A<") {
+		t.Errorf("比赛提交页应显示题号字母 A：\n%s", body)
+	}
+}
+
 // TestDefaultSubmitLanguage 用查询替身覆盖默认语言的选取逻辑（不依赖真实库）。
 func TestDefaultSubmitLanguage(t *testing.T) {
 	ctx := context.Background()
