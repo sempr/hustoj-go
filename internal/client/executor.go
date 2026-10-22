@@ -102,9 +102,13 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 		return constants.OJ_SE, 0, 0
 	}
 
-	result := output.UserStatus
+	result := verdictFromExit(output.UserStatus, output.ExitStatus)
 	timeUsed := output.Time
 	memUsed := output.Memory
+
+	slog.Info("Sandbox output", "solution_id", jc.solutionID,
+		"user_status", output.UserStatus, "exit_status", output.ExitStatus,
+		"time", output.Time, "memory", output.Memory, "process_cnt", output.ProcessCnt)
 
 	if result != constants.OJ_AC {
 		return result, timeUsed, memUsed
@@ -146,6 +150,22 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 	}
 
 	return result, timeUsed, memUsed
+}
+
+// verdictFromExit 把沙箱的退出码折算成判罚码。
+//
+// 沙箱不把"程序非零退出/被信号杀死"反映到 UserStatus：tini 在子进程被信号
+// 杀死时统一 _exit(128)（tini.c:165），于是崩溃的程序会一路走到输出比对，
+// 空输出与标准答案不符 → 被判成 WA。PHP 判题器在这里给 RE，Go 侧补齐同样
+// 的语义，否则"运行错误"这一类结果在 Go 判题器里永远出不来。
+//
+// 只在 UserStatus 仍是 AC 时看退出码：TL/ML 已经是更精确的结论，不能被
+// 退出码覆盖（被超时/内存限制杀死的进程退出码必然非 0）。
+func verdictFromExit(userStatus, exitStatus int) int {
+	if userStatus == constants.OJ_AC && exitStatus != 0 {
+		return constants.OJ_RE
+	}
+	return userStatus
 }
 
 func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {

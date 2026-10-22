@@ -29,6 +29,16 @@ const (
 	OJ_SE = 99 // System Error
 )
 
+// MaxOutputSize 是用户程序输出的大小上限（64MB）。
+//
+// 超过它判"输出超限"（OJ_OL）：沙箱用 RLIMIT_FSIZE 限制，程序写超了会收到
+// SIGXFSZ；输出比较器用的是同一个上限，避免出现"比较失败"这种说不清的结论。
+//
+// 取 64MB 而不是更大的值，是为了让输出上限严格小于常见的内存上限
+// （输出写在 tmpfs 上，占的是内存）：否则先撞上的是内存限制，"输出超限"
+// 这一类结果永远出不来。
+const MaxOutputSize = 64 * 1024 * 1024
+
 // ojResultNames 与 $judge_result 下标一一对应，下标即结果码。
 var ojResultNames = [18]string{
 	"WT0", "WT1", "CI", "RI", "AC", "PE", "WA", "TL",

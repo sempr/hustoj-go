@@ -7,12 +7,14 @@ import (
 	"os"
 	"strings"
 	"unicode"
+
+	"github.com/sempr/hustoj-go/pkg/constants"
 )
 
 // 限制常量
 const (
-	MaxFileSize   = 128 * 1024 * 1024 // 128MB
-	MaxLineLength = 32 * 1024 * 1024  // 32MB 单行最大长度
+	MaxFileSize   = constants.MaxOutputSize // 与沙箱的输出上限一致
+	MaxLineLength = 32 * 1024 * 1024        // 32MB 单行最大长度
 )
 
 func compareFiles(file1Path, file2Path string) (int, error) {

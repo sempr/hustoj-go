@@ -124,6 +124,18 @@ func RunMain(cfg *models.SandboxArgs) {
 		Ptrace:     true,
 	}
 
+	// 输出大小上限：给子进程加 RLIMIT_FSIZE，程序写超了会收到 SIGXFSZ，
+	// 由此判定"输出超限"。不这样做的话，输出写在 tmpfs 上（占内存），
+	// 只会撞上内存限制，输出超限这一类结果永远出不来。
+	//
+	// 这里设在本进程上、子进程继承；本进程自己只写几百字节的 JSON，不受影响。
+	if err := unix.Setrlimit(unix.RLIMIT_FSIZE, &unix.Rlimit{
+		Cur: uint64(constants.MaxOutputSize),
+		Max: uint64(constants.MaxOutputSize),
+	}); err != nil {
+		slog.Warn("设置 RLIMIT_FSIZE 失败", "err", err)
+	}
+
 	if err := cmd.Start(); err != nil {
 		slog.Error("cmd start failed", "err", err)
 		return
@@ -176,7 +188,13 @@ func RunMain(cfg *models.SandboxArgs) {
 		slog.Error("ptrace setoptions failed", "mainPid", mainPid, "pidTmp", pidTmp)
 	}
 
-	cg, err := shared.NewCgroup(cfg.SolutionId, mainPid, cfg.MemoryLimit*1024, slog.Default())
+	// cgroup 的硬限制 = 题目内存上限 + 输出上限。
+	//
+	// 输出写在沙箱的 tmpfs 上，和程序用的是同一份内存额度；不留这份余量
+	// 的话，输出多的程序会先被 OOM 杀掉，判成"内存超限"而不是"输出超限"。
+	// 真正判定内存超限时用的是采样到的匿名内存峰值（不含输出）。
+	memLimitBytes := cfg.MemoryLimit*1024 + constants.MaxOutputSize
+	cg, err := shared.NewCgroup(cfg.SolutionId, mainPid, memLimitBytes, slog.Default())
 	if err != nil {
 		slog.Error("cg create failed", "err", err)
 		return
@@ -202,6 +220,14 @@ func RunMain(cfg *models.SandboxArgs) {
 		slog.Error("ptraceCont error", "err", err)
 	}
 
+	// mainExitStatus 单独记一份主进程（tini）的退出码。
+	//
+	// ptrace 循环通常以 wait4 报错（ECHILD）收尾，而 wait4 失败会把 status
+	// 缓冲区清零 —— 循环里的 ws 到这时已经不可信，退出码会凭空变成 0，
+	// "程序崩溃/非零退出"这类信息就丢了。
+	mainExitStatus := 0
+	// outputLimitExceeded 表示程序因为写超 RLIMIT_FSIZE 被 SIGXFSZ 打断。
+	outputLimitExceeded := false
 	for {
 		var ru unix.Rusage
 		pidTmp, err := unix.Wait4(-1, &ws, 0, &ru)
@@ -214,6 +240,9 @@ func RunMain(cfg *models.SandboxArgs) {
 		if ws.Exited() {
 			slog.Debug("process exit ", "pid", pidTmp, "exitCode", ws.ExitStatus())
 			processCnt--
+			if pidTmp == mainPid {
+				mainExitStatus = ws.ExitStatus()
+			}
 			if processCnt == 1 {
 				stopFunc()
 				continue
@@ -226,10 +255,13 @@ func RunMain(cfg *models.SandboxArgs) {
 		if ws.Signaled() {
 			slog.Debug("process signaled", "pid", pidTmp, "signal", ws.Signal(), "status", ws.ExitStatus(), "exit", ws.Exited())
 			if ws.Signal()&0x7f == unix.SIGXFSZ {
+				// 写超了 RLIMIT_FSIZE：输出超限。
+				outputLimitExceeded = true
 				unix.Kill(-mainPid, unix.SIGKILL)
 				continue
 			}
 			if pidTmp == mainPid {
+				mainExitStatus = exitStatusOf(ws)
 				break
 			}
 			continue
@@ -302,16 +334,33 @@ func RunMain(cfg *models.SandboxArgs) {
 	unix.Kill(-mainPid, unix.SIGKILL)
 	// showPtree(mainPid, 0)
 	tt, err1 := cg.ReadCPUtime()
-	mem, _ := cg.ReadMemoryPeak()
-	slog.Error("CPU: ", "time", tt, "error", err1, "walltime", time.Since(startTime))
+	// 内存用量取匿名内存峰值（程序自己占的那部分），不含 tmpfs 上的输出。
+	mem := int(cg.PeakMemoryAnon())
+	if mem == 0 {
+		// 采样没赶上（程序太短）时退回总量，至少给个非零值。
+		mem, _ = cg.ReadMemoryPeak()
+	}
+	// 被 OOM killer 杀掉是"内存吃超了"的硬证据（采样可能正好差几十 KB
+	// 没抓到峰值，光靠峰值判断会漏判）。
+	oomKilled, _ := cg.OOMKilled()
+	slog.Error("CPU: ", "time", tt, "error", err1, "walltime", time.Since(startTime), "oom_kill", oomKilled)
 
-	out := buildOutput(ccerr, tt, mem, cfg, len(ptree), outerWorkdir, ws)
+	out := buildOutput(ccerr, tt, mem, cfg, len(ptree), outerWorkdir, mainExitStatus, outputLimitExceeded, oomKilled > 0)
 	json.NewEncoder(file3).Encode(out)
 }
 
-func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs, processCnt int, outerWorkdir string, ws unix.WaitStatus) *models.SandboxOutput {
+// exitStatusOf 从 WaitStatus 取进程退出码；被信号杀死时按 128+signal 计算，
+// 与 shell 的惯例一致。
+func exitStatusOf(ws unix.WaitStatus) int {
+	if ws.Signaled() {
+		return 128 + int(ws.Signal())
+	}
+	return ws.ExitStatus()
+}
+
+func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs, processCnt int, outerWorkdir string, exitStatus int, outputLimitExceeded bool, oomKilled bool) *models.SandboxOutput {
 	out := &models.SandboxOutput{
-		ExitStatus:     ws.ExitStatus(),
+		ExitStatus:     exitStatus,
 		CombinedOutput: truncateBytes(readCombinedOutput(outerWorkdir), 1024),
 		Memory:         mem / 1024,
 		Time:           int(tt) / int(time.Millisecond),
@@ -319,9 +368,33 @@ func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs
 		ProcessCnt:     processCnt,
 	}
 
-	if out.Memory > cfg.MemoryLimit {
+	// 内存超限：两种证据任一成立即判定。
+	//
+	// 1) cgroup 触发了 OOM kill：程序把内存吃超了，这是硬证据；
+	// 2) 采样到的匿名内存峰值超过题目上限：程序没被杀掉，但确实用超了。
+	if oomKilled || out.Memory > cfg.MemoryLimit {
 		out.UserStatus = constants.OJ_ML
 		return out
+	}
+
+	// 输出超限：用户程序写了太多内容。
+	//
+	// 正常路径由 RLIMIT_FSIZE 拦下（SIGXFSZ），这里再兜一层：程序若忽略
+	// SIGXFSZ 继续写，文件大小会超过上限，后面输出比较会失败，只能给出含糊
+	// 的"答案错误"；判成输出超限更贴近真实原因。
+	if outputLimitExceeded {
+		out.UserStatus = constants.OJ_OL
+		return out
+	}
+	if info, err := os.Stat(path.Join(outerWorkdir, "data.usr")); err == nil && info.Size() > constants.MaxOutputSize {
+		out.UserStatus = constants.OJ_OL
+		return out
+	}
+
+	// 退出码落在 128+signal 区间说明进程是被信号杀死的（tini 对被信号杀死的
+	// 子进程统一 _exit(128)，这里退一步按 shell 惯例还原成具体信号）。
+	if exitStatus > 128 && exitStatus < 128+64 {
+		out.ExitSignal = unix.Signal(exitStatus - 128).String()
 	}
 
 	if ccerr != nil {
@@ -333,7 +406,6 @@ func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs
 			out.Time = 3*cfg.TimeLimit + 233
 		case shared.ErrRuntimeError:
 			out.UserStatus = constants.OJ_RE
-			out.ExitSignal = ws.StopSignal().String()
 		case shared.ErrOutputLimitExceeded:
 			out.UserStatus = constants.OJ_OL
 		}

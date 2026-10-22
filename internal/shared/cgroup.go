@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,6 +35,13 @@ type Cgroup struct {
 
 	path   string // /sys/fs/cgroup/hustoj/run-<id>-<pid>
 	logger *slog.Logger
+
+	// peakAnon 采样到的匿名内存峰值（字节）。
+	//
+	// memory.peak 统计的是 cgroup 的内存总量，里面混着沙箱 tmpfs 上的
+	// 输出（shmem）：程序输出 60MB 就会让 memory.peak 虚高 60MB，
+	// "内存超限"的判定和状态页上的内存读数都会被输出带偏。
+	peakAnon atomic.Int64
 }
 
 // NewCgroup 创建并初始化一个新的 Cgroup。返回实例或错误。
@@ -112,6 +120,55 @@ func (c *Cgroup) ReadMemoryPeak() (int, error) {
 	return v, err
 }
 
+// ReadMemoryAnon 读取 cgroup 当前的匿名内存用量（字节）。
+//
+// 匿名内存就是用户程序自己的堆/栈，不含沙箱 tmpfs 上的输出。
+func (c *Cgroup) ReadMemoryAnon() (int64, error) {
+	return readMemoryStatValue(filepath.Join(c.path, "memory.stat"), "anon")
+}
+
+// PeakMemoryAnon 返回采样到的匿名内存峰值（字节）。
+func (c *Cgroup) PeakMemoryAnon() int64 {
+	return c.peakAnon.Load()
+}
+
+// sampleMemoryAnon 采样一次匿名内存并更新峰值。
+func (c *Cgroup) sampleMemoryAnon() {
+	anon, err := c.ReadMemoryAnon()
+	if err != nil {
+		return
+	}
+	for {
+		old := c.peakAnon.Load()
+		if anon <= old || c.peakAnon.CompareAndSwap(old, anon) {
+			return
+		}
+	}
+}
+
+// OOMKilled 返回 cgroup 发生过 OOM kill 的次数。
+//
+// 这是"程序把内存吃超了"的硬证据：cgroup 的硬限制是题目内存上限加上
+// 输出余量，能触发 OOM kill 说明程序自己就超了上限。
+func (c *Cgroup) OOMKilled() (int64, error) {
+	return readMemoryStatValue(filepath.Join(c.path, "memory.events"), "oom_kill")
+}
+
+// readMemoryStatValue 从 memory.stat 里取某个键的数值。
+func readMemoryStatValue(path, key string) (int64, error) {
+	bt, err := os.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	for _, line := range strings.Split(string(bt), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) == 2 && fields[0] == key {
+			return strconv.ParseInt(fields[1], 10, 64)
+		}
+	}
+	return 0, fmt.Errorf("memory.stat 里没有 %s 这一项", key)
+}
+
 func (c *Cgroup) ReadMemory() {
 	statFile := filepath.Join(c.path, "memory.peak")
 	bt, err := os.ReadFile(statFile)
@@ -145,6 +202,9 @@ func (c *Cgroup) RunCPUChecker(ctx context.Context, cpuLimit, realLimit time.Dur
 				logger.Warn("CPU Checker: 读取 cgroup 失败", "error", err)
 				continue
 			}
+			// 顺带采样匿名内存峰值：memory.peak 里混着 tmpfs 上的输出，
+			// 只有 anon 才是程序自己占用的内存。
+			c.sampleMemoryAnon()
 			if consumed > cpuLimit {
 				logger.Warn("违规! Cgroup CPU 时间超出限制",
 					"consumed_cpu_sec", consumed.Seconds(), "limit_cpu_sec", cpuLimit.Seconds())
