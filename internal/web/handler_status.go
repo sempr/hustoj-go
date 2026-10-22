@@ -33,12 +33,15 @@ const noipContestTypeBit = 16
 
 // StatusRow 单条记录（对应 GetStatusListRow / GetStatusListContestRow）。
 type StatusRow struct {
-	SolutionID   uint32
-	ProblemID    int32
-	Num          int32
-	UserID       string
-	Language     int32
-	Result       int16
+	SolutionID uint32
+	ProblemID  int32
+	Num        int32
+	UserID     string
+	Language   int32
+	Result     int16
+	// PassRate 是本题通过率（0~1，来自 solution.pass_rate），
+	// 非 AC 时用于显示部分得分。
+	PassRate     float64
 	InDate       time.Time
 	Time         int32
 	Memory       int32
@@ -76,6 +79,23 @@ func (r StatusRow) ResultClass() string {
 		return ""
 	}
 	return judgeResultClass(int32(r.Result))
+}
+
+// ScoreText 返回非 AC 提交的得分文案（pass_rate × 100）。
+//
+// 对齐 status.php:378-390：AC 不显示（得分恒为 100），通过率 > 99 也不显示。
+// 与 PHP 的差异只有一点：PHP 对 result<4（等待/编译中）也会拼出"得分 0"，
+// 这里等判题完成后才显示，避免排队中的提交挂一个无意义的 0 分。
+//
+// 封榜行必须不显示：得分本身就是"过了几个测试点"，泄露它等于泄露结果。
+func (r StatusRow) ScoreText() string {
+	if r.Masked || r.Result <= resultAC {
+		return ""
+	}
+	if r.PassRate*100 > 99 {
+		return ""
+	}
+	return "得分 " + formatPassRate(r.PassRate)
 }
 
 // MemoryText 返回内存占用文案，封榜行隐藏具体数值。
@@ -378,7 +398,7 @@ func isNOIPContest(contest *dbgen.GetContestForRankRow, keyword string, now time
 // 列表，这种漂移会直接表现为重复或跳过某次提交。
 func listStatus(ctx context.Context, db *sql.DB, where string, args []interface{}, limit int) ([]StatusRow, error) {
 	query := fmt.Sprintf(`
-		SELECT s.solution_id, s.problem_id, s.user_id, s.language, s.result, s.in_date,
+		SELECT s.solution_id, s.problem_id, s.user_id, s.language, s.result, s.pass_rate, s.in_date,
 		       s.time, s.memory, s.code_length, u.nick, u.group_name, u.starred,
 		       c.contest_id, c.title as contest_title, c.contest_type,
 		       p.title as problem_title
@@ -401,7 +421,7 @@ func listStatus(ctx context.Context, db *sql.DB, where string, args []interface{
 	for rows.Next() {
 		var r StatusRow
 		if err := rows.Scan(
-			&r.SolutionID, &r.ProblemID, &r.UserID, &r.Language, &r.Result, &r.InDate,
+			&r.SolutionID, &r.ProblemID, &r.UserID, &r.Language, &r.Result, &r.PassRate, &r.InDate,
 			&r.Time, &r.Memory, &r.CodeLength, &r.Nick, &r.GroupName, &r.Starred,
 			&r.ContestID, &r.ContestTitle, &r.ContestType, &r.ProblemTitle,
 		); err != nil {

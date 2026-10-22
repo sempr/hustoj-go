@@ -577,7 +577,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <a class="ui button" href="/index.php">返回首页</a>
 </div>{{end}}
 
-{{define "statusPage"}}<div class="ui container">
+{{define "statusPage"}}<div class="ui container status-page">
 <form class="ui form" method="GET">
 <div class="status-filters">
 <div class="field"><label>比赛</label><input name="cid" value="{{.Filter.CIDText}}" placeholder="比赛 ID" style="width:90px"></div>
@@ -609,19 +609,20 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <div class="field"><button class="ui button" type="submit">筛选</button></div>
 </div></form>
 
+<div class="status-table-wrap">
 <table id="result-tab" class="ui celled table">
-{{/* 列宽按"最长可能内容"比例分配（整表居中、总宽见 hustoj.css 的
-     --status-table-width）。用 colgroup 让比例显式、可预期，不靠浏览器
-     按内容各自伸缩。 */}}
+{{/* 列宽按"最长可能内容"比例分配（表宽自适应内容区，最小宽度见 hustoj.css
+     的 --status-table-min-width）。用 colgroup 让比例显式、可预期，
+     不靠浏览器按内容各自伸缩。 */}}
 <colgroup>
-<col style="width:6%">
+<col style="width:9%">
 <col style="width:13%">
 <col style="width:6%">
 <col style="width:9%">
-<col style="width:10%">
 <col style="width:9%">
+<col style="width:8%">
 <col style="width:12%">
-<col style="width:12%">
+<col style="width:11%">
 <col style="width:23%">
 </colgroup>
 <thead>
@@ -631,7 +632,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <td>{{.SolutionID}}</td>
 <td><a href="/userinfo.php?user={{.UserID}}">{{.UserID}}</a></td>
 <td>{{if gt .ProblemID 0}}<a href="/problem.php?id={{.ProblemID}}">{{.ProblemID}}</a>{{else}}{{.ProblemID}}{{end}}</td>
-<td>{{if .Masked}}<span class="{{.ResultClass}}">{{.ResultLabel}}</span>{{else}}<a href="/reinfo.php?sid={{.SolutionID}}" class="{{.ResultClass}}" title="查看判题信息">{{.ResultLabel}}</a>{{end}}</td>
+<td>{{if .Masked}}<span class="{{.ResultClass}}">{{.ResultLabel}}</span>{{else}}<a href="/reinfo.php?sid={{.SolutionID}}" class="{{.ResultClass}}" title="查看判题信息{{with .ScoreText}}（{{.}}）{{end}}">{{.ResultLabel}}</a>{{end}}</td>
 <td class="center">{{.MemoryText}}</td>
 <td class="center">{{.TimeText}}</td>
 <td class="center">{{if .CanViewSource}}<a href="/showsource.php?id={{.SolutionID}}" title="查看代码">{{languageName .Language}}</a>{{else}}{{languageName .Language}}{{end}}</td>
@@ -639,11 +640,13 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <td>{{.InDate.Format "2006-01-02 15:04:05"}}</td>
 </tr>
 {{end}}</tbody></table>
+</div>
 {{template "statusPagination" .}}
 
 {{/* 自动刷新：对应 template/syzoj/auto_refresh.js 的轮询分支。PHP 用
    status-ajax.php 拉回 "result,memory KB,time ms,judger,pass_rate,user_id"，
-   这里只更新结果/内存/时间三格。封榜行不带 data-sid，不参与轮询。 */}}
+   这里更新结果/内存/时间三格，判题完成后把非 AC 的得分写进悬停提示。
+   封榜行不带 data-sid，不参与轮询，得分也不会被补出来。 */}}
 <script>
 (function () {
   var LABELS = {{judgeLabelsJSON}};
@@ -656,6 +659,15 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
       if (rows[i].getAttribute('data-sid') === id) return rows[i];
     }
     return null;
+  }
+  // 得分放在结果链接的 title 上：悬停可见，不占列宽。
+  function updateScore(cell, res, raw) {
+    var link = cell.querySelector('a');
+    if (!link) return;
+    var pct = parseFloat(raw);
+    var title = '查看判题信息';
+    if (res > 4 && !isNaN(pct) && pct <= 99) title += '（得分 ' + pct + '）';
+    link.title = title;
   }
   function refresh(id, delay) {
     var x = new XMLHttpRequest();
@@ -670,6 +682,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
       var span = row.cells[3].firstChild;
       span.textContent = LABELS[res] || res;
       span.className = CLASSES[res] || '';
+      updateScore(row.cells[3], res, ra[4]);
       if (res < 4 || res > 14) setTimeout(function () { refresh(id, delay * 1.5); }, delay);
     };
     x.open('GET', 'status-ajax.php?solution_id=' + id, true);

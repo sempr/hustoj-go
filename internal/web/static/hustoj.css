@@ -223,13 +223,25 @@ i.icon { display: none; }
   gap: 0.35rem;
 }
 
+/* ── 状态页整体字号 ─────────────────────────────────────
+ * 状态表列多、内容密，整页缩到 0.9em 更好扫读；配合模板里加宽的 ID 列，
+ * 6~8 位的 solution_id 在 table-layout:fixed + nowrap 下不会再挤出单元格。
+ * 页面标题 <h1> 由 layout 渲染在内容之外，用 :has() 从内容反选 <main>，
+ * 让标题与正文一起缩放（只影响状态页，其他页面不受牵连）。 */
+main:has(> .status-page) { font-size: 0.9em; }
+
 /* ── 状态表（#result-tab）─────────────────────────────────
- * 整表页面居中、总宽可调（--status-table-width），列内容居中。
+ * 宽屏铺满内容区（上限由 main 的 85rem 决定），窄屏缩到
+ * --status-table-min-width 后由外层改为横向滚动，而不是把列压扁。
  * 列宽比例由模板 <colgroup> 指定，table-layout:fixed 让比例生效。 */
+.status-table-wrap {
+  max-width: 100%;
+  overflow-x: auto;
+}
 #result-tab {
   table-layout: fixed;
-  width: var(--status-table-width, 1080px);
-  max-width: 100%;
+  width: 100%;
+  min-width: var(--status-table-min-width, 1000px);
   margin-left: auto;
   margin-right: auto;
 }

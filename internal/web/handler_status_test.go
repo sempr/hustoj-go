@@ -772,6 +772,44 @@ func TestStatusFilterBarCSS(t *testing.T) {
 	}
 }
 
+// 状态页整页字号略小（含 h1），且 ID 列要放得下真实位数。
+//
+// #result-tab 是 table-layout:fixed + nowrap：列宽不足时数字会压到相邻列，
+// 而不是换行或省略。线上 solution_id 已是 6 位，留到 9%。
+func TestStatusPageSmallerFontAndWideIDColumn(t *testing.T) {
+	s := newTestServer(t, &fakeQuerier{}, nil)
+	rec := httptest.NewRecorder()
+	s.renderPage(rec, httptest.NewRequest(http.MethodGet, "/status.php", nil), http.StatusOK,
+		"statusPage", "状态", newStatusPage(nil, StatusFilter{}))
+	body := rec.Body.String()
+
+	if !strings.Contains(body, `class="ui container status-page"`) {
+		t.Errorf("状态页容器缺少 status-page 标记，整页字号规则不会生效:\n%s", body)
+	}
+	if !strings.Contains(body, `<col style="width:9%">`) {
+		t.Errorf("ID 列宽度不足，6~8 位 solution_id 会挤出单元格:\n%s", body)
+	}
+	// 表格宽度自适应内容区；窄屏缩到最小宽度后由外层横向滚动。
+	if !strings.Contains(body, `class="status-table-wrap"`) {
+		t.Errorf("状态表缺少滚动容器，窄屏会压扁列:\n%s", body)
+	}
+
+	css, err := assetFS.ReadFile("static/hustoj.css")
+	if err != nil {
+		t.Fatalf("读取 hustoj.css 失败: %v", err)
+	}
+	for _, want := range []string{
+		"main:has(> .status-page) { font-size: 0.9em; }",
+		".status-table-wrap {",
+		"overflow-x: auto;",
+		"min-width: var(--status-table-min-width, 1000px);",
+	} {
+		if !strings.Contains(string(css), want) {
+			t.Errorf("缺少状态表样式 %q", want)
+		}
+	}
+}
+
 // language/jresult 的默认值语义：空串与 -1 都表示"不过滤"，0 是真值。
 //
 // 曾经的 bug：表单"全部"提交空串，?language= 被 parseInt 成 0，
@@ -851,6 +889,60 @@ func TestStatusTableHasCodeLengthColumn(t *testing.T) {
 	}
 	if !strings.Contains(body, "1234 bytes") {
 		t.Errorf("缺少代码长度取值:\n%s", body)
+	}
+}
+
+// 非 AC 提交要显示部分得分（solution.pass_rate × 100）。
+//
+// AC、封榜行、判题未结束以及通过率 > 99 的情形都不显示 —— 封榜期靠得分
+// 也能反推出"过了几个测试点"，等于泄露结果。
+func TestStatusScoreText(t *testing.T) {
+	tests := []struct {
+		name string
+		row  StatusRow
+		want string
+	}{
+		{"答案错误显示得分", StatusRow{Result: 6, PassRate: 0.6}, "得分 60"},
+		{"部分分保留小数", StatusRow{Result: 7, PassRate: 0.667}, "得分 66.7"},
+		{"零分也显示", StatusRow{Result: 6, PassRate: 0}, "得分 0"},
+		{"AC 不显示", StatusRow{Result: 4, PassRate: 1}, ""},
+		{"判题中不显示", StatusRow{Result: 2}, ""},
+		{"接近满分不显示", StatusRow{Result: 6, PassRate: 0.995}, ""},
+		{"封榜不显示", StatusRow{Result: 6, PassRate: 0.6, Masked: true}, ""},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := tc.row.ScoreText(); got != tc.want {
+				t.Errorf("ScoreText() = %q，期望 %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// 得分放在结果链接的悬停提示里（不占列宽），且只给非 AC 的行。
+func TestStatusPageRendersScoreInTitle(t *testing.T) {
+	s := newTestServer(t, &fakeQuerier{}, nil)
+	rec := httptest.NewRecorder()
+	rows := []StatusRow{
+		{SolutionID: 7, ProblemID: 1001, UserID: "alice", Language: 6, Result: 6, PassRate: 0.6},
+		{SolutionID: 8, ProblemID: 1002, UserID: "bob", Language: 6, Result: 4, PassRate: 1},
+	}
+	s.renderPage(rec, httptest.NewRequest(http.MethodGet, "/status.php", nil), http.StatusOK,
+		"statusPage", "状态", newStatusPage(rows, StatusFilter{}))
+
+	body := rec.Body.String()
+	if !strings.Contains(body, `title="查看判题信息（得分 60）"`) {
+		t.Errorf("失败提交的悬停提示缺少得分:\n%s", body)
+	}
+	if n := strings.Count(body, "得分 60"); n != 1 {
+		t.Errorf("得分出现 %d 次，期望 1（AC 行不该带得分）", n)
+	}
+	if !strings.Contains(body, `title="查看判题信息">`) {
+		t.Errorf("AC 行的悬停提示不应带得分:\n%s", body)
+	}
+	// 得分只放进 title，页面上不能再有占宽度的可见文本。
+	if strings.Contains(body, "status-score") {
+		t.Errorf("不应再渲染可见的得分元素:\n%s", body)
 	}
 }
 
