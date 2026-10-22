@@ -30,7 +30,7 @@ func (q *Queries) GetContestWindow(ctx context.Context, contestID int32) (GetCon
 
 const getSolutionByID = `-- name: GetSolutionByID :one
 
-SELECT solution_id, problem_id, user_id, nick, language, result,
+SELECT solution_id, problem_id, user_id, nick, language, result, pass_rate,
        time, memory, contest_id
 FROM solution
 WHERE solution_id = ?
@@ -43,6 +43,7 @@ type GetSolutionByIDRow struct {
 	Nick       string        `json:"nick"`
 	Language   uint32        `json:"language"`
 	Result     int16         `json:"result"`
+	PassRate   float64       `json:"pass_rate"`
 	Time       int32         `json:"time"`
 	Memory     int32         `json:"memory"`
 	ContestID  sql.NullInt32 `json:"contest_id"`
@@ -61,6 +62,7 @@ func (q *Queries) GetSolutionByID(ctx context.Context, solutionID uint32) (GetSo
 		&i.Nick,
 		&i.Language,
 		&i.Result,
+		&i.PassRate,
 		&i.Time,
 		&i.Memory,
 		&i.ContestID,

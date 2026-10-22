@@ -1110,6 +1110,18 @@ document.addEventListener("DOMContentLoaded", function () {
 </tbody>
 </table>
 <pre><code class="language-{{.Lang}}">{{.Source}}</code></pre>
+{{if or .Reinfo .Ceinfo}}
+<h3 class="ui header">判题信息</h3>
+<p>提交 ID: {{.SID}} | 得分: {{.Mark}}</p>
+{{if .Ceinfo}}
+<h4 class="ui header">编译错误</h4>
+<div class="ui segment"><pre>{{.Ceinfo}}</pre></div>
+{{end}}
+{{if .Reinfo}}
+<h4 class="ui header">各用例结果</h4>
+<div class="ui segment"><pre>{{.Reinfo}}</pre></div>
+{{end}}
+{{end}}
 {{else}}I am sorry, You could not view this code!{{end}}
 </div>
 {{end}}

@@ -3,7 +3,7 @@
 -- 按 solution_id 取提交行（showsource.php:17-19 的 SELECT *）。
 -- 只取权限判断与页头注释需要的列。
 -- name: GetSolutionByID :one
-SELECT solution_id, problem_id, user_id, nick, language, result,
+SELECT solution_id, problem_id, user_id, nick, language, result, pass_rate,
        time, memory, contest_id
 FROM solution
 WHERE solution_id = sqlc.arg(solution_id);

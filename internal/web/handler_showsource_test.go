@@ -66,6 +66,39 @@ func baseShowsourceSolution() dbgen.GetSolutionByIDRow {
 	}
 }
 
+// reinfo.php（各用例结果）与 ceinfo.php（编译错误）的内容并到源码页。
+func TestShowsourceIncludesJudgeInfo(t *testing.T) {
+	sol := baseShowsourceSolution()
+	sol.Result = 6
+	sol.PassRate = 0.3
+	f := &fakeQuerier{
+		ssSolution:     sol,
+		ssSource:       "int main(){}",
+		saRuntimeError: sql.NullString{String: "1.in|10|答案错误|512|1", Valid: true},
+		saCompileError: sql.NullString{String: "Main.cc:3:5: error: expected ';'", Valid: true},
+	}
+	session := showsourceSeed(testOJName + `_user_id|s:5:"alice";`)
+	body := showsourceRequest(t, f, nil, session, "/showsource.php?id=42").Body.String()
+	for _, want := range []string{
+		"判题信息", "各用例结果", "1.in|10|答案错误", "编译错误", "error: expected",
+		"提交 ID: 42", "得分: 30",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("源码页缺少 %q\n%s", want, trunc(body, 900))
+		}
+	}
+}
+
+// 无判题信息时不该出现判题信息区块。
+func TestShowsourceWithoutJudgeInfo(t *testing.T) {
+	f := &fakeQuerier{ssSolution: baseShowsourceSolution(), ssSource: "int main(){}"}
+	session := showsourceSeed(testOJName + `_user_id|s:5:"alice";`)
+	body := showsourceRequest(t, f, nil, session, "/showsource.php?id=42").Body.String()
+	if strings.Contains(body, "判题信息") {
+		t.Errorf("没有判题信息时不该出现该区块\n%s", trunc(body, 600))
+	}
+}
+
 func TestShowsourceMissingID(t *testing.T) {
 	body := showsourceRequest(t, &fakeQuerier{}, nil, "", "/showsource.php").Body.String()
 	if !strings.Contains(body, "No such code!") {

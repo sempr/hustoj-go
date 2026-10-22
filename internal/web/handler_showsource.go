@@ -44,6 +44,13 @@ type showsourceView struct {
 	Lang   string // highlight.js 语言名（language-<Lang> 类），空表示不高亮。
 	Source string
 	Meta   showsourceMeta
+
+	// 判题信息：把 reinfo.php（各用例结果）与 ceinfo.php（编译错误）的内容
+	// 并到源码页 —— PHP 原本要另外点开这两个页面，这里合成一处。
+	SID    int32
+	Mark   string // 得分（pass_rate×100，AC 记 100），与 reinfo.php 一致
+	Reinfo string // runtimeinfo.error：各用例的判题结果
+	Ceinfo string // compileinfo.error：编译错误输出
 }
 
 func (s *Server) handleShowsource(w http.ResponseWriter, r *http.Request) {
@@ -135,6 +142,22 @@ func (s *Server) handleShowsource(w http.ResponseWriter, r *http.Request) {
 			ShowTime: sol.Result == 4,
 			Time:     sol.Time,
 			Memory:   sol.Memory,
+		}
+
+		// 得分：reinfo.php 的 $mark（AC 记 100）。
+		view.SID = int32(id)
+		view.Mark = formatPassRate(sol.PassRate)
+		if sol.Result == 4 {
+			view.Mark = "100"
+		}
+
+		// reinfo.php 的内容：各用例的判题结果（runtimeinfo）。
+		if runtimeErr, err := q.GetRuntimeError(ctx, int32(id)); err == nil && runtimeErr.Valid {
+			view.Reinfo = runtimeErr.String
+		}
+		// ceinfo.php 的内容：编译错误（compileinfo）。
+		if compileErr, err := q.GetCompileError(ctx, int32(id)); err == nil && compileErr.Valid {
+			view.Ceinfo = compileErr.String
 		}
 	}
 	s.renderPage(w, r, http.StatusOK, "showsourcePage",
