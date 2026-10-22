@@ -16,6 +16,40 @@
 
 另有一个演示比赛 `contest_id=1000`，把上面 5 题全部挂进去。
 
+## 演示提交：各种判罚
+
+`solutions/` 下除了参考解，还放了一批"反例"程序，每个对应一种判罚结果。
+用 `seed_samples.sh` 把它们写成提交（进正常判题队列，判完由判题器回写），
+就能在 status.php 上看到各种判罚：
+
+```bash
+sudo ./demo/seed_samples.sh --ojhome /srv/hustoj --pid-base 1739 --user demo
+```
+
+| 项 | 解法 | 预期判罚 |
+| --- | --- | --- |
+| `pe` | `1000-aplusb/solutions/pe.cpp` | 格式错误 PE(5)：答案对，行首多一个空格 |
+| `wa` | `1000-aplusb/solutions/wa.cpp` | 答案错误 WA(6)：答案大 1 |
+| `tl` | `1000-aplusb/solutions/tle.cpp` | 时间超限 TL(7)：死循环 |
+| `ml` | `1000-aplusb/solutions/mle.cpp` | 内存超限 ML(8)：写满 400MB |
+| `ol` | `1000-aplusb/solutions/ole.cpp` | 输出超限 OL(9)：输出 150MB |
+| `re` | `1000-aplusb/solutions/re.cpp` | 运行错误 RE(10)：主动 abort |
+| `ce` | `1000-aplusb/solutions/ce.cpp` | 编译错误 CE(11)：故意少一个括号 |
+| `ml_first` | `1000-aplusb/solutions/mle_first.cpp` | 内存与输出都会超，**内存先撞上限** → ML(8) |
+| `ol_first` | `1000-aplusb/solutions/ole_first.cpp` | 内存与输出都会超，**输出先撞上限** → OL(9) |
+| `bundle` | `1001-subtask/solutions/bundle_partial.cpp` | 捆绑测试：子任务 1 只过 1/2 → 整组 **0 分**（不是 15 分） |
+
+注意：
+
+- `--pid-base` 与 `install_demo.sh` 的 `--pid-base` 是同一套编号（A+B 题为
+  N、子任务题为 N+1），对着已用 `--auto-pid` 装载过的题库继续用即可；
+- `--user` 指定的账号必须已存在；
+- 脚本写 `solution` / `source_code` / `source_code_user` 三张表，缺一张
+  showsource.php 就会显示"没有可用代码"；
+- `ce.cpp` 故意编译不过，别拿它跑自检脚本；
+- 内存用量（`memory` 列）是 **cgroup 匿名内存峰值**：多进程程序算总和，
+  不含沙箱 tmpfs 上的输出；核对方法见 `tests/memprobe/`。
+
 ## 装载
 
 安装时一并做：
@@ -69,6 +103,7 @@ sudo ./demo/install_demo.sh --ojhome /srv/hustoj --auto-pid --contest-id 1119
 demo/
 ├── README.md          # 本文件
 ├── install_demo.sh    # 装载脚本（目标机运行）
+├── seed_samples.sh    # 演示提交脚本：把 solutions/ 下的反例写成提交
 ├── build_data.sh      # 打包机：按 arch 交叉编译各题 data/BUILD 里的判题程序
 ├── contest.env        # 演示比赛定义
 └── problems/
@@ -77,7 +112,7 @@ demo/
         ├── statement/        # description.md input.md output.md hint.md
         ├── sample/           # sample.in sample.out（可选）
         ├── data/             # 判题数据；内含 BUILD 的题需编译判题程序
-        └── solutions/        # 多语言参考解（仅供自检/参考）
+        └── solutions/        # 多语言参考解与反例（仅供自检/参考/演示）
 ```
 
 ## SPJ / 交互器二进制
