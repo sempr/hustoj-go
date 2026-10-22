@@ -8,6 +8,7 @@ package dbgen
 import (
 	"context"
 	"database/sql"
+	"strings"
 )
 
 const countProblemsForAdmin = `-- name: CountProblemsForAdmin :one
@@ -525,6 +526,64 @@ func (q *Queries) ListContests(ctx context.Context) ([]ListContestsRow, error) {
 			&i.UserID,
 			&i.Subnet,
 		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProblemContests = `-- name: ListProblemContests :many
+SELECT cp.problem_id, c.contest_id, c.title
+FROM contest_problem cp
+INNER JOIN contest c ON c.contest_id = cp.contest_id
+WHERE cp.problem_id IN (/*SLICE:problem_ids*/?)
+  AND c.defunct = 'N'
+ORDER BY cp.problem_id, c.contest_id
+`
+
+type ListProblemContestsRow struct {
+	ProblemID int32          `json:"problem_id"`
+	ContestID int32          `json:"contest_id"`
+	Title     sql.NullString `json:"title"`
+}
+
+// ── 题目所属比赛（题库列表的"比赛"列）────────────────────────────────
+//
+// 一题可能属于多场比赛（历史数据里最多 5 场），按 contest_id 升序返回。
+//
+// defunct='N'：作废的比赛点进去是空页，挂出来没有意义。
+//
+// 泄题问题：进行中比赛的题目本来就不出现在普通用户的题库列表里
+// （ListProblemsForMember 的 NOT IN 子查询），所以这里返回的关联不会
+// 把"进行中比赛的题集"泄露给普通用户 —— 能看到这道题的用户本来就能
+// 看到它；管理员例外，他们什么都看得到。
+func (q *Queries) ListProblemContests(ctx context.Context, problemIds []int32) ([]ListProblemContestsRow, error) {
+	query := listProblemContests
+	var queryParams []interface{}
+	if len(problemIds) > 0 {
+		for _, v := range problemIds {
+			queryParams = append(queryParams, v)
+		}
+		query = strings.Replace(query, "/*SLICE:problem_ids*/?", strings.Repeat(",?", len(problemIds))[1:], 1)
+	} else {
+		query = strings.Replace(query, "/*SLICE:problem_ids*/?", "NULL", 1)
+	}
+	rows, err := q.db.QueryContext(ctx, query, queryParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListProblemContestsRow
+	for rows.Next() {
+		var i ListProblemContestsRow
+		if err := rows.Scan(&i.ProblemID, &i.ContestID, &i.Title); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

@@ -65,8 +65,17 @@ type ProblemSummary struct {
 	Defunct      string
 	Coin         uint32
 
+	// Contests 是这道题参加过的比赛（题库列表的"比赛"列）。
+	Contests []ContestLink
+
 	SolvedByUser   bool
 	AcceptedByUser bool
+}
+
+// ContestLink 是题库列表里指向某个比赛的链接。
+type ContestLink struct {
+	ContestID int32
+	Title     string
 }
 
 // ProblemListPage 是列表页渲染所需的数据。
@@ -326,6 +335,12 @@ func ListProblems(
 		Viewer:    v,
 	}
 
+	// 题库列表的"比赛"列：一道题参加过的比赛。
+	// 独立于完成状态查询，匿名用户也要能看到比赛链接。
+	if err := attachContests(ctx, q, out.Problems); err != nil {
+		return ProblemListPage{}, err
+	}
+
 	// 当前用户完成状态：PHP 是单独一条
 	//   select problem_id, MIN(result) from solution where user_id=? and result>=4 group by problem_id
 	// 未登录时 PHP 根本不发这条查询，Go 侧同样跳过，避免无谓的库查询。
@@ -349,6 +364,35 @@ func ListProblems(
 		out.Problems[i].AcceptedByUser = accepted[out.Problems[i].ProblemID]
 	}
 	return out, nil
+}
+
+// attachContests 给每道题挂上它参加过的比赛。
+//
+// 只查当前页的题号（最多 50 个），一条 IN 查询搞定。
+// 查不到关联是正常情况（题库里的绝大多数题没参加过比赛）。
+func attachContests(ctx context.Context, q dbgen.FullQuerier, problems []ProblemSummary) error {
+	if len(problems) == 0 {
+		return nil
+	}
+	ids := make([]int32, 0, len(problems))
+	for _, p := range problems {
+		ids = append(ids, p.ProblemID)
+	}
+	rows, err := q.ListProblemContests(ctx, ids)
+	if err != nil {
+		return fmt.Errorf("查询题目所属比赛失败: %w", err)
+	}
+	byProblem := make(map[int32][]ContestLink, len(rows))
+	for _, r := range rows {
+		byProblem[r.ProblemID] = append(byProblem[r.ProblemID], ContestLink{
+			ContestID: r.ContestID,
+			Title:     r.Title.String,
+		})
+	}
+	for i := range problems {
+		problems[i].Contests = byProblem[problems[i].ProblemID]
+	}
+	return nil
 }
 
 // GetProblem 按访问者模式取题目详情。

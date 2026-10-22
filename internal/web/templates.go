@@ -244,6 +244,7 @@ const pageContentTmpls = `
 <th class="one wide">编号</th>
 <th class="left aligned">标题</th>
 <th class="one wide">来源</th>
+<th>比赛</th>
 <th class="one wide">通过/提交</th>
 <th class="one wide">通过率</th>
 </tr></thead>
@@ -253,6 +254,7 @@ const pageContentTmpls = `
 <td><b>{{.ProblemID}}</b></td>
 <td><a href="{{.Href}}">{{.Title}}</a></td>
 <td>{{range .Sources}}<a class="ui label {{.Theme}}" href="{{.Href}}" title="{{.Title}}">{{.Trunc}}</a> {{end}}</td>
+<td>{{range .Contests}}<a class="problemset-contest" href="{{.Href}}" title="{{.Title}}">{{.Title}}</a>{{end}}</td>
 <td>{{if .Submit.Valid}}{{.Accepted.Value}}/{{.Submit.Value}}{{else}}0/0{{end}}</td>
 <td>{{if .HasRate}}{{printf "%.3f" .RatePercent}}%{{else}}0.000%{{end}}</td>
 </tr>

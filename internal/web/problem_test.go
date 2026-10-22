@@ -175,6 +175,9 @@ type fakeQuerier struct {
 	userByIDErr        error
 	userEmail          sql.NullString
 
+	// 题库列表的"比赛"列：题目与比赛的关联
+	problemContests []dbgen.ListProblemContestsRow
+
 	// 后台公告管理（admin/news_*.php）
 	newsCount       int64
 	newsAdminList   []dbgen.ListNewsAdminRow
@@ -503,6 +506,11 @@ func (f *fakeQuerier) SearchProblemsFreePractice(_ context.Context, a dbgen.Sear
 	f.lastLimit, f.lastOffset = a.Limit, a.Offset
 	f.lastTitleLike, f.lastSourceLike = a.TitleLike, a.SourceLike.String
 	return f.searchFreeRows(), f.fail()
+}
+
+func (f *fakeQuerier) ListProblemContests(_ context.Context, _ []int32) ([]dbgen.ListProblemContestsRow, error) {
+	f.note("ListProblemContests")
+	return f.problemContests, f.fail()
 }
 
 // convertRows 把 fakeRow 转成各查询各自的 sqlc Row 类型。

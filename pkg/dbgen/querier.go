@@ -369,6 +369,18 @@ type Querier interface {
 	ListFutureContests(ctx context.Context) ([]ListFutureContestsRow, error)
 	ListNewsAdmin(ctx context.Context, arg ListNewsAdminParams) ([]ListNewsAdminRow, error)
 	ListPrivileges(ctx context.Context, arg ListPrivilegesParams) ([]Privilege, error)
+	// ── 题目所属比赛（题库列表的"比赛"列）────────────────────────────────
+	//
+	// 一题可能属于多场比赛（历史数据里最多 5 场），按 contest_id 升序返回。
+	//
+	// defunct='N'：作废的比赛点进去是空页，挂出来没有意义。
+	//
+	// 泄题问题：进行中比赛的题目本来就不出现在普通用户的题库列表里
+	// （ListProblemsForMember 的 NOT IN 子查询），所以这里返回的关联不会
+	// 把"进行中比赛的题集"泄露给普通用户 —— 能看到这道题的用户本来就能
+	// 看到它；管理员例外，他们什么都看得到。
+	//
+	ListProblemContests(ctx context.Context, problemIds []int32) ([]ListProblemContestsRow, error)
 	ListProblemIDsBySource(ctx context.Context, arg ListProblemIDsBySourceParams) ([]int32, error)
 	ListProblemsAdminList(ctx context.Context, arg ListProblemsAdminListParams) ([]ListProblemsAdminListRow, error)
 	// 题目导出（admin/problem_export_xml.php）。

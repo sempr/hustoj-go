@@ -251,6 +251,18 @@ main:has(> .status-page) { font-size: 0.9em; }
   white-space: nowrap;
 }
 
+/* 题库列表的"比赛"列：一题可能参加过好几场，比赛名又长，
+   限宽 + 省略号，完整名字放在 title 里。 */
+.problemset-contest {
+  display: inline-block;
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  margin-right: 0.4em;
+}
+
 /* ── 全局排名页（.ranklist-toolbar / #ranklist-tab）─────────
  * 顶部 scope 导航与两个查找框放同一行：按钮靠左、查找靠右，窄屏可换行。
  * 表格整表居中、总宽可调（--ranklist-table-width），列宽比例由模板

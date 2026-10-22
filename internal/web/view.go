@@ -74,12 +74,21 @@ type problemRowVM struct {
 	Title       string
 	Href        string
 	Sources     []sourceVM
+	// Contests 是这道题参加过的比赛，渲染成"比赛"列里的链接。
+	Contests    []contestLinkVM
 	AcceptRate  string
 	RatePercent float64
 	HasRate     bool
 	// 原始计数，用于测试断言。
 	Submit   sql0Int32
 	Accepted sql0Int32
+}
+
+// contestLinkVM 是指向一场比赛的链接。
+type contestLinkVM struct {
+	ContestID int32
+	Title     string
+	Href      string
 }
 
 type sourceVM struct {
@@ -140,6 +149,7 @@ func buildProblemRows(page ProblemListPage) []problemRowVM {
 			Title:       p.Title,
 			Href:        fmt.Sprintf("problem.php?id=%d", p.ProblemID),
 			Sources:     buildSources(p.Source),
+			Contests:    buildContestLinks(p.Contests),
 			AcceptRate:  acc.String() + "/" + sub.String(),
 			RatePercent: rate,
 			HasRate:     has,
@@ -168,6 +178,29 @@ func buildSources(src string) []sourceVM {
 			Theme:  themeFor(cat),
 			Trunc:  truncateLabel(cat, 10),
 			Hidden: false,
+		})
+	}
+	return out
+}
+
+// buildContestLinks 把比赛关联转成渲染模型。
+//
+// href 交给模板做 URL 转义会有坑（& 会被二次转义），这里拼好完整相对路径。
+func buildContestLinks(links []ContestLink) []contestLinkVM {
+	if len(links) == 0 {
+		return nil
+	}
+	out := make([]contestLinkVM, 0, len(links))
+	for _, l := range links {
+		title := l.Title
+		if title == "" {
+			// contest.title 可为 NULL，兜底用编号，避免出现空链接。
+			title = fmt.Sprintf("比赛 #%d", l.ContestID)
+		}
+		out = append(out, contestLinkVM{
+			ContestID: l.ContestID,
+			Title:     title,
+			Href:      fmt.Sprintf("contest.php?cid=%d", l.ContestID),
 		})
 	}
 	return out

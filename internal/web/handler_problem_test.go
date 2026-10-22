@@ -291,6 +291,57 @@ func TestHandleProblemSetWhitespaceSearchIsNoSearch(t *testing.T) {
 	}
 }
 
+// 题库列表要给出"这题参加过哪些比赛"的链接。
+//
+// 泄题边界：进行中比赛的题目本来就不在普通用户的题库列表里，所以
+// 这里挂出的关联不会暴露"进行中比赛的题集"（见 ListProblemContests 的注释）。
+func TestProblemsetRendersContestLinks(t *testing.T) {
+	f := &fakeQuerier{
+		rows: []fakeRow{{ID: 1001, Title: "A+B Problem", Defunct: "N"}},
+		problemContests: []dbgen.ListProblemContestsRow{
+			{ProblemID: 1001, ContestID: 1119, Title: sql.NullString{String: "示例比赛：从入门到交互", Valid: true}},
+		},
+	}
+	page, err := ListProblems(context.Background(), f, ViewerMember, "", 1, "", time.Now())
+	if err != nil {
+		t.Fatalf("ListProblems 失败: %v", err)
+	}
+	if len(page.Problems) != 1 {
+		t.Fatalf("题目数 = %d，期望 1", len(page.Problems))
+	}
+	links := page.Problems[0].Contests
+	if len(links) != 1 {
+		t.Fatalf("比赛链接数 = %d，期望 1", len(links))
+	}
+	if links[0].ContestID != 1119 || links[0].Title != "示例比赛：从入门到交互" {
+		t.Errorf("比赛链接 = %+v，期望 cid=1119", links[0])
+	}
+
+	body := mustRender(t, "problemset", buildPageVM(page))
+	if !strings.Contains(body, `href="contest.php?cid=1119"`) {
+		t.Errorf("题库列表缺少比赛链接:\n%s", body)
+	}
+	if !strings.Contains(body, "示例比赛：从入门到交互") {
+		t.Errorf("比赛链接缺少标题:\n%s", body)
+	}
+}
+
+// 没有参加过比赛的题目不应渲染出比赛链接。
+func TestProblemsetWithoutContestHasNoLink(t *testing.T) {
+	f := &fakeQuerier{rows: []fakeRow{{ID: 1002, Title: "x", Defunct: "N"}}}
+	page, err := ListProblems(context.Background(), f, ViewerMember, "", 1, "", time.Now())
+	if err != nil {
+		t.Fatalf("ListProblems 失败: %v", err)
+	}
+	if len(page.Problems[0].Contests) != 0 {
+		t.Errorf("不该有比赛链接: %+v", page.Problems[0].Contests)
+	}
+	body := mustRender(t, "problemset", buildPageVM(page))
+	if strings.Contains(body, "contest.php?cid=") {
+		t.Errorf("不该出现比赛链接:\n%s", body)
+	}
+}
+
 // ── 题目详情 HTTP ────────────────────────────────────────────────────
 
 func TestHandleProblemOK(t *testing.T) {
