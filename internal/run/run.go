@@ -334,18 +334,32 @@ func RunMain(cfg *models.SandboxArgs) {
 	unix.Kill(-mainPid, unix.SIGKILL)
 	// showPtree(mainPid, 0)
 	tt, err1 := cg.ReadCPUtime()
-	// 内存用量取匿名内存峰值（程序自己占的那部分），不含 tmpfs 上的输出。
-	mem := int(cg.PeakMemoryAnon())
-	if mem == 0 {
-		// 采样没赶上（程序太短）时退回总量，至少给个非零值。
-		mem, _ = cg.ReadMemoryPeak()
+	// 内存用量走 cgroup 口径，和 memory.max 限制的是同一把尺子。
+	//
+	//  - anonPeak：沙箱里所有进程的堆/栈之和。多进程程序（bash 拉一堆子
+	//    进程）算的是总和，正好和限制的口径一致；不含 tmpfs 上的输出。
+	//  - totalPeak - shmem：cgroup 内存总量减去 tmpfs 上的输出，用来兜住
+	//    采样没抓到的峰值。
+	// 两者取大者。
+	//
+	// 不能用 getrusage(RUSAGE_CHILDREN).ru_maxrss：Go 的 fork+exec 会让子
+	// 进程在 exec 前继承父进程（Go 运行时）的 CoW 页面，这段水位线会被记成
+	// 子进程的内存峰值，hello-world 会被报成 20MB。
+	anonPeak := cg.PeakMemoryAnon()
+	totalPeak, _ := cg.ReadMemoryPeak()
+	shmem, _ := cg.ReadMemoryShmem()
+	programBytes := anonPeak
+	if est := int64(totalPeak) - shmem; est > programBytes {
+		programBytes = est
 	}
-	// 被 OOM killer 杀掉是"内存吃超了"的硬证据（采样可能正好差几十 KB
-	// 没抓到峰值，光靠峰值判断会漏判）。
+	memKB := int(programBytes / 1024)
+	// 被 OOM killer 杀掉是"内存吃超了"的硬证据（采样可能正好卡在上限边上）。
 	oomKilled, _ := cg.OOMKilled()
-	slog.Error("CPU: ", "time", tt, "error", err1, "walltime", time.Since(startTime), "oom_kill", oomKilled)
+	slog.Error("CPU: ", "time", tt, "error", err1, "walltime", time.Since(startTime),
+		"mem_kb", memKB, "anon_kb", anonPeak/1024, "total_kb", totalPeak/1024,
+		"shmem_kb", shmem/1024, "oom_kill", oomKilled)
 
-	out := buildOutput(ccerr, tt, mem, cfg, len(ptree), outerWorkdir, mainExitStatus, outputLimitExceeded, oomKilled > 0)
+	out := buildOutput(ccerr, tt, memKB, cfg, len(ptree), outerWorkdir, mainExitStatus, outputLimitExceeded, oomKilled > 0)
 	json.NewEncoder(file3).Encode(out)
 }
 
@@ -358,11 +372,11 @@ func exitStatusOf(ws unix.WaitStatus) int {
 	return ws.ExitStatus()
 }
 
-func buildOutput(ccerr error, tt time.Duration, mem int, cfg *models.SandboxArgs, processCnt int, outerWorkdir string, exitStatus int, outputLimitExceeded bool, oomKilled bool) *models.SandboxOutput {
+func buildOutput(ccerr error, tt time.Duration, memKB int, cfg *models.SandboxArgs, processCnt int, outerWorkdir string, exitStatus int, outputLimitExceeded bool, oomKilled bool) *models.SandboxOutput {
 	out := &models.SandboxOutput{
 		ExitStatus:     exitStatus,
 		CombinedOutput: truncateBytes(readCombinedOutput(outerWorkdir), 1024),
-		Memory:         mem / 1024,
+		Memory:         memKB,
 		Time:           int(tt) / int(time.Millisecond),
 		UserStatus:     constants.OJ_AC,
 		ProcessCnt:     processCnt,

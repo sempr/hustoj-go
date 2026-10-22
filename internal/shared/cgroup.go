@@ -38,9 +38,10 @@ type Cgroup struct {
 
 	// peakAnon 采样到的匿名内存峰值（字节）。
 	//
-	// memory.peak 统计的是 cgroup 的内存总量，里面混着沙箱 tmpfs 上的
-	// 输出（shmem）：程序输出 60MB 就会让 memory.peak 虚高 60MB，
-	// "内存超限"的判定和状态页上的内存读数都会被输出带偏。
+	// 匿名内存是沙箱里所有进程自己的堆/栈之和：多进程程序（bash 拉一堆子
+	// 进程）算的是总和，跟 cgroup 限制（memory.max，限制的也是总量）口径
+	// 一致；又因为不含沙箱 tmpfs 上的输出（那是 shmem），输出多少都不会
+	// 把"程序用了多少内存"带偏。
 	peakAnon atomic.Int64
 }
 
@@ -121,10 +122,15 @@ func (c *Cgroup) ReadMemoryPeak() (int, error) {
 }
 
 // ReadMemoryAnon 读取 cgroup 当前的匿名内存用量（字节）。
-//
-// 匿名内存就是用户程序自己的堆/栈，不含沙箱 tmpfs 上的输出。
 func (c *Cgroup) ReadMemoryAnon() (int64, error) {
 	return readMemoryStatValue(filepath.Join(c.path, "memory.stat"), "anon")
+}
+
+// ReadMemoryShmem 读取 cgroup 当前的 tmpfs（shmem）用量（字节）。
+//
+// 沙箱的输出就写在这里，用它把"输出占的内存"从总量里减掉。
+func (c *Cgroup) ReadMemoryShmem() (int64, error) {
+	return readMemoryStatValue(filepath.Join(c.path, "memory.stat"), "shmem")
 }
 
 // PeakMemoryAnon 返回采样到的匿名内存峰值（字节）。
@@ -190,21 +196,23 @@ func (c *Cgroup) RunCPUChecker(ctx context.Context, cpuLimit, realLimit time.Dur
 	logger.Info("CPU Checker: 启动...", "cpuLimit", cpuLimit, "realLimit", realLimit)
 	ticker := time.NewTicker(50 * time.Millisecond)
 	defer ticker.Stop()
+	// 内存采样比 CPU 检查密一些：程序分配很快时，50ms 的间隔容易漏掉峰值。
+	memTicker := time.NewTicker(10 * time.Millisecond)
+	defer memTicker.Stop()
 	startTime := time.Now()
 	// 需要监控的文件: cpu.stat（在 c.path 下）
 	cpuStat := filepath.Join(c.path, "cpu.stat")
 
 	for {
 		select {
+		case <-memTicker.C:
+			c.sampleMemoryAnon()
 		case <-ticker.C:
 			consumed, err := readCgroupCPUTime(cpuStat)
 			if err != nil {
 				logger.Warn("CPU Checker: 读取 cgroup 失败", "error", err)
 				continue
 			}
-			// 顺带采样匿名内存峰值：memory.peak 里混着 tmpfs 上的输出，
-			// 只有 anon 才是程序自己占用的内存。
-			c.sampleMemoryAnon()
 			if consumed > cpuLimit {
 				logger.Warn("违规! Cgroup CPU 时间超出限制",
 					"consumed_cpu_sec", consumed.Seconds(), "limit_cpu_sec", cpuLimit.Seconds())
