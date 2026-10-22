@@ -13,6 +13,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -37,6 +38,10 @@ type Config struct {
 
 	// TrustedProxies 列出可信反向代理网段；仅这些来源的 X-Forwarded-* 会被采信。
 	TrustedProxies []string `toml:"trusted_proxies"`
+
+	// trustedProxyNets 是 TrustedProxies 解析后的网段，供 IsTrustedProxy 使用。
+	// 在 validate() 里填好，避免每次请求都重新解析。
+	trustedProxyNets []*net.IPNet
 
 	// SessionDir 是 PHP session 文件目录，用于迁移期的 PHP 会话桥。
 	SessionDir string `toml:"session_dir"`
@@ -502,7 +507,74 @@ func (c *Config) validate() error {
 			return fmt.Errorf("启用了 session_bridge 但未设置 oj_name（必须与 PHP 的 $OJ_NAME 逐字节相同）")
 		}
 	}
+	// 可信代理网段要在这里就解析掉：配错一个网段却静默失效，
+	// 表现出来是"真实 IP 一直取不到"，极难排查。
+	if err := c.ParseTrustedProxies(); err != nil {
+		return err
+	}
 	return nil
+}
+
+// ParseTrustedProxies 解析 trusted_proxies 并缓存网段，供 IsTrustedProxy 使用。
+//
+// 解析失败必须让启动失败：网段写错却静默生效不了，症状是"真实 IP 一直
+// 取不到"（所有人看起来都来自同一个地址），几乎查不到根因。
+func (c *Config) ParseTrustedProxies() error {
+	nets, err := parseTrustedProxies(c.TrustedProxies)
+	if err != nil {
+		return err
+	}
+	c.trustedProxyNets = nets
+	return nil
+}
+
+// parseTrustedProxies 解析可信代理网段列表。
+func parseTrustedProxies(list []string) ([]*net.IPNet, error) {
+	nets := make([]*net.IPNet, 0, len(list))
+	for _, entry := range list {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		_, network, err := net.ParseCIDR(entry)
+		if err != nil {
+			// 允许只写 IP（不带掩码），按单个地址处理。
+			if ip := net.ParseIP(entry); ip != nil {
+				bits := 32
+				if ip.To4() == nil {
+					bits = 128
+				} else {
+					ip = ip.To4()
+				}
+				nets = append(nets, &net.IPNet{IP: ip, Mask: net.CIDRMask(bits, bits)})
+				continue
+			}
+			return nil, fmt.Errorf("trusted_proxies 里的 %q 不是合法的 IP 或网段", entry)
+		}
+		nets = append(nets, network)
+	}
+	return nets, nil
+}
+
+// IsTrustedProxy 判断来源 IP 是否落在可信代理网段内。
+//
+// 只有可信代理送来的 X-Real-IP / X-Forwarded-For 才值得采信；
+// 其余来源一律按直连处理，防止伪造来源 IP 绕过限流、比赛网段与审计。
+func (c *Config) IsTrustedProxy(ip string) bool {
+	ip = strings.TrimSpace(ip)
+	if ip == "" {
+		return false
+	}
+	addr := net.ParseIP(ip)
+	if addr == nil {
+		return false
+	}
+	for _, network := range c.trustedProxyNets {
+		if network.Contains(addr) {
+			return true
+		}
+	}
+	return false
 }
 
 // goSessionCookieDefault 是 Go 会话 Cookie 的默认名。

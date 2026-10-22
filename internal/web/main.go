@@ -130,6 +130,16 @@ func (s *Server) handler() http.Handler {
 		_, _ = w.Write([]byte("ready\n"))
 	})
 
+	// 调试端点：只在 debug 模式挂载。
+	//
+	// /_debug/ip 回显本次请求的代理链与各类 IP 头，用来排查"取不到真实
+	// 用户 IP"这类问题（多级 Cloudflare 代理时头里的地址并不是用户）。
+	// 它把来访者地址与代理头原样回显，生产开着等于给扫描器送信息，
+	// 所以严格跟着 debug 开关走（生产 web.toml 里 debug = false）。
+	if s.cfg.Debug {
+		mux.HandleFunc("GET /_debug/ip", s.handleDebugIP)
+	}
+
 	// 业务路由：首页/门户/新闻详情。
 	// 根路径 / 交给 handleIndex（PHP 的 nginx index 指令内部走 index.php，URL 不变）。
 	s.registerHomepageRoutes(mux)
