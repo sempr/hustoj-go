@@ -244,15 +244,6 @@ func (jc *JudgeClient) compareFiles(file1, file2 string) (int, error) {
 	return compareFiles(file1, file2)
 }
 
-func (jc *JudgeClient) addRuntimeInfo(solutionID int, results models.TotalResults) error {
-	details, err := jc.renderResults(results)
-	if err != nil {
-		return fmt.Errorf("failed to render results: %w", err)
-	}
-
-	return jc.db.AddRuntimeInfo(solutionID, details)
-}
-
 func (jc *JudgeClient) renderResults(results models.TotalResults) (string, error) {
 	const tpl = `
 filename|size|result|memory|time

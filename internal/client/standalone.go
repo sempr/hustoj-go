@@ -76,7 +76,7 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 		return nil, err
 	}
 
-	workDir, cleanupFunc, err := jc.setupStandaloneEnvironment(solution, langConfig)
+	workDir, cleanupFunc, err := jc.setupStandaloneEnvironment(task.Source, task.Language, langConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -176,14 +176,110 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 	return result, nil
 }
 
+// 测试运行的默认资源限制（problem_id=0 时读不到题目，用固定值）。
+const (
+	testRunTimeLimitMS = 10000
+	testRunMemoryKB    = 262144
+)
+
+// Run 执行一次数据库驱动的评测。
+//
+// 普通提交走 judge 流水线（RunStandalone）；测试运行只跑自定义输入，
+// 不比对标准输出，也不计入题目/比赛统计。
+func (jc *JudgeClient) Run() (*StandaloneResult, error) {
+	if jc.customInput != nil {
+		return jc.runCustomInput(*jc.customInput)
+	}
+	return jc.RunStandalone()
+}
+
+// runCustomInput 执行一次测试运行：编译 → 用 custominput 作 stdin 跑一次 →
+// 把程序 stdout 写入 runtimeinfo（供 status-ajax 的 tr 分支展示）。
+//
+// 结果通过 reporter 写回数据库，与普通评测共用同一套状态流转。
+func (jc *JudgeClient) runCustomInput(input string) (*StandaloneResult, error) {
+	result := &StandaloneResult{Language: jc.language}
+
+	langConfig, err := jc.langManager.GetLanguageConfig(jc.language)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get language config: %w", err)
+	}
+	if err := jc.ensureRootfsReady(langConfig); err != nil {
+		return nil, err
+	}
+
+	workDir, cleanupFunc, err := jc.setupStandaloneEnvironment(jc.source, jc.language, langConfig)
+	if err != nil {
+		return nil, err
+	}
+	defer cleanupFunc()
+
+	if err := jc.notifyPhase(constants.OJ_CI); err != nil {
+		return nil, err
+	}
+	compileResult := jc.compile(jc.language, workDir, langConfig)
+	if compileResult.SystemError {
+		result.FinalResult = constants.OJ_SE
+		result.SysError = compileResult.CombinedOutput
+		if err := jc.notifyCompileError(result); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+	if compileResult.ExitStatus != 0 {
+		result.FinalResult = constants.OJ_CE
+		result.CompileError = compileResult.CombinedOutput
+		if err := jc.notifyCompileError(result); err != nil {
+			return nil, err
+		}
+		return result, nil
+	}
+
+	// 自定义输入落成临时文件，交给 runAndCompare 复制为 data.in。
+	tmp, err := os.CreateTemp("", "hustoj-testrun-*.in")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temp input: %w", err)
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.WriteString(input); err != nil {
+		tmp.Close()
+		return nil, fmt.Errorf("failed to write temp input: %w", err)
+	}
+	tmp.Close()
+
+	rc := RunConfig{
+		Lang:        jc.language,
+		Rootdir:     workDir,
+		Workdir:     filepath.Join(workDir, "code"),
+		InFile:      tmp.Name(),
+		Timelimit:   testRunTimeLimitMS,
+		MemoryLimit: testRunMemoryKB,
+		TestRun:     true,
+	}
+	res, timeUsed, memUsed := jc.runAndCompare(rc)
+
+	// 程序 stdout 被写到 rootfs 内 /code/data.usr（见 runAndCompare 的 stdoutName）。
+	out, _ := os.ReadFile(filepath.Join(workDir, "code", "data.usr"))
+	result.FinalResult = res
+	result.TimeMs = timeUsed
+	result.MemoryKB = memUsed
+	result.PassRate = 1.0
+	result.RuntimeInfo = string(out)
+
+	if err := jc.notifyFinished(result); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
 // setupStandaloneEnvironment 为独立评测准备 overlay 工作环境并写入源码。
-func (jc *JudgeClient) setupStandaloneEnvironment(solution *repository.Solution, langConfig *language.LangConfig) (string, func(), error) {
+func (jc *JudgeClient) setupStandaloneEnvironment(source string, languageID int, langConfig *language.LangConfig) (string, func(), error) {
 	workDir, err := jc.setupWorkEnvironment(langConfig)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to setup work environment: %w", err)
 	}
 
-	if err := jc.writeSourceCode(jc.task.Source, solution.Language, workDir); err != nil {
+	if err := jc.writeSourceCode(source, languageID, workDir); err != nil {
 		jc.cleanupWorkEnvironment(workDir)
 		return "", nil, fmt.Errorf("failed to write source code: %w", err)
 	}

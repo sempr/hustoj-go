@@ -215,6 +215,13 @@ daemon 侧的 `OJ_LANG_SET` 也去掉代码默认值，改为 `judge.conf` 必�
 
 - **路径与 PHP 完全一致**，切流只改 nginx 路由，不改 URL、不做重定向。
 - **每页 50 条**（`problemset.php:66`），不可配置，两端必须一致。
+- **判题进程只有一条实现**：守护进程执行 `hustoj client <solution_id> <runner_id> <ojhome>`
+  （`internal/daemon/process.go`）。`client` 走的是与 standalone（`hustoj judge`）
+  同源的新实现：评测本体复用 `RunStandalone` 流水线，状态与结果经
+  `JudgeReporter` 回写数据库（阶段状态、编译错误、runtimeinfo、用户/题目统计）。
+  旧的自成一套的 client 实现已废弃删除，`client2` 子命令也随之取消。
+  测试运行（solution 有 `custominput` 行、`problem_id=0`）必须在读题目之前
+  分流 —— `problem_id=0` 查不到题目。
 - **搜索是裸 LIKE**：用户输入的 `%` 和 `_` 就是通配符（PHP 的 `like ?` 没有转义）。
   Go 侧若擅自转义会与 PHP 不一致，要改必须两端同时改。
 - **纯空白搜索词等同未搜索**（PHP 的 `trim()`），否则会走搜索分支却匹配不到任何东西。

@@ -41,37 +41,15 @@ type JudgeClient struct {
 	task        *models.JudgeTask
 	workBase    string
 	reporter    JudgeReporter
-}
 
-func NewJudgeClient(solutionID int, runnerID, homeDir string, debug bool) (*JudgeClient, error) {
-	cfg, err := config.LoadJudgeConf(homeDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-	cfg.Debug = debug
+	// source/language 是数据库驱动评测的源码与语言。
+	// 普通提交会组装成 task；测试运行没有测试数据目录，只用到这两个值。
+	source   string
+	language int
 
-	db, err := repository.NewDatabase(&cfg.Database)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize database: %w", err)
-	}
-
-	langManager, err := language.NewLanguageManager(homeDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize language manager: %w", err)
-	}
-
-	client := &JudgeClient{
-		config:      cfg,
-		db:          db,
-		langManager: langManager,
-		solutionID:  solutionID,
-		runnerID:    runnerID,
-		debug:       debug,
-	}
-
-	slog.SetDefault(slog.Default().With("solution_id", solutionID))
-
-	return client, nil
+	// customInput 非 nil 表示这是一次测试运行（solution 有 custominput 行）：
+	// 只跑自定义输入、不比对标准输出，也不计入任何统计。
+	customInput *string
 }
 
 // NewStandaloneClient 创建一个不依赖数据库的评测客户端。
@@ -106,6 +84,8 @@ func NewStandaloneClient(task *models.JudgeTask) (*JudgeClient, error) {
 		debug:       false,
 		task:        task,
 		workBase:    workBase,
+		source:      task.Source,
+		language:    task.Language,
 	}
 
 	slog.SetDefault(slog.Default().With("standalone", true))
@@ -118,22 +98,6 @@ func (jc *JudgeClient) Close() error {
 		return jc.db.Close()
 	}
 	return nil
-}
-
-func (jc *JudgeClient) updateSolutionStatus(status int) error {
-	return jc.db.UpdateSolution(jc.solutionID, status, 0, 0, 0.0)
-}
-
-func (jc *JudgeClient) updateUserStats(userID string) {
-	if err := jc.db.UpdateUserStats(userID); err != nil {
-		slog.Warn("Failed to update user stats", "user_id", userID, "error", err)
-	}
-}
-
-func (jc *JudgeClient) updateProblemStats(problemID, contestID int) {
-	if err := jc.db.UpdateProblemStats(problemID, contestID); err != nil {
-		slog.Warn("Failed to update problem stats", "problem_id", problemID, "contest_id", contestID, "error", err)
-	}
 }
 
 func (jc *JudgeClient) copyFile(src, dst string) error {

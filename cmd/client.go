@@ -8,7 +8,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// clientCmd represents the client command
+// clientCmd 是判题守护进程调用的入口。
+//
+// 它执行的是与 standalone（hustoj judge）同源的新实现：评测本体复用
+// RunStandalone 流水线，进度与结果经 JudgeReporter 回写数据库。
+// 旧的 client 实现（自己一套编译/执行/回写流程）已废弃删除。
 var clientCmd = &cobra.Command{
 	Use:   "client",
 	Short: "Execute judge client for single submission",

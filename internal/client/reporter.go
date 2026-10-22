@@ -1,7 +1,7 @@
 package client
 
 // JudgeReporter 是 judge 流水线（RunStandalone）的可选进度上报钩子。
-// judge 子命令不设置 reporter（nil），行为完全不变；client2 通过它把评测
+// judge 子命令不设置 reporter（nil），行为完全不变；client 通过它把评测
 // 进度与最终结果写回数据库。
 type JudgeReporter interface {
 	// OnPhase 在评测阶段状态变化时调用，status 为 OJ_CI / OJ_RI 等。
