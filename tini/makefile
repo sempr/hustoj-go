@@ -13,7 +13,7 @@ all: tini static
 tini: tini.c
 	gcc $(CFLAGS_BUILD) -o tini tini.c
 
-tini-static: tini.c
+tini-static: tini.c force
 	gcc $(CFLAGS_BUILD) --static -o tini-static tini.c
 
 # 自检：确认静态产物确实是当前 tini.c 编出来的（防止内嵌过期构建）。
@@ -25,7 +25,11 @@ static: tini-static
 	esac
 	@mkdir -p ../pkg/tini && cp tini-static ../pkg/tini/tini-static
 
-.PHONY: all static clean install check
+.PHONY: all static clean install check force
+
+# 版本号是编译期烙进去的，tini.c 不变时 make 不会重编，会留下旧版本字符串；
+# 强制每次重编，保证 --version 里的版本号与仓库一致。
+force:
 clean:
 	rm -f tini tini-static
 
