@@ -61,7 +61,7 @@ func (s *Server) handleDebugIP(w http.ResponseWriter, r *http.Request) {
 		XFFChain:        chain,
 		CFConnectingIP:  strings.TrimSpace(r.Header.Get("CF-Connecting-IP")),
 		XRealIP:         strings.TrimSpace(r.Header.Get("X-Real-IP")),
-		CurrentRemoteIP: remoteIP(r),
+		CurrentRemoteIP: s.remoteIP(r),
 		Host:            r.Host,
 		Proto:           requestScheme(r),
 	}

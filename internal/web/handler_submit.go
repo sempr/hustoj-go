@@ -462,7 +462,7 @@ func (s *Server) submitOnce(w http.ResponseWriter, r *http.Request, identity Ide
 		UserID:     identity.UserID,
 		Nick:       nick,
 		Language:   in.Language,
-		IP:         remoteIP(r),
+		IP:         s.remoteIP(r),
 		CodeLength: int32(len(sendSource)),
 		Source:     sendSource,
 		SourceUser: source,

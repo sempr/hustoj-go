@@ -259,23 +259,45 @@ func IsNoIPLocked(ctx context.Context, q dbgen.FullQuerier, problemID int32, key
 	return locked, nil
 }
 
-// remoteIP 取访客 IP，用于比赛网段校验。
+// remoteIP 取访客 IP，用于比赛网段校验与登录/提交记录。
 //
-// 优先取 X-Real-IP / X-Forwarded-For 的首段：nginx 已配置
-// X-Real-IP $remote_addr。伪造头只在绕过 nginx 直连回环端口时才可能，
-// 而回环端口不对外监听；contest-check.php:110-118 用的是同样的信任模型。
-func remoteIP(r *http.Request) string {
-	if v := strings.TrimSpace(r.Header.Get("X-Real-IP")); v != "" {
-		return firstAddr(v)
-	}
-	if v := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); v != "" {
-		return firstAddr(v)
+// 取值顺序：
+//  1. 来源是可信代理时，取 X-Forwarded-For 的首段。
+//     多级 Cloudflare 后面真实用户只出现在链首（后面依次是各层代理与
+//     中转机），而 X-Real-IP（nginx 的 $remote_addr）是离得最近的代理
+//     地址、CF-Connecting-IP 只认到上一层代理 —— 两者都不是用户。
+//  2. 可信代理没带 XFF 时，退到 X-Real-IP 首段。
+//  3. 都没有就用 TCP 对端地址。
+//
+// 与 PHP 的差别：phpweb/contest-check.php:111-118 同样"XFF 优先取首段"，
+// 但不判断来源是否可信；这里多一层来源校验，否则直连 Web 端口的人
+// 随便设个 X-Forwarded-For 就能伪造来源 IP，绕过比赛网段与考试 IP 绑定。
+func (s *Server) remoteIP(r *http.Request) string {
+	if s.trustedPeer(r) {
+		if v := strings.TrimSpace(r.Header.Get("X-Forwarded-For")); v != "" {
+			return firstAddr(v)
+		}
+		if v := strings.TrimSpace(r.Header.Get("X-Real-IP")); v != "" {
+			return firstAddr(v)
+		}
 	}
 	host, _, err := splitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr
 	}
 	return host
+}
+
+// trustedPeer 判断请求是否来自可信反向代理。
+//
+// 可信来源的代理头（X-Forwarded-For / X-Real-IP）才代表真实来客；
+// 其余一律按直连处理。
+func (s *Server) trustedPeer(r *http.Request) bool {
+	host, _, err := splitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	return s.cfg.IsTrustedProxy(host)
 }
 
 // firstAddr 取逗号分隔列表的第一项。

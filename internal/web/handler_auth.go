@@ -72,7 +72,7 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 
 	userID := strings.TrimSpace(r.FormValue("user_id"))
 	password := r.FormValue("password")
-	ip := remoteIP(r)
+	ip := s.remoteIP(r)
 
 	if userID == "" || password == "" {
 		http.Error(w, "用户名和密码不能为空", http.StatusBadRequest)
@@ -241,7 +241,7 @@ func (s *Server) examIPMismatchMessage(r *http.Request, userID string) string {
 		 ORDER BY time DESC LIMIT 1`, userID, since).Scan(&lastIP); err != nil {
 		return "考试期间不允许更换 IP 登录！"
 	}
-	return fmt.Sprintf("考试期间不允许更换 IP 登录！（上次 %s / 本次 %s）", lastIP.String, remoteIP(r))
+	return fmt.Sprintf("考试期间不允许更换 IP 登录！（上次 %s / 本次 %s）", lastIP.String, s.remoteIP(r))
 }
 
 // examStartThreshold 取考试 IP 绑定的时间阈值。
@@ -589,7 +589,7 @@ func (s *Server) handleRegister(w http.ResponseWriter, r *http.Request) {
 	}
 
 	now := time.Now()
-	ip := remoteIP(r)
+	ip := s.remoteIP(r)
 	if _, err := s.db.ExecContext(r.Context(),
 		`INSERT INTO users (user_id, email, ip, accesstime, password, reg_time, nick, school, group_name, defunct)
 		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'N')`,

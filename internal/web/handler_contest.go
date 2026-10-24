@@ -419,7 +419,7 @@ func (s *Server) handleContestProblems(w http.ResponseWriter, r *http.Request) {
 	id := s.resolveIdentity(w, r)
 	now := time.Now()
 	access, err := EvaluateContestAccess(r.Context(), s.queries(), contest, id, now,
-		remoteIP(r), hasPHPSession(r))
+		s.remoteIP(r), hasPHPSession(r))
 	if err != nil {
 		s.log.Error("比赛准入判定失败", "err", err, "cid", cid)
 		http.Error(w, "比赛信息暂时不可用", http.StatusInternalServerError)

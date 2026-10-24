@@ -104,7 +104,7 @@ func (s *Server) handleAdminUserAdd(w http.ResponseWriter, r *http.Request) {
 				_ = s.queries().InsertLoginLog(ctx, dbgen.InsertLoginLogParams{
 					UserID:   uid,
 					Password: sql.NullString{String: "user added", Valid: true},
-					Ip:       sql.NullString{String: remoteIP(r), Valid: true},
+					Ip:       sql.NullString{String: s.remoteIP(r), Valid: true},
 				})
 				vm.Messages = append(vm.Messages, uid+" is added!")
 			}
@@ -267,7 +267,7 @@ func (s *Server) importOneUser(ctx context.Context, r *http.Request, row []strin
 	err = s.queries().UpsertImportUser(ctx, dbgen.UpsertImportUserParams{
 		UserID:     userID,
 		Email:      sql.NullString{String: email, Valid: email != ""},
-		Ip:         remoteIP(r),
+		Ip:         s.remoteIP(r),
 		Password:   sql.NullString{String: hash, Valid: true},
 		Nick:       nick,
 		School:     school,

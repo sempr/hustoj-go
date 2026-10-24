@@ -466,7 +466,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// 检查比赛准入
-		access, err := EvaluateContestAccess(r.Context(), s.queries(), fullContest, identity, time.Now(), remoteIP(r), hasPHPSession(r))
+		access, err := EvaluateContestAccess(r.Context(), s.queries(), fullContest, identity, time.Now(), s.remoteIP(r), hasPHPSession(r))
 		if err != nil {
 			s.log.Error("比赛准入判定失败", "err", err)
 			http.Error(w, "比赛信息暂时不可用", http.StatusInternalServerError)
