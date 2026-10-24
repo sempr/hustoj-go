@@ -14,7 +14,8 @@ SYSDIR ?= /etc/systemd/system
 JUDGEHOME ?= /home/judge
 
 build:
-	go mod tidy && go build -trimpath -ldflags "$(LDFLAGS)" .
+	go mod tidy && $(MAKE) -C tini static && \
+		go build -tags embed_tini -trimpath -ldflags "$(LDFLAGS)" .
 
 # 离线部署包：交叉编译 amd64/arm64，目标机只需 bash。
 dist:
@@ -42,6 +43,6 @@ install: build
 	install -d $(JUDGEHOME)/etc
 	rm -rf $(JUDGEHOME)/etc/langs
 	cp -r extra/etc/langs $(JUDGEHOME)/etc/
-	$(MAKE) -C tini install
+	$(PREFIX)/hustoj install-tini
 	$(MAKE) disable-old-judged
 	systemctl enable --now judged-go

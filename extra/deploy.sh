@@ -25,7 +25,9 @@ DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS="-X '$MODULE/cmd.Version=$VERSION' -X '$MODULE/cmd.Commit=$COMMIT' -X '$MODULE/cmd.Date=$DATE'"
 
 cd "$(dirname "$0")/.."
-go build -trimpath -ldflags "$LDFLAGS" -o hustoj .
+# tini-static 会被 go:embed 打进主二进制，部署时由 `hustoj install-tini` 落盘。
+make -C tini static
+go build -tags embed_tini -trimpath -ldflags "$LDFLAGS" -o hustoj .
 
 echo "==> 备份旧二进制……"
 ts=$(date +%Y%m%d%H%M%S)
@@ -39,6 +41,9 @@ echo "==> 安装新二进制……"
 install -m 0755 hustoj "$DAEMON_BIN"
 install -m 0755 hustoj "$WEB_BIN"
 rm -f hustoj
+
+echo "==> 落盘内置 tini……"
+"$DAEMON_BIN" install-tini
 
 echo "==> 生成 FAQ 语言信息缓存……"
 "$DAEMON_BIN" langinfo --ojhome "$JUDGEHOME"

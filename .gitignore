@@ -6,6 +6,7 @@ hustoj
 hustoj-go
 tini/tini
 tini/tini-static
+pkg/tini/tini-static
 
 # make dist 产出的离线部署包
 dist/

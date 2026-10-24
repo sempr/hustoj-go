@@ -81,8 +81,17 @@ trap 'rm -rf "$TMP_DIR"' EXIT
 LOCAL_BIN="$TMP_DIR/hustoj"
 
 info "编译 $VERSION ($COMMIT) ..."
+# 内置 tini：静态产物由本机 gcc 编出，因此只有目标架构与本机一致时才内嵌。
+# 跨架构发布时不带 embed_tini，目标机需要另行分发对应架构的 tini。
+TAGS=()
+if [ "$GOARCH" = "$(go env GOARCH)" ]; then
+    (cd "$ROOT" && make -C tini static) || die "tini 构建失败"
+    TAGS=(-tags embed_tini)
+else
+    warn "目标架构 $GOARCH 与本机 $(go env GOARCH) 不同，本次不内嵌 tini"
+fi
 (cd "$ROOT" && CGO_ENABLED=0 GOOS=linux GOARCH="$GOARCH" \
-    go build -trimpath -ldflags "$LDFLAGS" -o "$LOCAL_BIN" .)
+    go build "${TAGS[@]}" -trimpath -ldflags "$LDFLAGS" -o "$LOCAL_BIN" .)
 
 info "本机二进制自检 ..."
 "$LOCAL_BIN" version
@@ -114,6 +123,11 @@ fi
 sudo install -m 0755 "$TMP_BIN" "$BIN"
 rm -f "$TMP_BIN"
 "$BIN" version
+
+# 落盘内置的 tini（md5 一致时自动跳过），省掉单独分发 /usr/local/bin/tini。
+if ! sudo "$BIN" install-tini; then
+    echo "警告: install-tini 失败（可能是未内嵌 tini 的跨架构构建）" >&2
+fi
 
 if [ "$LANGINFO" = "1" ]; then
     sudo "$BIN" langinfo --ojhome "$OJHOME"
