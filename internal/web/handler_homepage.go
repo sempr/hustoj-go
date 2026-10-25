@@ -17,6 +17,7 @@ package web
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"html/template"
 	"math"
 	"net/http"
@@ -182,10 +183,15 @@ func (s *Server) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 	// 本月之星
 	monthBoundary, err := s.queries().GetMonthStarBoundary(ctx)
-	if err != nil {
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		s.log.Error("查询本月之星边界失败", "err", err)
 		http.Error(w, "页面暂时不可用", http.StatusInternalServerError)
 		return
+	}
+	if errors.Is(err, sql.ErrNoRows) {
+		// 本月之前没有任何提交（全新库）：PHP 端把空结果当 0 处理，
+		// 排名从全部提交里统计。这里保持一致，不能让首页 500。
+		monthBoundary = 0
 	}
 	hiddenUsers := strings.Join(s.cfg.RankHidden, ",")
 	monthStars, err := s.queries().GetMonthStarRank(ctx, dbgen.GetMonthStarRankParams{

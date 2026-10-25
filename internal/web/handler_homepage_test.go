@@ -85,6 +85,21 @@ func TestIndexPage(t *testing.T) {
 	}
 }
 
+// 全新库还没有任何提交时，本月之星边界查询返回 sql.ErrNoRows。
+// PHP 把空结果当 0 处理，首页必须照常渲染，不能变成 500。
+func TestIndexPageWithoutSolutions(t *testing.T) {
+	f := &fakeQuerier{
+		monthStarBoundaryErr: sql.ErrNoRows,
+		newsList:             []dbgen.GetNewsListRow{},
+		chartDataAll:         []dbgen.GetChartDataAllRow{},
+		chartDataAC:          []dbgen.GetChartDataACRow{},
+	}
+	rec := doHomepage(t, f, nil, "", "/index.php", (*Server).handleIndex)
+	if rec.Code != http.StatusOK {
+		t.Errorf("status = %d, want 200", rec.Code)
+	}
+}
+
 func TestIndexPageWithOnSiteContest(t *testing.T) {
 	f := &fakeQuerier{}
 	rec := doHomepage(t, f, func(c *config.Config) {

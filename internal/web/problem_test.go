@@ -175,6 +175,9 @@ type fakeQuerier struct {
 	userByIDErr        error
 	userEmail          sql.NullString
 
+	// monthStarBoundaryErr 仅供 GetMonthStarBoundary 注入错误。
+	monthStarBoundaryErr error
+
 	// 题库列表的"比赛"列：题目与比赛的关联
 	problemContests []dbgen.ListProblemContestsRow
 
@@ -1277,6 +1280,9 @@ func (f *fakeQuerier) GetNoipContestIDs(_ context.Context, _ sql.NullString) ([]
 
 func (f *fakeQuerier) GetMonthStarBoundary(_ context.Context) (uint32, error) {
 	f.note("GetMonthStarBoundary")
+	if f.monthStarBoundaryErr != nil {
+		return 0, f.monthStarBoundaryErr
+	}
 	return 0, f.fail()
 }
 
