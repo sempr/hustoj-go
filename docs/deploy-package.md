@@ -47,6 +47,8 @@ hustoj-go-<version>-linux-<arch>/
 ├── demo/                       # 示例题库（5 题 + 演示比赛 + 预编译判题程序）
 ├── install.sh / uninstall.sh / init_db.sh / migrate.sh
 ├── prepare_env.sh /            # 目标机环境准备（MariaDB/Redis/Docker，见「二」）
+├── install_hustoj_go.sh        # 一键部署（系统依赖+DB+演示+12语言+nginx）
+├── ONECLICK.md                # 一键部署补充说明
 ├── VERSION / SHA256SUMS / README.md / LICENSE
 ```
 
@@ -54,6 +56,33 @@ hustoj-go-<version>-linux-<arch>/
 
 前置：MariaDB（沿用既有 HUSTOJ 库）、可选 Redis、Docker（仅判题语言运行时
 需要）、`www-data` 用户。
+
+### 一键部署（新机推荐）
+
+包内提供 `install_hustoj_go.sh`，完成系统依赖、数据库、admin 账号、示例题库、
+多语言判题运行时和 nginx 反代。默认 OJ 根目录为 `/srv/hustoj`：
+
+```bash
+tar -xzf hustoj-go-<version>-linux-amd64.tar.gz
+cd hustoj-go-<version>-linux-amd64
+sudo ./install_hustoj_go.sh --local
+```
+
+在解压目录内运行时会自动使用本地模式，不需要再指定 `--package`。默认安装
+C/C++/Pascal/Java/Bash/Python/PHP/Perl/C#/TypeScript/Go/Rust 共 12 种语言；
+可用 `--langs "0 1 6"` 只装其中几种。管理员密码写入 `/root/admin.pass.txt`
+（0600），完成后访问 `http://<IP>/`。完整选项、演示数据和排障说明见包内
+`ONECLICK.md`。
+
+也可以从构建机远程执行：
+
+```bash
+./install_hustoj_go.sh --target hustoj@10.80.1.12 \
+  --package dist/hustoj-go-<version>-linux-amd64.tar.gz
+```
+
+下面的 `prepare_env.sh` / `install.sh` 是更手工的分步部署方式，适合沿用已有
+数据库或需要自定义安装位置的环境。
 
 **全新目标机**可先用包内的 `prepare_env.sh` 装好并启动 MariaDB / Redis / Docker
 （Debian/Ubuntu + systemd；已装的会跳过，可重复执行）：

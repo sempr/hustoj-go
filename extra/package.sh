@@ -159,7 +159,12 @@ make_package() { # <goos> <goarch>
     cp "$SCRIPT_DIR/etc/langs/all.toml" "$dir/etc/langs/all.toml"
     cp "$SCRIPT_DIR/install.sh" "$SCRIPT_DIR/uninstall.sh" "$SCRIPT_DIR/init_db.sh" "$SCRIPT_DIR/migrate.sh" "$dir/"
     cp "$SCRIPT_DIR/prepare_env.sh" "$dir/"
-    chmod 0755 "$dir/install.sh" "$dir/uninstall.sh" "$dir/init_db.sh" "$dir/migrate.sh" "$dir/prepare_env.sh"
+    cp "$ROOT/install_hustoj_go.sh" "$dir/"
+    chmod 0755 "$dir/install.sh" "$dir/uninstall.sh" "$dir/init_db.sh" "$dir/migrate.sh" "$dir/prepare_env.sh" \
+               "$dir/install_hustoj_go.sh"
+    if [ -f "$ROOT/docs/oneclick-install.md" ]; then
+        cp "$ROOT/docs/oneclick-install.md" "$dir/ONECLICK.md"
+    fi
     info "  收集 schema（建表/触发器/种子）"
     mkdir -p "$dir/schema"
     cp "$ROOT/schema/schema.sql" "$ROOT/schema/triggers.sql" "$ROOT/schema/seed.sql" "$dir/schema/"

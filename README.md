@@ -41,8 +41,11 @@ make
 ### Installation
 
 > 生产环境推荐用**离线部署包**（目标机只需 Bash/systemd，无需 Go/GCC）：
-> `make dist` 产出 `dist/hustoj-go-<version>-linux-<arch>.tar.gz`，
-> 解压后 `sudo ./install.sh`。详见 `docs/deploy-package.md`。
+> `make dist` 产出 `dist/hustoj-go-<version>-linux-<arch>.tar.gz`。
+> 解压后可直接 `sudo ./install_hustoj_go.sh --local` 一键部署
+> （系统依赖 + 数据库 + admin + 示例题库 + 12 种语言 + nginx），
+> 或 `sudo ./install.sh` 做分步安装。详见 `docs/deploy-package.md`
+> 和 `docs/oneclick-install.md`。
 
 全新目标机可先用包内 `prepare_env.sh` 装好并启动 MariaDB / Redis / Docker
 （Debian/Ubuntu + systemd）：`sudo ./prepare_env.sh`，详见
