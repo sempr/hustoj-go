@@ -12,3 +12,6 @@ OJ_PORT_NUMBER=3306
 OJ_USER_NAME=hustoj
 OJ_PASSWORD=change-me
 OJ_DB_NAME=hustoj
+# 判题受理语言 id（逗号分隔）。安装语言运行时的 install_langs.sh 会按实际
+# 安装的 <id>.lang.toml 自动重写这一行；这里给默认的 C/C++/Python。
+OJ_LANG_SET=0,1,6

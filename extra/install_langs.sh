@@ -37,8 +37,37 @@ info "安装语言配置到 $OJHOME/etc/langs"
 mkdir -p "$OJHOME/etc/langs"
 cp -f "$SRC_DIR"/etc/langs/all.toml "$OJHOME/etc/langs/" 2>/dev/null || true
 cp -f "$SRC_DIR"/etc/langs/*.lang.toml "$OJHOME/etc/langs/"
+# 兼容旧版安装：早期 *.lang.toml 的 base 可能指向 Docker overlay2 镜像层。
+# 镜像层被清理后判题会报 "language rootfs not found"；统一改指拍平目录。
+for f in "$OJHOME"/etc/langs/*.lang.toml; do
+    [ -f "$f" ] || continue
+    id="$(basename "$f" .lang.toml)"
+    root="$OJHOME/var/rootfs/$id"
+    if [ -d "$root" ] && grep -q '^base *= *"/var/lib/docker/' "$f"; then
+        tmp="$(mktemp)"
+        sed "s|^base *=.*|base = \"$root\"|" "$f" > "$tmp"
+        install -m 0644 "$tmp" "$f"
+        rm -f "$tmp"
+        info "修正 $id.lang.toml 的 base -> $root"
+    fi
+done
 if id judge >/dev/null 2>&1; then
     chown judge:judge "$OJHOME/etc/langs"/*.toml 2>/dev/null || true
+fi
+
+# 判题守护进程要求 judge.conf 显式声明受理语言（不许回退默认值）。
+# 这里按实际安装的 <id>.lang.toml 生成，避免装完语言后 judged-go 起不来。
+lang_ids="$(for f in "$OJHOME"/etc/langs/*.lang.toml; do
+    [ -f "$f" ] || continue
+    basename "$f" .lang.toml
+done | sort -n | paste -sd, -)"
+if [ -n "$lang_ids" ] && [ -f "$OJHOME/etc/judge.conf" ]; then
+    tmp="$(mktemp)"
+    grep -v '^OJ_LANG_SET=' "$OJHOME/etc/judge.conf" > "$tmp" || true
+    printf 'OJ_LANG_SET=%s\n' "$lang_ids" >> "$tmp"
+    install -m 0600 "$tmp" "$OJHOME/etc/judge.conf"
+    rm -f "$tmp"
+    info "已更新 $OJHOME/etc/judge.conf 的 OJ_LANG_SET=$lang_ids"
 fi
 
 # 刷新 FAQ 语言信息缓存（best-effort）：让站点立即看到新装语言。

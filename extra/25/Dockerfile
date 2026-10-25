@@ -1,4 +1,7 @@
-FROM rust:1-slim
-RUN TOOLCHAIN=$(ls /usr/local/rustup/toolchains | head -n1) && \
-    ln -sf /usr/local/rustup/toolchains/$TOOLCHAIN/bin/rustc /usr/local/bin/rustc
+FROM debian:13-slim
 
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends rustc \
+    && rm -rf /var/lib/apt/lists/*
+RUN /usr/bin/ln -sf /usr/bin/rustc /usr/local/bin/rustc
