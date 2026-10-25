@@ -16,11 +16,17 @@
 
 另有一个演示比赛 `contest_id=1000`，把上面 5 题全部挂进去。
 
-## 演示提交：各种判罚
+## 演示提交：多语言 AC、部分分与各种判罚
 
-`solutions/` 下除了参考解，还放了一批"反例"程序，每个对应一种判罚结果。
-用 `seed_samples.sh` 把它们写成提交（进正常判题队列，判完由判题器回写），
-就能在 status.php 上看到各种判罚：
+`solutions/` 下有各语言的参考解和一批"反例"程序。`seed_samples.sh` 会写入：
+
+- **所有有代码语言的满分 AC**：1000~1004 每题每种已安装语言各一条，包括
+  C / C++ / Python / Go / Java / Pascal / Bash / PHP / Perl / C# /
+  TypeScript / Rust；
+- **部分分**：1001 的 `partial.c` / `partial.cpp` / `partial.py`，均得 30 分；
+- **捆绑测试 0 分**：1001 的 `bundle_partial.cpp`；
+- **SPJ 反例**：1002 的 `wa.cpp`，输出不是幻方，判 WA；
+- **各种非 AC 判罚**：PE / WA / TL / ML / OL / RE / CE 等。
 
 ```bash
 sudo ./demo/seed_samples.sh --ojhome /srv/hustoj --pid-base 1739 --user demo
@@ -28,6 +34,13 @@ sudo ./demo/seed_samples.sh --ojhome /srv/hustoj --pid-base 1739 --user demo
 
 | 项 | 解法 | 预期判罚 |
 | --- | --- | --- |
+| `ac_1000_{c,cpp,py,go,java}` | `1000-aplusb/solutions/ac.{c,cpp,py,go,java}` | 满分 AC（4） |
+| `ac_1001_{c,cpp,py}` | `1001-subtask/solutions/ac.{c,cpp,py}` | 满分 AC（4） |
+| `ac_1002_{c,cpp,py}` | `1002-spj-magic/solutions/ac.{c,cpp,py}` | 满分 AC（4，SPJ） |
+| `ac_1003_{c,cpp,py,java,go,pas,sh,php,pl,cs,ts,rs}` | `1003-interactive/solutions/ac.*` | 满分 AC（4，交互） |
+| `ac_1004_{c,cpp,py}` | `1004-fileio/solutions/ac.{c,cpp,py}` | 满分 AC（4，文件 IO） |
+| `partial_1001_{c,cpp,py}` | `1001-subtask/solutions/partial.{c,cpp,py}` | 部分分 **30/100**（`pass_rate=0.300`） |
+| `wa_1002` | `1002-spj-magic/solutions/wa.cpp` | SPJ 答案错误 WA(6)：按行输出 1..n²，不是幻方 |
 | `pe` | `1000-aplusb/solutions/pe.cpp` | 格式错误 PE(5)：答案对，行首多一个空格 |
 | `wa` | `1000-aplusb/solutions/wa.cpp` | 答案错误 WA(6)：答案大 1 |
 | `tl` | `1000-aplusb/solutions/tle.cpp` | 时间超限 TL(7)：死循环 |
@@ -46,6 +59,9 @@ sudo ./demo/seed_samples.sh --ojhome /srv/hustoj --pid-base 1739 --user demo
 - `--user` 指定的账号必须已存在；
 - 脚本写 `solution` / `source_code` / `source_code_user` 三张表，缺一张
   showsource.php 就会显示"没有可用代码"；
+- 脚本按「用户 + 题目 + 语言 + 源码」去重，可重复执行；重跑只会补装新增项，
+  确实要重复插入同一份代码时加 `--force`；
+- 没有对应 `<id>.lang.toml` 的语言会自动跳过，不会写入判题器跑不了的提交；
 - `ce.cpp` 故意编译不过，别拿它跑自检脚本；
 - 内存用量（`memory` 列）是 **cgroup 匿名内存峰值**：多进程程序算总和，
   不含沙箱 tmpfs 上的输出；核对方法见 `tests/memprobe/`。

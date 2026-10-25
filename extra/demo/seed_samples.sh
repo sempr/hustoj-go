@@ -14,6 +14,7 @@
 #                   已用 --auto-pid 装载过的题库继续用
 #   --user NAME     提交者账号（默认 demo；该账号必须已存在）
 #   --only LIST     只造列出的项（逗号/空格分隔），项名见下方 SEED_ITEMS
+#   --force         已存在同一条（用户+题目+语言+源码相同）也再次插入
 #   --dry-run       只打印将要执行的 SQL，不改库
 #   -h, --help      显示帮助
 #
@@ -33,6 +34,7 @@ CONF=""
 PID_BASE=1000
 USER_NAME=demo
 ONLY=""
+FORCE=0
 DRY=0
 
 info() { printf '==> %s\n' "$*"; }
@@ -47,6 +49,7 @@ while [ $# -gt 0 ]; do
         --pid-base) PID_BASE="$2"; shift 2 ;;
         --user)     USER_NAME="$2"; shift 2 ;;
         --only)     ONLY="$2"; shift 2 ;;
+        --force)    FORCE=1; shift ;;
         --dry-run)  DRY=1; shift ;;
         -h|--help)  usage; exit 0 ;;
         *)          die "未知参数: $1（用 --help 查看用法）" ;;
@@ -110,8 +113,9 @@ lang_id_by_name() { # <name>
     fi
     case "$name" in
         C) printf '0' ;; CPP) printf '1' ;; PASCAL) printf '2' ;; JAVA) printf '3' ;;
-        BASH) printf '5' ;; PYTHON) printf '6' ;; PHP) printf '7' ;; PERL) printf '8' ;;
-        CSHARP) printf '9' ;; GO) printf '16' ;; RUBY) printf '17' ;; *) return 1 ;;
+        RUBY) printf '4' ;; BASH) printf '5' ;; PYTHON) printf '6' ;; PHP) printf '7' ;;
+        PERL) printf '8' ;; CSHARP) printf '9' ;; JS) printf '16' ;; GO) printf '17' ;;
+        RUST) printf '25' ;; *) return 1 ;;
     esac
 }
 
@@ -120,16 +124,61 @@ lang_name_by_ext() { # <ext>
     case "$1" in
         c) printf 'C' ;; cpp|cc) printf 'CPP' ;; py) printf 'PYTHON' ;;
         java) printf 'JAVA' ;; go) printf 'GO' ;; rb) printf 'RUBY' ;;
+        pas) printf 'PASCAL' ;; sh) printf 'BASH' ;; php) printf 'PHP' ;;
+        pl) printf 'PERL' ;; cs) printf 'CSHARP' ;; ts) printf 'JS' ;;
+        rs) printf 'RUST' ;;
         *) return 1 ;;
     esac
+}
+
+# 语言是否真的安装了（有 <id>.lang.toml 才算）。没装的直接跳过，
+# 否则会写入判题器无法运行的提交，status 页只会出现失败的判罚。
+lang_installed() { # <id>
+    [ -f "$OJHOME/etc/langs/$1.lang.toml" ]
 }
 
 # ── 演示项 ────────────────────────────────────────────────────────────────
 # 格式：<项名>:<相对 problems/ 的解法文件>:<预期判罚>
 #
-# A+B（pid = PID_BASE）覆盖全部非 AC 判罚；子任务题（pid = PID_BASE+1）演示
-# 捆绑测试：同一子任务内只过一个测试点，整组不得分。
+# 覆盖：
+#   1) solutions/ 下所有语言的满分参考解（有代码就提交，包含 Go/Java/
+#      Pascal/Bash/PHP/Perl/C#/TypeScript/Rust）；
+#   2) 子任务题 1001 的部分分（C/C++/Python，均 30 分）与捆绑测试 0 分；
+#   3) SPJ 题 1002 的 WA 反例；
+#   4) A+B 的各类非 AC 判罚（PE/WA/TL/ML/OL/RE/CE 等）。
+# 未安装的语言由 lang_installed 跳过。
 SEED_ITEMS=(
+    "ac_1000_c:1000-aplusb/solutions/ac.c:满分 AC（C）"
+    "ac_1000_cpp:1000-aplusb/solutions/ac.cpp:满分 AC（C++）"
+    "ac_1000_py:1000-aplusb/solutions/ac.py:满分 AC（Python）"
+    "ac_1000_go:1000-aplusb/solutions/ac.go:满分 AC（Go）"
+    "ac_1000_java:1000-aplusb/solutions/ac.java:满分 AC（Java）"
+    "ac_1001_c:1001-subtask/solutions/ac.c:满分 AC（C）"
+    "ac_1001_cpp:1001-subtask/solutions/ac.cpp:满分 AC（C++）"
+    "ac_1001_py:1001-subtask/solutions/ac.py:满分 AC（Python）"
+    "ac_1002_c:1002-spj-magic/solutions/ac.c:满分 AC（C）"
+    "ac_1002_cpp:1002-spj-magic/solutions/ac.cpp:满分 AC（C++）"
+    "ac_1002_py:1002-spj-magic/solutions/ac.py:满分 AC（Python）"
+    "ac_1003_c:1003-interactive/solutions/ac.c:满分 AC（C，交互）"
+    "ac_1003_cpp:1003-interactive/solutions/ac.cpp:满分 AC（C++，交互）"
+    "ac_1003_py:1003-interactive/solutions/ac.py:满分 AC（Python，交互）"
+    "ac_1003_java:1003-interactive/solutions/ac.java:满分 AC（Java，交互）"
+    "ac_1003_go:1003-interactive/solutions/ac.go:满分 AC（Go，交互）"
+    "ac_1003_pas:1003-interactive/solutions/ac.pas:满分 AC（Pascal，交互）"
+    "ac_1003_sh:1003-interactive/solutions/ac.sh:满分 AC（Bash，交互）"
+    "ac_1003_php:1003-interactive/solutions/ac.php:满分 AC（PHP，交互）"
+    "ac_1003_pl:1003-interactive/solutions/ac.pl:满分 AC（Perl，交互）"
+    "ac_1003_cs:1003-interactive/solutions/ac.cs:满分 AC（C#，交互）"
+    "ac_1003_ts:1003-interactive/solutions/ac.ts:满分 AC（TypeScript，交互）"
+    "ac_1003_rs:1003-interactive/solutions/ac.rs:满分 AC（Rust，交互）"
+    "ac_1004_c:1004-fileio/solutions/ac.c:满分 AC（C，文件 IO）"
+    "ac_1004_cpp:1004-fileio/solutions/ac.cpp:满分 AC（C++，文件 IO）"
+    "ac_1004_py:1004-fileio/solutions/ac.py:满分 AC（Python，文件 IO）"
+    "partial_1001_c:1001-subtask/solutions/partial.c:部分分 30/100（C）"
+    "partial_1001_cpp:1001-subtask/solutions/partial.cpp:部分分 30/100（C++）"
+    "partial_1001_py:1001-subtask/solutions/partial.py:部分分 30/100（Python）"
+    "bundle:1001-subtask/solutions/bundle_partial.cpp:捆绑测试：同组只过一个 → 0 分"
+    "wa_1002:1002-spj-magic/solutions/wa.cpp:SPJ 答案错误 WA"
     "pe:1000-aplusb/solutions/pe.cpp:格式错误 PE"
     "wa:1000-aplusb/solutions/wa.cpp:答案错误 WA"
     "tl:1000-aplusb/solutions/tle.cpp:时间超限 TL"
@@ -139,7 +188,6 @@ SEED_ITEMS=(
     "ce:1000-aplusb/solutions/ce.cpp:编译错误 CE"
     "ml_first:1000-aplusb/solutions/mle_first.cpp:内存先超（内存+输出双超）"
     "ol_first:1000-aplusb/solutions/ole_first.cpp:输出先超（内存+输出双超）"
-    "bundle:1001-subtask/solutions/bundle_partial.cpp:捆绑测试：同组只过一个 → 0 分"
 )
 
 want_item() { # <name>
@@ -152,8 +200,11 @@ want_item() { # <name>
 # 某个解法文件属于哪道题：按 problems/<目录> 的序号偏移到 pid。
 pid_of_file() { # <相对路径>
     case "$1" in
-        1000-aplusb/*) printf '%s' "$PID_BASE" ;;
-        1001-subtask/*) printf '%s' "$(( PID_BASE + 1 ))" ;;
+        1000-aplusb/*)      printf '%s' "$PID_BASE" ;;
+        1001-subtask/*)     printf '%s' "$(( PID_BASE + 1 ))" ;;
+        1002-spj-magic/*)   printf '%s' "$(( PID_BASE + 2 ))" ;;
+        1003-interactive/*) printf '%s' "$(( PID_BASE + 3 ))" ;;
+        1004-fileio/*)      printf '%s' "$(( PID_BASE + 4 ))" ;;
         *) return 1 ;;
     esac
 }
@@ -183,6 +234,27 @@ for item in "${SEED_ITEMS[@]}"; do
     ext="${src##*.}"
     lang_name="$(lang_name_by_ext "$ext")" || die "未知扩展名: $src"
     lang="$(lang_id_by_name "$lang_name")" || die "语言注册表里没有 $lang_name（$src）"
+
+    if ! lang_installed "$lang"; then
+        info "$name：跳过（$lang_name 语言未安装，缺少 $OJHOME/etc/langs/$lang.lang.toml）"
+        continue
+    fi
+
+    # 幂等：同一用户、题目、语言且源码完全相同时不重复插入。
+    # 这样重跑脚本只会补装新增的示例提交（例如后来补上的多语言 AC/部分分）。
+    if [ "$DRY" -ne 1 ] && [ "$FORCE" -ne 1 ]; then
+        exists="$(mysql_scalar "SELECT COUNT(*)
+            FROM solution s
+            JOIN source_code sc ON sc.solution_id = s.solution_id
+            WHERE s.user_id = $(sqlq "$USER_NAME")
+              AND s.problem_id = $pid
+              AND s.language = $lang
+              AND sc.source = $(sqlfile "$src")")"
+        if [ "${exists:-0}" -gt 0 ]; then
+            info "$name：已存在相同提交，跳过"
+            continue
+        fi
+    fi
 
     info "$name → 题号 $pid，语言 $lang_name($lang)，预期 $expect"
 
