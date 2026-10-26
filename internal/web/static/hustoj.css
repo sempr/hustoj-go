@@ -1136,20 +1136,48 @@ a.ui.basic.label,
 
 /* ── 判题结果配色 ──────────────────────────────────────
  *
+ * 分类（按严重度/类型分色，便于一眼识别）：
+ * 1. 正确：ac —— 绿色
+ * 2. 答案/格式错误：wa/pe —— 红色
+ * 3. 资源/运行时超限：tle/mle/ole/re/rf/nzec/sig/ie —— 橙色（警告色）
+ * 4. 编译错误：ce —— 紫紫红（区别于运行时错）
+ * 5. 等待/进行中：waiting/compiling/running/judging —— 灰色
+ *
  * 必须带 :visited 变体，并用字面/变量色：结果格是链接，浏览器对已访问
  * 链接单独跑 :visited 级联，`.ac`（非 :visited 规则）压不过 Simple.css 的
  * a:visited{color:accent}，于是点过的"通过"会变成 accent 色。
  * `.ac:visited` 的优先级高于 `a:visited`，才能压回绿色。 */
 .ac, .ac:visited { color: var(--hustoj-ok); font-weight: 650; }
-.waiting, .waiting:visited, .compiling, .compiling:visited,
-.running, .running:visited, .judging, .judging:visited {
+
+/* 5. 等待/进行中：灰色 */
+.waiting, .waiting:visited,
+.compiling, .compiling:visited,
+.running, .running:visited,
+.judging, .judging:visited {
   color: var(--hustoj-muted);
 }
-.pe, .pe:visited, .wa, .wa:visited, .tle, .tle:visited,
-.mle, .mle:visited, .ole, .ole:visited, .re, .re:visited,
-.ce, .ce:visited, .rf, .rf:visited, .nzec, .nzec:visited,
-.sig, .sig:visited, .ie, .ie:visited {
+
+/* 2. 答案/格式错误：红色 */
+.pe, .pe:visited,
+.wa, .wa:visited {
   color: var(--hustoj-err);
+}
+
+/* 3. 资源/运行时超限：橙色警告色 */
+.tle, .tle:visited,
+.mle, .mle:visited,
+.ole, .ole:visited,
+.re, .re:visited,
+.rf, .rf:visited,
+.nzec, .nzec:visited,
+.sig, .sig:visited,
+.ie, .ie:visited {
+  color: var(--hustoj-warn);
+}
+
+/* 4. 编译错误：品牌色/紫红，区别于运行时错 */
+.ce, .ce:visited {
+  color: #7048e8;
 }
 
 /* ── 消息条 ───────────────────────────────────────────── */
