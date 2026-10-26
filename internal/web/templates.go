@@ -76,6 +76,7 @@ var templateFuncs = template.FuncMap{
 	"contestErrorTitle": contestErrorTitle,
 	"contestTypeName":   contestTypeName,
 	"csrfToken":         csrfToken,
+	"navActive":         navActive,
 	"judgeResultLabel":  judgeResultLabel,
 	"judgeResultClass":  judgeResultClass,
 	"languageName":      languageName,
@@ -212,6 +213,8 @@ const layoutTmpl = `
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="light dark">
+<meta name="theme-color" content="#3b5bdb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f141c" media="(prefers-color-scheme: dark)">
 <link rel="stylesheet" href="{{asset "/assets/simple.min.css"}}">
 <link rel="stylesheet" href="{{asset "/assets/hustoj.css"}}">
 {{/* KaTeX：题面/新闻里的公式是服务端预渲染好的（同时含 .katex-mathml 与
@@ -225,38 +228,77 @@ const layoutTmpl = `
 {{template "siteHeader" .Nav}}
 {{if .Nav.Admin}}{{template "adminNav" .Nav.Admin}}{{end}}
 <main>
-<h1>{{.Title}}</h1>
+<div class="page-head"><h1>{{.Title}}</h1></div>
 {{.Content}}
 </main>
+{{template "siteFooter" .Nav}}
 </body>
 </html>
 {{end}}`
 
 const pageContentTmpls = `
 {{/* siteHeader 是站点导航头，对应 template/syzoj/header.php 的固定菜单。
-     无外部 CSS，用内联样式保证可用；登录态来自 .Nav。 */}}
-{{define "siteHeader"}}<div class="site-header" style="border-bottom:1px solid #ddd;padding:8px 16px;margin-bottom:12px;font-size:14px;">
-<a href="/" style="font-weight:600;margin-right:16px;text-decoration:none;">{{.OJName}}</a>
-<a href="/problemset.php" style="margin-right:12px;text-decoration:none;">题目</a>
-<a href="/category.php" style="margin-right:12px;text-decoration:none;">来源</a>
-<a href="/contest.php{{if .LoggedIn}}?my{{end}}" style="margin-right:12px;text-decoration:none;">竞赛</a>
-<a href="/status.php" style="margin-right:12px;text-decoration:none;">状态</a>
-<a href="/ranklist.php" style="margin-right:12px;text-decoration:none;">排名</a>
-<a href="/faqs.php" style="margin-right:12px;text-decoration:none;">常见问答</a>
-{{if .CID}}<a href="/contest.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">赛题</a><a href="/status.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">比赛状态</a><a href="/contestrank.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">比赛排名</a><a href="/contestrank-oi.php?cid={{.CID}}" style="margin-right:12px;text-decoration:none;">OI 排名</a>{{end}}
-<span style="float:right;">
-{{if .LoggedIn}}<a href="/userinfo.php?user={{.UserID}}" style="margin-right:12px;text-decoration:none;">{{.UserID}}{{if .Nick}}（{{.Nick}}）{{end}}</a><a href="/modifypage.php" style="margin-right:12px;text-decoration:none;">修改资料</a><a href="/portal.php" style="margin-right:12px;text-decoration:none;">待办</a>{{if .IsAdmin}}<a href="/admin/index.php" style="margin-right:12px;text-decoration:none;">后台管理</a>{{end}}<a href="/logout.php" style="text-decoration:none;">退出</a>
-{{else}}<a href="/loginpage.php" style="margin-right:12px;text-decoration:none;">登录</a>{{if .ShowRegister}}<a href="/registerpage.php" style="text-decoration:none;">注册</a>{{end}}
-{{end}}</span>
+     结构与配色全部交给 hustoj.css（.site-header / .site-nav / .site-user），
+     模板里不再写内联样式；当前页由 navActive 标记 aria-current。 */}}
+{{define "siteHeader"}}<header class="site-header">
+<div class="site-header-inner">
+<a class="site-brand" href="/" aria-label="{{.OJName}} 首页">
+<span class="site-brand-mark">OJ</span>
+<span class="site-brand-name">{{.OJName}}</span>
+</a>
+<nav class="site-nav" aria-label="主导航">
+<a href="/problemset.php"{{if navActive .Path "/problemset.php"}} class="current" aria-current="page"{{end}}>题目</a>
+<a href="/category.php"{{if navActive .Path "/category.php"}} class="current" aria-current="page"{{end}}>来源</a>
+<a href="/contest.php{{if .LoggedIn}}?my{{end}}"{{if navActive .Path "/contest.php"}} class="current" aria-current="page"{{end}}>竞赛</a>
+<a href="/status.php"{{if navActive .Path "/status.php"}} class="current" aria-current="page"{{end}}>状态</a>
+<a href="/ranklist.php"{{if navActive .Path "/ranklist.php"}} class="current" aria-current="page"{{end}}>排名</a>
+<a href="/faqs.php"{{if navActive .Path "/faqs.php"}} class="current" aria-current="page"{{end}}>常见问答</a>
+</nav>
+<div class="site-user">
+{{if .LoggedIn}}
+<a class="site-user-name" href="/userinfo.php?user={{.UserID}}"><span class="site-user-dot" aria-hidden="true"></span>{{.UserID}}{{if .Nick}}<span class="site-user-nick">（{{.Nick}}）</span>{{end}}</a>
+<a href="/portal.php">待办</a>
+<a href="/modifypage.php">修改资料</a>
+{{if .IsAdmin}}<a href="/admin/index.php">后台</a>{{end}}
+<a class="site-logout" href="/logout.php">退出</a>
+{{else}}
+<a href="/loginpage.php">登录</a>
+{{if .ShowRegister}}<a class="site-register" href="/registerpage.php">注册</a>{{end}}
+{{end}}
 </div>
+</div>
+{{if .CID}}<nav class="site-subnav" aria-label="比赛导航">
+<span class="site-subnav-label">比赛 #{{.CID}}</span>
+<a href="/contest.php?cid={{.CID}}">赛题</a>
+<a href="/status.php?cid={{.CID}}">比赛状态</a>
+<a href="/contestrank.php?cid={{.CID}}">比赛排名</a>
+<a href="/contestrank-oi.php?cid={{.CID}}">OI 排名</a>
+</nav>{{end}}
+</header>
+{{end}}
+
+{{/* siteFooter 是页面底栏：站点名 + 常用入口 + 技术栈说明。 */}}
+{{define "siteFooter"}}<footer class="site-footer">
+<div class="site-footer-inner">
+<span class="site-footer-brand">{{.OJName}}</span>
+<nav class="site-footer-nav" aria-label="页脚导航">
+<a href="/problemset.php">题库</a>
+<a href="/contest.php">竞赛</a>
+<a href="/status.php">状态</a>
+<a href="/ranklist.php">排名</a>
+<a href="/faqs.php">帮助</a>
+</nav>
+<span class="site-footer-note">Powered by HUSTOJ-Go</span>
+</div>
+</footer>
 {{end}}
 
 {{/* adminNav 是后台导航条：/admin/ 下的所有页面在公共导航下方显示一条，
      按角色列出可用功能。取代原先 frameset + menu.php(target=main) 的做法——
      frameset 嵌进普通 <main> 里会被浏览器忽略，页面因此空白。 */}}
 {{define "adminNav"}}
-<nav class="admin-nav" style="border:1px solid var(--border,#ddd);border-radius:6px;padding:.5rem .75rem;margin:0 0 1rem;display:flex;flex-wrap:wrap;gap:.25rem .9rem;align-items:center;">
-<a href="/admin/index.php" style="font-weight:600;">后台首页</a>
+<nav class="admin-nav" aria-label="后台导航">
+<a class="admin-nav-home" href="/admin/index.php">后台首页</a>
 {{if or .IsAdmin .IsProblemEditor .IsContestCreator}}<a href="/admin/problem_list.php">题目列表</a>{{end}}
 {{if or .IsAdmin .IsProblemEditor}}<a href="/admin/problem_add_page.php">添加题目</a><a href="/admin/problem_export.php">导出题目</a><a href="/admin/problem_copy.php">复制题目</a>{{end}}
 {{if or .IsAdmin .IsContestCreator}}<a href="/admin/contest_list.php">比赛列表</a><a href="/admin/contest_add.php">添加比赛</a>{{end}}
@@ -323,7 +365,7 @@ const pageContentTmpls = `
    Description 以 Markdown 存、后台转 HTML 输出，其余字段仍按 PHP 行为
    原样输出（富文本）。数学定界符留到 HTML 文本里由浏览器端 KaTeX
    auto-render 渲染。Defunct='Y' 的题目只给提示，不展示任何内容。 */}}
-{{define "problemDetail"}}<div class="ui container">
+{{define "problemDetail"}}<div class="ui container problem-detail">
 {{if .Contest}}<div class="ui message">
 本题目来自比赛 <a href="contest.php?cid={{.Contest.CID}}">{{.Contest.Title}}</a> 第 {{.Contest.PID}} 题
 </div>{{end}}
@@ -333,12 +375,12 @@ const pageContentTmpls = `
 <div class="ui warning message">该题目已被删除或尚未公开</div>
 {{else}}
 {{/* 时限/内存（含 Special Judge）排成一行，放在描述上方、命题人下方。 */}}
-<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0;">
+<div class="problem-meta">
 <span class="ui label">Time Limit：{{trimFloat .TimeLimit}} 秒</span>
 <span class="ui label">Memory Limit：{{.MemoryLimit}} KB</span>
 {{if .SPJ}}<span class="ui label">Special Judge：{{.SPJ}}</span>{{end}}
 </div>
-<div style="display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0;">
+<div class="problem-meta">
 <span class="ui label">提交：{{if .StatsHidden}}?{{else}}{{if .SubmitStat.Valid}}{{.SubmitStat.Int32}}{{else}}0{{end}}{{end}}</span>
 <span class="ui label">通过：{{if .StatsHidden}}?{{else}}{{if .AcceptedStat.Valid}}{{.AcceptedStat.Int32}}{{else}}0{{end}}{{end}}</span>
 </div>
@@ -350,8 +392,10 @@ const pageContentTmpls = `
 {{if .Description}}<div class="problem-description md-body">{{markdown .Description}}</div>{{end}}
 {{if .Input}}<h3 class="ui header">输入</h3><div class="md-body">{{markdown .Input}}</div>{{end}}
 {{if .Output}}<h3 class="ui header">输出</h3><div class="md-body">{{markdown .Output}}</div>{{end}}
-{{if .SampleInput.Valid}}<h3 class="ui header">样例输入</h3><pre>{{.SampleInput.String}}</pre>{{end}}
-{{if .SampleOutput.Valid}}<h3 class="ui header">样例输出</h3><pre>{{.SampleOutput.String}}</pre>{{end}}
+{{if or .SampleInput.Valid .SampleOutput.Valid}}<div class="sample-grid">
+{{if .SampleInput.Valid}}<div class="sample-card"><h4>样例输入</h4><pre>{{.SampleInput.String}}</pre></div>{{end}}
+{{if .SampleOutput.Valid}}<div class="sample-card"><h4>样例输出</h4><pre>{{.SampleOutput.String}}</pre></div>{{end}}
+</div>{{end}}
 {{if .Hint}}{{if not .HintHidden}}<h3 class="ui header">提示</h3><div class="md-body">{{markdown .Hint}}</div>{{end}}{{end}}
 {{if .Source.Valid}}<h3 class="ui header">来源</h3><div>{{.Source.String}}</div>{{end}}
 {{template "problemActions" .}}
@@ -433,15 +477,16 @@ alert({{.Message}});
 history.go(-1);
 </script>{{end}}
 
-{{define "submitPage"}}<center>
+{{define "submitPage"}}<div class="submit-page">
 <form id="frmSolution" action="submit.php{{if .Ajax}}?ajax{{end}}" method="post" enctype="multipart/form-data">
 <input type="hidden" name="csrf_token" value="{{csrfToken .Token}}">
+<div class="submit-meta">
 {{if .IsContest}}
 Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contest <span class="blue"><b>{{.ContestID}}</b></span>
 <input id="cid" type="hidden" value="{{.ContestID}}" name="cid">
 <input id="pid" type="hidden" value="{{.Num}}" name="pid">
 {{else}}
-<span style="color:#0000ff">Problem <b>{{.ProblemID}}</b></span>
+<span class="text-primary">Problem <b>{{.ProblemID}}</b></span>
 <input id="problem_id" type="hidden" value="{{.ProblemID}}" name="id">
 {{end}}
 <span id="language_span">Language:
@@ -451,11 +496,11 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 {{end}}
 </select>
 </span>
-<textarea cols="180" rows="20" id="source" name="source" style="width:80%; height:600px;"></textarea>
-<input type="submit" value="Submit" class="ui button">
+</div>
+<textarea cols="180" rows="20" id="source" name="source"></textarea>
+<button type="submit" class="ui primary button">Submit</button>
 </form>
-</center>
-{{end}}
+</div>{{end}}
 
 
 {{define "contestList"}}
@@ -567,8 +612,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <p><a href="javascript:history.go(-1)">{{msgBack}}</a></p>
 </div></div>{{end}}
 
-{{define "loginForm"}}<div style="max-width: 420px; margin: 3rem auto;">
-<h2 style="text-align:center;">登录</h2>
+{{define "loginForm"}}<div class="auth-card">
 <form action="/login.php" method="post">
 {{template "vcodeField" .}}
 <label>用户名
@@ -583,8 +627,7 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 <p class="center"><a href="/registerpage.php">注册</a> | <a href="/lostpassword.php">忘记密码</a></p>
 </div>{{end}}
 
-{{define "registerForm"}}<div class="ui container" style="max-width: 450px; margin-top: 50px;">
-<h2>注册</h2>
+{{define "registerForm"}}<div class="ui container auth-card">
 <form class="ui form" action="/register.php" method="post">
 {{template "vcodeField" .}}
 <div class="field"><label>用户名</label><input name="user_id" placeholder="用户名" type="text" autocomplete="username" required></div>
@@ -809,11 +852,11 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 
 {{define "contestRank"}}
 <div style="margin-bottom:40px;" class="padding">
-<h1 style="text-align:left;">Contest{{.CID}} - {{.Title}}
+<h2 class="rank-title">Contest{{.CID}} - {{.Title}}
 <a class="ui small blue button" href="contestrank.xls.php?cid={{.CID}}">下载</a>
 <a class="ui small green button" href="contestrank4.php?cid={{.CID}}">复盘</a>
 <button class="ui small yellow button" onclick='$("tr[class!=active]").toggle();'>显示/隐藏</button>
-</h1>
+</h2>
 {{if .Locked}}<div class="ui info message">The board has been locked.</div>{{end}}
 </div>
 <div id="rankdiv" class="padding">
@@ -839,11 +882,11 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 
 {{define "contestRankOI"}}
 <div style="margin-bottom:40px;" class="padding">
-<h1 style="text-align:left;">Contest{{.CID}} -- {{.Title}}
+<h2 class="rank-title">Contest{{.CID}} -- {{.Title}}
 <a class="ui small blue button" href="contestrank-oi.php?spa&amp;down&amp;cid={{.CID}}">下载</a>
 <a class="ui small green button" href="contestrank5.php?cid={{.CID}}">复盘</a>
 <button class="ui small yellow button" onclick='$("tr[class!=active]").toggle();'>显示/隐藏</button>
-</h1>
+</h2>
 {{if .Locked}}<div class="ui info message">The board has been locked.</div>{{end}}
 </div>
 <div id="rankdiv" class="padding">
@@ -876,10 +919,10 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
    3. 没有"缺席"区块 —— 部署版补题榜不查缺席名单。 */}}
 {{define "contestRankReviewACM"}}
 <div style="margin-bottom:40px;" class="padding">
-<h1 style="text-align:left;">Contest{{.CID}} - {{.Title}} - 补题榜
+<h2 class="rank-title">Contest{{.CID}} - {{.Title}} - 补题榜
 <button class="ui small yellow button" onclick='$("tr[class!=active]").toggle();'>显示/隐藏</button>
 <a class="ui small blue button" href="{{.BackURL}}">返回</a>
-</h1>
+</h2>
 {{if .Locked}}<div class="ui info message">The board has been locked.</div>{{end}}
 </div>
 <div id="rankdiv" class="padding">
@@ -896,10 +939,10 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 
 {{define "contestRankReviewOI"}}
 <div style="margin-bottom:40px;" class="padding">
-<h1 style="text-align:left;">Contest{{.CID}} -- {{.Title}} -- 补题榜
+<h2 class="rank-title">Contest{{.CID}} -- {{.Title}} -- 补题榜
 <button class="ui small yellow button" onclick='$("tr[class!=active]").toggle();'>显示/隐藏</button>
 <a class="ui small blue button" href="{{.BackURL}}">返回</a>
-</h1>
+</h2>
 {{if .Locked}}<div class="ui info message">The board has been locked.</div>{{end}}
 </div>
 <div id="rankdiv" class="padding">
@@ -1185,6 +1228,7 @@ document.addEventListener("DOMContentLoaded", function () {
 <div class="field"><i class="search icon"></i><input name="group_name" placeholder="{{msgGroupName}}" type="text" value="{{.GroupName}}"><button class="ui mini button" type="submit">{{msgSearch}}</button></div>
 </form>
 </div>
+<div class="ranklist-table-wrap">
 <table id="ranklist-tab" class="ui very basic center aligned table">
 <colgroup>
 <col style="width: 7%">
@@ -1219,6 +1263,7 @@ document.addEventListener("DOMContentLoaded", function () {
 {{end}}
 </tbody>
 </table>
+</div>
 <br>
 <div style="margin-bottom: 30px;">
 <div style="text-align: center;">
@@ -1342,9 +1387,15 @@ document.addEventListener("DOMContentLoaded", function () {
 (function() {
   var all = {{.ChartDataAll}};
   var ac = {{.ChartDataAC}};
-  if (typeof echarts === 'undefined') return;
   var el = document.getElementById('submission');
   if (!el) return;
+  if (typeof echarts === 'undefined' || !all.length) {
+    el.classList.add('chart-empty');
+    el.style.height = 'auto';
+    el.style.minHeight = '6rem';
+    el.innerHTML = '<div class="chart-empty">暂无提交趋势数据</div>';
+    return;
+  }
   var chart = echarts.init(el);
   var option = {
     tooltip: { trigger: 'axis', formatter: '{b0}({a0}): {c0}<br />{b1}({a1}): {c1}' },
@@ -1422,12 +1473,11 @@ document.addEventListener("DOMContentLoaded", function () {
 {{/* viewNewsPage 是新闻详情页，对应 template/syzoj/viewnews.php。 */}}
 {{define "viewNewsPage"}}
 <div class="padding">
-<h1>{{.NewsTitle}}</h1>
-<p style="margin-bottom: 5px;">
-<b style="margin-right: 30px;"><i class="edit icon"></i><a class="black-link" href="userinfo.php?user={{.NewsWriter}}"> {{.NewsWriter}}</a></b>
-<b style="margin-right: 30px;"><i class="calendar icon"></i> {{.NewsDate}}</b>
+<p class="news-meta">
+<b><i class="edit icon"></i><a class="black-link" href="userinfo.php?user={{.NewsWriter}}"> {{.NewsWriter}}</a></b>
+<b><i class="calendar icon"></i> {{.NewsDate}}</b>
 </p>
-<div class="ui existing segment" style="overflow-y:overlay;">
+<div class="ui existing segment">
 <div id="content" class="font-content md-body">{{.NewsContent}}</div>
 </div>
 </div>
@@ -1557,6 +1607,7 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 {{define "adminDashboard"}}
 <p>请选择要使用的功能（也可使用上方后台导航）。</p>
 
+<div class="admin-sections">
 <div class="sidebar-section">
 <h3>新闻管理</h3>
 <ul>
@@ -1624,6 +1675,7 @@ MathJax = { tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] } };
 </ul>
 </div>
 {{end}}
+</div>
 {{end}}
 
 {{/* adminIndexPage 是后台首页，对应 admin/index.php。 */}}
@@ -2761,7 +2813,6 @@ $(document).ready(function() { update(); window.setInterval(update, 2000); });
 {{/* categoryPage 对应 category.php：来源标签云，点击跳 problemset.php?search=<标签>。 */}}
 {{define "categoryPage"}}
 <div class="padding">
-<h1 style="margin-left:10px;display:inline-block;">{{.Title}}</h1>
 <div class="ui existing segment" style="word-wrap:break-word;">
 {{range .Categories}}<a class="ui label {{.Theme}}" style="display:inline-block;margin:5px" href="{{.Href}}">{{.Label}}</a>{{else}}<h3>No Category Now!</h3>{{end}}
 </div>
@@ -2978,6 +3029,8 @@ type navVM struct {
 	IsAdmin      bool
 	ShowRegister bool
 	CID          int32
+	// Path 是当前请求路径，供导航高亮当前栏目。
+	Path string
 
 	// Admin 非空时，布局在公共导航下方再渲染一条后台导航条。
 	// 只在 /admin/ 下的页面、且当前身份有后台权限时设置。
@@ -2995,6 +3048,7 @@ func (s *Server) buildNav(w http.ResponseWriter, r *http.Request) navVM {
 		IsAdmin:      id.Admin || id.ContestCreator || id.ProblemEditor,
 		ShowRegister: s.cfg.Register,
 		CID:          int32(parseInt(r.URL.Query().Get("cid"))),
+		Path:         r.URL.Path,
 	}
 	// 后台页面（/admin/...）补一条后台导航，免去逐个页面自己维护菜单。
 	if strings.HasPrefix(r.URL.Path, "/admin/") && s.hasAdminPrivilege(id) {
@@ -3007,6 +3061,34 @@ func (s *Server) buildNav(w http.ResponseWriter, r *http.Request) navVM {
 		}
 	}
 	return nav
+}
+
+// navActive 判断当前路径是否属于某个导航栏目。
+//
+// 只做路径归组，不关心查询串：contest.php?my 与 contest.php 都算"竞赛"，
+// 题面/提交/统计等题目子页统一算"题目"。
+func navActive(path, href string) bool {
+	if path == "" {
+		return false
+	}
+	switch href {
+	case "/problemset.php":
+		switch path {
+		case "/problemset.php", "/problem.php", "/problemstatus.php", "/submitpage.php":
+			return true
+		}
+	case "/contest.php":
+		return path == "/contest.php" || path == "/contestset.php"
+	case "/status.php":
+		return path == "/status.php"
+	case "/ranklist.php":
+		return path == "/ranklist.php"
+	case "/category.php":
+		return path == "/category.php"
+	case "/faqs.php":
+		return path == "/faqs.php"
+	}
+	return path == href
 }
 
 // renderPage 渲染具名页面模板并套上外壳（含站点导航头），写出响应。

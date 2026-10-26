@@ -1,175 +1,1802 @@
-/* HUSTOJ Go 版覆盖样式（配合 Simple.css）。
+/* HUSTOJ Go 版主题样式（配合 Simple.css）。
  *
- * Simple.css 负责基础排版/表格/表单/按钮；这里把模板里既有的
- * Semantic UI / Bootstrap 方言类名补齐成组件外观，并把内容栏放宽到
- * 适合判题站宽表格的宽度。
+ * 设计思路：
+ *   1. 顶部 :root 集中定义颜色、圆角、阴影、间距等设计令牌，
+ *      亮色/暗色各一套（暗色跟随系统，不引入 JS）。
+ *   2. 补齐模板里沿用的 Semantic UI / Bootstrap 方言类名
+ *      （grid/column、segment、table 变体、form、btn-* 等），
+ *      让旧模板不用大改也能得到统一外观。
+ *   3. 页面级只做少量精修：状态页、榜单、题面、提交、登录、后台。
  *
- * 颜色集中在下面几个变量里，便于统一调色。 */
+ * 维护提示：模板大量使用 :visited 链接，浏览器对已访问链接单独跑一遍
+ * 级联，自定义颜色的组件必须同时声明 .xxx:visited，否则会被 Simple.css
+ * 的 a:visited 染成 accent 色。 */
 
 :root {
-  --hustoj-ok: #1a7f37;
-  --hustoj-err: #cf222e;
-  --hustoj-warn: #9a6700;
-  --hustoj-info: #0969da;
-  --hustoj-teal: #0a7f8a;
-  --hustoj-muted: #6e7781;
+  /* ── 品牌与语义色（亮色）──────────────────────────── */
+  --hustoj-accent: #3b5bdb;
+  --hustoj-accent-hover: #2f4bc4;
+  --hustoj-accent-soft: rgba(59, 91, 219, 0.09);
+  --hustoj-on-accent: #ffffff;
+  --hustoj-ok: #15803d;
+  --hustoj-ok-soft: rgba(21, 128, 61, 0.12);
+  --hustoj-err: #d1242f;
+  --hustoj-err-soft: rgba(209, 36, 47, 0.1);
+  --hustoj-warn: #b45309;
+  --hustoj-warn-soft: rgba(180, 83, 9, 0.12);
+  --hustoj-info: #0b6bcb;
+  --hustoj-info-soft: rgba(11, 107, 203, 0.1);
+  --hustoj-teal: #0f766e;
+  --hustoj-teal-soft: rgba(15, 118, 110, 0.12);
+  --hustoj-muted: #667085;
+
+  /* ── 表面与文字（亮色）────────────────────────────── */
+  --hustoj-page: #f4f6fb;
+  --hustoj-surface: #ffffff;
+  --hustoj-surface-2: #f7f9fc;
+  --hustoj-surface-3: #eef2f9;
+  --hustoj-text: #1f2430;
+  --hustoj-text-soft: #3f4859;
+  --hustoj-border: #dfe4ee;
+  --hustoj-border-strong: #c9d1e0;
+
+  /* ── 形状与阴影 ───────────────────────────────────── */
+  --hustoj-radius-sm: 8px;
+  --hustoj-radius: 10px;
+  --hustoj-radius-lg: 14px;
+  --hustoj-shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --hustoj-shadow: 0 1px 2px rgba(16, 24, 40, 0.04), 0 8px 24px rgba(16, 24, 40, 0.06);
+  --hustoj-shadow-pop: 0 12px 32px rgba(16, 24, 40, 0.14);
   --hustoj-badge-radius: 999px;
-  --hustoj-border: var(--border, #ccc);
-  --hustoj-radius: var(--standard-border-radius, 5px);
-  --hustoj-accent: var(--accent, #4157ac);
+  --hustoj-header-h: 4.5rem;
+
+  /* ── 字体 ─────────────────────────────────────────── */
+  --hustoj-font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Noto Sans SC",
+    "Microsoft YaHei", Arial, sans-serif;
+  --hustoj-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo,
+    "Courier New", monospace;
+
+  /* ── 覆盖 Simple.css 的基础变量，让链接/按钮同色 ──── */
+  --bg: var(--hustoj-page);
+  --text: var(--hustoj-text);
+  --text-light: var(--hustoj-muted);
+  --accent: var(--hustoj-accent);
+  --accent-hover: var(--hustoj-accent-hover);
+  --accent-bg: var(--hustoj-surface-2);
+  --border: var(--hustoj-border);
+  --standard-border-radius: var(--hustoj-radius);
+
+  color-scheme: light dark;
 }
 
-/* Simple.css 默认中间栏宽 min(45rem,90%)（约 720px），对宽表格偏窄。
- * 桌面端放宽；小屏沿用 Simple 自身的单列布局。 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --hustoj-accent: #7c9aff;
+    --hustoj-accent-hover: #9ab0ff;
+    --hustoj-accent-soft: rgba(124, 154, 255, 0.16);
+    --hustoj-on-accent: #0b1020;
+    --hustoj-ok: #4ade80;
+    --hustoj-ok-soft: rgba(74, 222, 128, 0.14);
+    --hustoj-err: #f87171;
+    --hustoj-err-soft: rgba(248, 113, 113, 0.15);
+    --hustoj-warn: #fbbf24;
+    --hustoj-warn-soft: rgba(251, 191, 36, 0.15);
+    --hustoj-info: #60a5fa;
+    --hustoj-info-soft: rgba(96, 165, 250, 0.15);
+    --hustoj-teal: #2dd4bf;
+    --hustoj-teal-soft: rgba(45, 212, 191, 0.15);
+    --hustoj-muted: #9aa6b8;
+
+    --hustoj-page: #0f141c;
+    --hustoj-surface: #171e28;
+    --hustoj-surface-2: #1d2532;
+    --hustoj-surface-3: #232c3b;
+    --hustoj-text: #e6eaf2;
+    --hustoj-text-soft: #c4ccda;
+    --hustoj-border: #2a3442;
+    --hustoj-border-strong: #3a4656;
+
+    --hustoj-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --hustoj-shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 10px 28px rgba(0, 0, 0, 0.45);
+    --hustoj-shadow-pop: 0 14px 36px rgba(0, 0, 0, 0.6);
+  }
+}
+
+/* ── 基础排版 ─────────────────────────────────────────── */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  grid-template-columns: 1fr min(92rem, 94%) 1fr;
+  font-family: var(--hustoj-font);
+  font-size: 1rem;
+  line-height: 1.6;
+  color: var(--hustoj-text);
+  background-color: var(--hustoj-page);
+  background-image: radial-gradient(
+    1000px 420px at 50% -10%,
+    var(--hustoj-accent-soft),
+    transparent 70%
+  );
+  background-repeat: no-repeat;
+  min-height: 100vh;
+  align-content: start;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  line-height: 1.28;
+  letter-spacing: -0.01em;
+  color: var(--hustoj-text);
+}
+
+h1 {
+  font-size: 2rem;
+  font-weight: 700;
+  margin: 0.2rem 0 1.25rem;
+}
+
+h2 {
+  font-size: 1.45rem;
+  font-weight: 650;
+  margin: 2rem 0 1rem;
+}
+
+h3 {
+  font-size: 1.15rem;
+  font-weight: 650;
+  margin: 1.6rem 0 0.7rem;
+}
+
+h4 {
+  font-size: 1rem;
+  font-weight: 650;
+  margin: 1.2rem 0 0.6rem;
+}
+
+p {
+  margin: 0.85rem 0;
+}
+
+hr {
+  border: 0;
+  height: 1px;
+  margin: 1.75rem 0;
+  background: var(--hustoj-border);
+}
+
+code, pre, kbd, samp {
+  font-family: var(--hustoj-mono);
+}
+
+::selection {
+  background: var(--hustoj-accent-soft);
+}
+
+:focus-visible {
+  outline: 2px solid var(--hustoj-accent);
+  outline-offset: 2px;
+}
+
+main {
+  padding: 1.5rem 0 3rem;
+  min-width: 0;
+  min-height: calc(100vh - 9rem);
+}
+
+.page-head h1 {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.page-head h1::before {
+  content: "";
+  width: 4px;
+  height: 1.15em;
+  border-radius: 99px;
+  background: linear-gradient(180deg, var(--hustoj-accent), var(--hustoj-teal));
+}
+
 @media only screen and (width > 720px) {
-  body { grid-template-columns: 1fr min(85rem, 95%) 1fr; }
+  body {
+    grid-template-columns: 1fr min(92rem, 94%) 1fr;
+  }
+}
+
+/* ── 站点外壳：导航头 ─────────────────────────────────── */
+.site-header {
+  grid-column: 1 / -1;
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 0;
+  text-align: left;
+  background: var(--hustoj-surface);
+  border-bottom: 1px solid var(--hustoj-border);
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+@supports (backdrop-filter: blur(8px)) {
+  .site-header {
+    background: color-mix(in srgb, var(--hustoj-surface) 86%, transparent);
+    backdrop-filter: blur(12px) saturate(140%);
+  }
+}
+
+.site-header-inner {
+  max-width: 92rem;
+  margin: 0 auto;
+  padding: 0.5rem clamp(1rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.1rem;
+}
+
+.site-header > .site-header-inner {
+  margin-block-start: 0;
+}
+
+.site-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  text-decoration: none;
+  color: var(--hustoj-text);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+}
+
+.site-brand:hover {
+  text-decoration: none;
+}
+
+.site-brand-mark {
+  display: inline-grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border-radius: 9px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--hustoj-on-accent);
+  background: linear-gradient(135deg, var(--hustoj-accent), var(--hustoj-teal));
+  box-shadow: 0 4px 12px var(--hustoj-accent-soft);
+}
+
+.site-brand-name {
+  max-width: 16rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.site-nav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.1rem;
+  padding: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.site-nav a {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border: 0;
+  border-radius: var(--hustoj-radius-sm);
+  color: var(--hustoj-text-soft);
+  font-size: 0.92rem;
+  font-weight: 550;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.site-nav a:hover {
+  background: var(--hustoj-surface-3);
+  color: var(--hustoj-text);
+  text-decoration: none;
+}
+
+.site-nav a.current {
+  background: var(--hustoj-accent-soft);
+  color: var(--hustoj-accent);
+}
+
+.site-user {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.15rem 0.15rem;
+  font-size: 0.9rem;
+}
+
+.site-user a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.6rem;
+  border-radius: var(--hustoj-radius-sm);
+  color: var(--hustoj-text-soft);
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.site-user a:hover {
+  background: var(--hustoj-surface-3);
+  color: var(--hustoj-text);
+  text-decoration: none;
+}
+
+.site-user-dot {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 99px;
+  background: var(--hustoj-ok);
+  box-shadow: 0 0 0 3px var(--hustoj-ok-soft);
+}
+
+.site-user-nick {
+  color: var(--hustoj-muted);
+  font-weight: 400;
+}
+
+.site-register,
+.site-logout {
+  border: 1px solid var(--hustoj-border);
+}
+
+.site-logout:hover {
+  color: var(--hustoj-err) !important;
+  background: var(--hustoj-err-soft) !important;
+}
+
+.site-subnav {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  padding: 0.4rem max(clamp(1rem, 3vw, 2rem), calc((100% - 92rem) / 2));
+  border-top: 1px solid var(--hustoj-border);
+  background: var(--hustoj-surface-2);
+  font-size: 0.86rem;
+  line-height: inherit;
+}
+
+.site-subnav-label {
+  color: var(--hustoj-muted);
+  font-weight: 650;
+  margin-right: 0.4rem;
+}
+
+.site-subnav a {
+  padding: 0.22rem 0.6rem;
+  border: 0;
+  border-radius: 999px;
+  color: var(--hustoj-text-soft);
+  text-decoration: none;
+}
+
+.site-subnav a:hover {
+  background: var(--hustoj-accent-soft);
+  color: var(--hustoj-accent);
+}
+
+/* ── 站点外壳：页脚 ───────────────────────────────────── */
+.site-footer {
+  grid-column: 1 / -1;
+  margin-top: 0;
+  padding: 0;
+  text-align: left;
+  border-top: 1px solid var(--hustoj-border);
+  background: var(--hustoj-surface);
+  color: var(--hustoj-muted);
+  font-size: 0.86rem;
+}
+
+.site-footer-inner {
+  max-width: 92rem;
+  margin: 0 auto;
+  padding: 1.1rem clamp(1rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.2rem;
+}
+
+.site-footer-brand {
+  color: var(--hustoj-text);
+  font-weight: 650;
+}
+
+.site-footer-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.9rem;
+}
+
+.site-footer-nav a {
+  color: var(--hustoj-muted);
+  text-decoration: none;
+}
+
+.site-footer-nav a:hover {
+  color: var(--hustoj-accent);
+}
+
+.site-footer-note {
+  margin-left: auto;
+}
+
+/* ── 后台导航条 ───────────────────────────────────────── */
+.admin-nav {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.55rem 0.7rem;
+  margin: 0 0 1.25rem;
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  background: var(--hustoj-surface);
+  box-shadow: var(--hustoj-shadow-sm);
+  font-size: 0.88rem;
+}
+
+.admin-nav a {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  color: var(--hustoj-text-soft);
+  text-decoration: none;
+}
+
+.admin-nav a:hover {
+  background: var(--hustoj-surface-3);
+  color: var(--hustoj-text);
+}
+
+.admin-nav-home {
+  background: var(--hustoj-accent-soft);
+  color: var(--hustoj-accent) !important;
+  font-weight: 650;
+}
+
+.admin-sections {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-top: 1.25rem;
+}
+
+.sidebar-section {
+  padding: 0.9rem 1rem 1rem;
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+.sidebar-section h3 {
+  margin: 0 0 0.65rem;
+  padding-bottom: 0.5rem;
+  font-size: 0.95rem;
+  font-weight: 650;
+  border-bottom: 1px solid var(--hustoj-border);
+}
+
+.sidebar-section ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.sidebar-section li a {
+  display: block;
+  padding: 0.34rem 0.5rem;
+  border-radius: var(--hustoj-radius-sm);
+  color: var(--hustoj-text-soft);
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.sidebar-section li a:hover {
+  background: var(--hustoj-accent-soft);
+  color: var(--hustoj-accent);
 }
 
 /* ── 工具类（模板大量使用）────────────────────────────── */
-.padding { padding: 1rem 0; }
+.padding { padding: 0.25rem 0; }
 .center { text-align: center; }
-.green { color: var(--hustoj-ok); }
-.red { color: var(--hustoj-err); }
-.orange { color: var(--hustoj-warn); }
+.text-center { text-align: center; }
+.text-left { text-align: left; }
+.left.aligned { text-align: left; }
+.text-danger, .text-danger:visited, .red, .red:visited { color: var(--hustoj-err); }
+.text-success, .text-success:visited, .green, .green:visited { color: var(--hustoj-ok); }
+.text-warning, .text-warning:visited, .orange, .orange:visited { color: var(--hustoj-warn); }
+.text-primary, .text-primary:visited, .blue, .blue:visited { color: var(--hustoj-info); }
+.text-muted, .text-muted:visited { color: var(--hustoj-muted); }
+.yellow { color: var(--hustoj-warn); }
+.violet { color: #7048e8; }
+.brown { color: #b45309; }
 
-/* ── 站点导航 ─────────────────────────────────────────── */
-.site-header a { text-decoration: none; }
-.site-header a:hover { text-decoration: underline; }
+.hidden-xs { display: initial; }
 
-/* ── 徽章 / 标签 ──────────────────────────────────────── */
-/* 覆盖两种写法：`label label-success` 与 `ui label success`。
- *
- * 带 :visited 变体：浏览器对已访问链接单独跑一遍 :visited 级联，
- * 普通类规则压不过 Simple.css 的 a:visited{color:accent}，徽章上的白字
- * 会被染成 accent 色。 */
-.label, .label:visited {
-  display: inline-block;
-  padding: 0.05em 0.5em;
-  border-radius: var(--hustoj-badge-radius);
-  font-size: 0.78em;
-  font-weight: 600;
-  line-height: 1.7;
-  color: #fff;
-  background: var(--hustoj-muted);
-  text-decoration: none;
+/* ── 语义栅格（Semantic UI 16 列）────────────────────── */
+.ui.grid {
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+  margin: 0;
+}
+
+.ui.grid > .row {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(16, minmax(0, 1fr));
+  gap: 1.25rem;
+  align-items: start;
+}
+
+.ui.grid > .column,
+.ui.grid > .row > .column {
+  grid-column: span 16;
+  min-width: 0;
+}
+
+.ui.grid > .one.wide.column { grid-column: span 1; }
+.ui.grid > .two.wide.column { grid-column: span 2; }
+.ui.grid > .three.wide.column { grid-column: span 3; }
+.ui.grid > .four.wide.column { grid-column: span 4; }
+.ui.grid > .five.wide.column { grid-column: span 5; }
+.ui.grid > .six.wide.column { grid-column: span 6; }
+.ui.grid > .seven.wide.column { grid-column: span 7; }
+.ui.grid > .eight.wide.column { grid-column: span 8; }
+.ui.grid > .nine.wide.column { grid-column: span 9; }
+.ui.grid > .ten.wide.column { grid-column: span 10; }
+.ui.grid > .eleven.wide.column { grid-column: span 11; }
+.ui.grid > .twelve.wide.column { grid-column: span 12; }
+.ui.grid > .thirteen.wide.column { grid-column: span 13; }
+.ui.grid > .fourteen.wide.column { grid-column: span 14; }
+.ui.grid > .fifteen.wide.column { grid-column: span 15; }
+
+.ui.grid > .row > .one.wide.column { grid-column: span 1; }
+.ui.grid > .row > .two.wide.column { grid-column: span 2; }
+.ui.grid > .row > .three.wide.column { grid-column: span 3; }
+.ui.grid > .row > .four.wide.column { grid-column: span 4; }
+.ui.grid > .row > .five.wide.column { grid-column: span 5; }
+.ui.grid > .row > .six.wide.column { grid-column: span 6; }
+.ui.grid > .row > .seven.wide.column { grid-column: span 7; }
+.ui.grid > .row > .eight.wide.column { grid-column: span 8; }
+.ui.grid > .row > .nine.wide.column { grid-column: span 9; }
+.ui.grid > .row > .ten.wide.column { grid-column: span 10; }
+.ui.grid > .row > .eleven.wide.column { grid-column: span 11; }
+.ui.grid > .row > .twelve.wide.column { grid-column: span 12; }
+
+/* ── 卡片 / 分区 ──────────────────────────────────────── */
+.ui.segment {
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  padding: 1rem 1.15rem;
+  margin: 1rem 0;
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+.ui.top.attached.block.header {
+  margin: 1.4rem 0 0;
+  padding: 0.7rem 1rem;
+  font-size: 0.98rem;
+  font-weight: 650;
+  color: var(--hustoj-text);
+  background: var(--hustoj-surface-2);
+  border: 1px solid var(--hustoj-border);
+  border-bottom: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius) var(--hustoj-radius) 0 0;
+}
+
+.ui.top.attached.block.header + .ui.bottom.attached.segment {
+  margin-top: 0;
+}
+
+.ui.bottom.attached.segment {
+  border-radius: 0 0 var(--hustoj-radius) var(--hustoj-radius);
+  border-top: 0;
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+.ui.attached.segment {
+  margin-top: 0;
+}
+
+.ui.placeholder.segment {
+  display: grid;
+  place-items: center;
+  min-height: 7rem;
+  color: var(--hustoj-muted);
+  background: var(--hustoj-surface-2);
+  border-style: dashed;
+  box-shadow: none;
+  text-align: center;
+}
+
+.ui.existing.segment {
+  border-left: 3px solid var(--hustoj-accent);
+}
+
+.ui.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 1rem;
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius-lg);
+  box-shadow: var(--hustoj-shadow);
+}
+
+.ui.card > img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--hustoj-radius);
+  background: var(--hustoj-surface-3);
+}
+
+.ui.card .header {
+  font-size: 1.05rem;
+  font-weight: 650;
+}
+
+.ui.card .meta {
+  color: var(--hustoj-muted);
+  font-size: 0.88rem;
+}
+
+.ui.list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.75rem;
+}
+
+/* ── 表格 ─────────────────────────────────────────────── */
+table {
+  width: 100%;
+  margin: 1.2rem 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.94rem;
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+th, td {
+  padding: 0.55rem 0.7rem;
+  border: 0;
+  border-bottom: 1px solid var(--hustoj-border);
+  text-align: left;
   vertical-align: middle;
 }
-a.label:hover { filter: brightness(0.92); }
-.label-sm { font-size: 0.68em; padding: 0 0.4em; line-height: 1.6; }
 
-.label-success, .label.success { background: var(--hustoj-ok); }
-.label-danger,  .label.danger  { background: var(--hustoj-err); }
-.label-warning, .label.warning { background: var(--hustoj-warn); }
-.label-primary, .label.primary { background: var(--hustoj-info); }
-.label-info,    .label.info    { background: var(--hustoj-teal); }
-.label-default, .label.default { background: var(--hustoj-muted); }
+thead th {
+  background: var(--hustoj-surface-2);
+  color: var(--hustoj-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--hustoj-border-strong);
+  white-space: nowrap;
+}
 
-/* ── 判题结果配色（judgeResultClasses）───────────────────
+tbody tr:last-child td,
+tbody tr:last-child th {
+  border-bottom: 0;
+}
+
+tbody tr:nth-child(2n) {
+  background: var(--hustoj-surface-2);
+}
+
+tbody tr:hover {
+  background: var(--hustoj-accent-soft);
+}
+
+td, th {
+  font-variant-numeric: tabular-nums;
+}
+
+.ui.table {
+  width: 100%;
+}
+
+.ui.celled.table th + th,
+.ui.celled.table td + td {
+  border-left: 1px solid var(--hustoj-border);
+}
+
+.ui.selectable.table tbody tr {
+  cursor: pointer;
+}
+
+.ui.striped.table tbody tr:nth-child(odd) {
+  background: var(--hustoj-surface-2);
+}
+
+.ui.striped.table tbody tr:nth-child(even) {
+  background: var(--hustoj-surface);
+}
+
+.ui.very.basic.table th,
+.ui.very.basic.table td {
+  border-left: 0;
+  border-right: 0;
+}
+
+.ui.table .one.wide { width: 6%; }
+.ui.table .two.wide { width: 12%; }
+
+.ui.table td.center,
+.ui.table th.center,
+.ui.center.aligned.table th,
+.ui.center.aligned.table td {
+  text-align: center;
+}
+
+.ui.table td.left.aligned,
+.ui.table th.left.aligned {
+  text-align: left;
+}
+
+.ui.table .active th,
+.ui.table tr.active td {
+  background: var(--hustoj-surface-2);
+  color: var(--hustoj-muted);
+  font-weight: 650;
+}
+
+/* 分数格：竞赛榜沿用模板自带的浅色底，这里只统一文字层级 */
+.score {
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.score_10 { color: var(--hustoj-ok); }
+.score_0 { color: var(--hustoj-err); }
+
+.submit_time {
+  color: var(--hustoj-muted);
+  font-size: 0.78em;
+}
+
+/* ── 表单 ─────────────────────────────────────────────── */
+label {
+  color: var(--hustoj-text-soft);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="reset"]):not([type="button"]),
+select,
+textarea {
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border-strong);
+  border-radius: var(--hustoj-radius-sm);
+  color: var(--hustoj-text);
+  padding: 0.48rem 0.65rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+input:not([type="checkbox"]):not([type="radio"]):focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--hustoj-accent);
+  box-shadow: 0 0 0 3px var(--hustoj-accent-soft);
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: var(--hustoj-accent);
+}
+
+textarea {
+  min-height: 6rem;
+  line-height: 1.55;
+}
+
+.ui.form .field,
+.form-group {
+  margin-bottom: 0.9rem;
+}
+
+.ui.form .field > label,
+.form-group > label,
+.control-label {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.ui.form input:not([type="checkbox"]):not([type="radio"]),
+.ui.form select,
+.ui.form textarea {
+  width: 100%;
+}
+
+.ui.two.fields,
+.two.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.form-inline,
+.form-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.form-inline input,
+.form-inline select,
+.form-search input {
+  width: auto;
+  margin: 0;
+}
+
+.input-mini { max-width: 6rem; }
+.input-large { max-width: 14rem; }
+.input-xxlarge { width: 100%; max-width: 44rem; }
+
+/* ── 按钮 ─────────────────────────────────────────────── */
+.ui.button,
+a.ui.button,
+button.ui.button,
+.btn,
+a.btn,
+button.btn,
+input.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35em;
+  padding: 0.46em 0.9em;
+  border: 1px solid var(--hustoj-border-strong);
+  border-radius: var(--hustoj-radius-sm);
+  background: var(--hustoj-surface);
+  color: var(--hustoj-text);
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease,
+    color 0.15s ease, box-shadow 0.15s ease, transform 0.05s ease;
+}
+
+.ui.button:hover,
+a.ui.button:hover,
+button.ui.button:hover,
+.btn:hover,
+a.btn:hover,
+button.btn:hover {
+  background: var(--hustoj-surface-3);
+  border-color: var(--hustoj-border-strong);
+  text-decoration: none;
+}
+
+.ui.button:active,
+.btn:active {
+  transform: translateY(1px);
+}
+
+.ui.primary.button,
+a.ui.primary.button,
+button.ui.primary.button,
+.btn-primary,
+a.btn-primary,
+button.btn-primary {
+  background: var(--hustoj-accent);
+  border-color: var(--hustoj-accent);
+  color: var(--hustoj-on-accent);
+}
+
+.ui.primary.button:hover,
+a.ui.primary.button:hover,
+button.ui.primary.button:hover,
+.btn-primary:hover,
+a.btn-primary:hover,
+button.btn-primary:hover {
+  background: var(--hustoj-accent-hover);
+  border-color: var(--hustoj-accent-hover);
+  color: var(--hustoj-on-accent);
+}
+
+.ui.green.button,
+a.ui.green.button,
+.btn-success,
+a.btn-success,
+button.btn-success {
+  background: var(--hustoj-ok);
+  border-color: var(--hustoj-ok);
+  color: var(--hustoj-on-accent);
+}
+
+.ui.red.button,
+a.ui.red.button,
+.btn-danger,
+a.btn-danger,
+button.btn-danger {
+  background: var(--hustoj-err);
+  border-color: var(--hustoj-err);
+  color: var(--hustoj-on-accent);
+}
+
+.ui.yellow.button,
+a.ui.yellow.button,
+.btn-warning,
+a.btn-warning,
+button.btn-warning {
+  background: var(--hustoj-warn);
+  border-color: var(--hustoj-warn);
+  color: var(--hustoj-on-accent);
+}
+
+.ui.blue.button,
+a.ui.blue.button,
+.ui.info.button,
+a.ui.info.button,
+.btn-info,
+a.btn-info,
+button.btn-info {
+  background: var(--hustoj-info);
+  border-color: var(--hustoj-info);
+  color: var(--hustoj-on-accent);
+}
+
+.ui.violet.button,
+a.ui.violet.button {
+  background: #7048e8;
+  border-color: #7048e8;
+  color: var(--hustoj-on-accent);
+}
+
+.ui.button:visited,
+.btn:visited,
+a.btn:visited {
+  color: var(--hustoj-text);
+}
+
+.ui.primary.button:visited,
+.ui.green.button:visited,
+.ui.red.button:visited,
+.ui.yellow.button:visited,
+.ui.blue.button:visited,
+.ui.violet.button:visited,
+.btn-primary:visited,
+.btn-success:visited,
+.btn-danger:visited,
+.btn-warning:visited,
+.btn-info:visited {
+  color: var(--hustoj-on-accent);
+}
+
+.ui.mini.button,
+a.ui.mini.button,
+.btn-sm,
+a.btn-sm {
+  padding: 0.3em 0.65em;
+  font-size: 0.82rem;
+}
+
+.ui.small.button,
+a.ui.small.button {
+  padding: 0.4em 0.8em;
+  font-size: 0.86rem;
+}
+
+.ui.large.button,
+a.ui.large.button {
+  padding: 0.6em 1.3em;
+  font-size: 1rem;
+}
+
+.ui.fluid.button,
+a.ui.fluid.button,
+.btn-block {
+  width: 100%;
+}
+
+.btn-group,
+.ui.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.btn-link {
+  border: 0;
+  background: transparent;
+  color: var(--hustoj-accent);
+  padding: 0.2em 0.3em;
+}
+
+/* ── 徽章 / 标签 ──────────────────────────────────────── */
+.label,
+.label:visited {
+  display: inline-block;
+  padding: 0.05em 0.55em;
+  border-radius: var(--hustoj-badge-radius);
+  font-size: 0.78em;
+  font-weight: 650;
+  line-height: 1.7;
+  color: var(--hustoj-muted);
+  background: var(--hustoj-surface-3);
+  text-decoration: none;
+  vertical-align: middle;
+  border: 1px solid transparent;
+}
+
+a.label:hover {
+  filter: brightness(0.97);
+  text-decoration: none;
+}
+
+.label-sm {
+  font-size: 0.68em;
+  padding: 0 0.4em;
+  line-height: 1.6;
+}
+
+.label-success, .label.success, .label-success:visited {
+  background: var(--hustoj-ok-soft);
+  color: var(--hustoj-ok);
+}
+
+.label-danger, .label.danger, .label-danger:visited {
+  background: var(--hustoj-err-soft);
+  color: var(--hustoj-err);
+}
+
+.label-warning, .label.warning, .label-warning:visited {
+  background: var(--hustoj-warn-soft);
+  color: var(--hustoj-warn);
+}
+
+.label-primary, .label.primary, .label-primary:visited {
+  background: var(--hustoj-accent-soft);
+  color: var(--hustoj-accent);
+}
+
+.label-info, .label.info, .label-info:visited {
+  background: var(--hustoj-teal-soft);
+  color: var(--hustoj-teal);
+}
+
+.label-default, .label.default, .label-default:visited {
+  background: var(--hustoj-surface-3);
+  color: var(--hustoj-muted);
+}
+
+.ui.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+  padding: 0.14em 0.62em;
+  border-radius: var(--hustoj-badge-radius);
+  background: var(--hustoj-surface-3);
+  color: var(--hustoj-text-soft);
+  font-size: 0.82em;
+  font-weight: 550;
+  line-height: 1.6;
+}
+
+.ui.label.green,
+a.ui.label.green,
+.ui.label.green:visited {
+  background: var(--hustoj-ok-soft);
+  color: var(--hustoj-ok);
+}
+
+.ui.label.red,
+a.ui.label.red,
+.ui.label.red:visited {
+  background: var(--hustoj-err-soft);
+  color: var(--hustoj-err);
+}
+
+.ui.basic.label,
+a.ui.basic.label,
+.ui.basic.label:visited {
+  background: transparent;
+  border: 1px solid var(--hustoj-border-strong);
+  color: var(--hustoj-text-soft);
+}
+
+.ui.basic.label:hover {
+  border-color: var(--hustoj-accent);
+  color: var(--hustoj-accent);
+}
+
+/* ── 判题结果配色 ──────────────────────────────────────
  *
- * 必须带 :visited 变体，并用字面色：结果格是链接，浏览器对已访问链接
- * 单独跑 :visited 级联，`.ac`（非 :visited 规则）压不过 Simple.css 的
- * a:visited{color:accent}，于是点过的"通过"变成 accent（暗色下是黄色）。
+ * 必须带 :visited 变体，并用字面/变量色：结果格是链接，浏览器对已访问
+ * 链接单独跑 :visited 级联，`.ac`（非 :visited 规则）压不过 Simple.css 的
+ * a:visited{color:accent}，于是点过的"通过"会变成 accent 色。
  * `.ac:visited` 的优先级高于 `a:visited`，才能压回绿色。 */
-.ac, .ac:visited { color: #1a7f37; font-weight: 600; }
-.waiting, .waiting:visited, .compiling, .compiling:visited, .running, .running:visited, .judging, .judging:visited {
-  color: #6e7781;
+.ac, .ac:visited { color: var(--hustoj-ok); font-weight: 650; }
+.waiting, .waiting:visited, .compiling, .compiling:visited,
+.running, .running:visited, .judging, .judging:visited {
+  color: var(--hustoj-muted);
 }
-.pe, .pe:visited, .wa, .wa:visited, .tle, .tle:visited, .mle, .mle:visited,
-.ole, .ole:visited, .re, .re:visited, .ce, .ce:visited, .rf, .rf:visited,
-.nzec, .nzec:visited, .sig, .sig:visited, .ie, .ie:visited {
-  color: #cf222e;
+.pe, .pe:visited, .wa, .wa:visited, .tle, .tle:visited,
+.mle, .mle:visited, .ole, .ole:visited, .re, .re:visited,
+.ce, .ce:visited, .rf, .rf:visited, .nzec, .nzec:visited,
+.sig, .sig:visited, .ie, .ie:visited {
+  color: var(--hustoj-err);
 }
 
-/* ── 分页（两套写法）──────────────────────────────────── */
-/* 状态页/题目列表：Semantic 风格 `ui pagination menu` + `item` */
+/* ── 消息条 ───────────────────────────────────────────── */
+.ui.message {
+  position: relative;
+  padding: 0.75rem 1rem;
+  margin: 1rem 0;
+  border: 1px solid var(--hustoj-border);
+  border-left: 4px solid var(--hustoj-info);
+  border-radius: var(--hustoj-radius-sm);
+  background: var(--hustoj-info-soft);
+  color: var(--hustoj-text-soft);
+}
+
+.ui.message .header {
+  font-weight: 650;
+  color: var(--hustoj-text);
+  margin-bottom: 0.25rem;
+}
+
+.ui.message a {
+  font-weight: 600;
+}
+
+.ui.warning.message {
+  border-left-color: var(--hustoj-warn);
+  background: var(--hustoj-warn-soft);
+}
+
+.ui.negative.message,
+.ui.error.message {
+  border-left-color: var(--hustoj-err);
+  background: var(--hustoj-err-soft);
+}
+
+.ui.positive.message,
+.ui.success.message {
+  border-left-color: var(--hustoj-ok);
+  background: var(--hustoj-ok-soft);
+}
+
+.ui.info.message {
+  border-left-color: var(--hustoj-info);
+  background: var(--hustoj-info-soft);
+}
+
+.ui.icon.message {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.8rem;
+}
+
+.ui.icon.message > .content {
+  min-width: 0;
+}
+
+/* ── 分页 ─────────────────────────────────────────────── */
 .ui.pagination.menu {
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
-  margin: 1rem 0;
+  margin: 1.1rem 0;
   padding: 0;
   list-style: none;
+  box-shadow: none;
+  border: 0;
+  background: transparent;
 }
-.ui.pagination.menu .item, .ui.pagination.menu .item:visited {
+
+.ui.pagination.menu .item,
+.ui.pagination.menu .item:visited {
   display: inline-block;
   padding: 0.3rem 0.8rem;
   border: 1px solid var(--hustoj-border);
-  border-radius: var(--hustoj-radius);
-  color: inherit;
+  border-radius: var(--hustoj-radius-sm);
+  background: var(--hustoj-surface);
+  color: var(--hustoj-text-soft);
   text-decoration: none;
-}
-.ui.pagination.menu .item:hover { background: rgba(0, 0, 0, 0.05); }
-.ui.pagination.menu .active.item {
-  background: var(--hustoj-accent);
-  border-color: transparent;
-  color: #fff;
+  font-size: 0.9rem;
 }
 
-/* 后台列表：Bootstrap 风格 `pagination` + `page-item` */
+.ui.pagination.menu .item:hover {
+  background: var(--hustoj-surface-3);
+  border-color: var(--hustoj-border-strong);
+}
+
+.ui.pagination.menu .active.item,
+.ui.pagination.menu .active.item:visited {
+  background: var(--hustoj-accent);
+  border-color: var(--hustoj-accent);
+  color: var(--hustoj-on-accent);
+}
+
 .pagination {
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.25rem;
-  margin: 0.5rem 0;
+  margin: 0.75rem 0;
   padding: 0;
   list-style: none;
 }
-.pagination .page-item > a, .pagination .page-item > a:visited {
+
+.pagination .page-item > a,
+.pagination .page-item > a:visited {
   display: inline-block;
   padding: 0.3rem 0.7rem;
   border: 1px solid var(--hustoj-border);
-  border-radius: var(--hustoj-radius);
-  color: inherit;
+  border-radius: var(--hustoj-radius-sm);
+  background: var(--hustoj-surface);
+  color: var(--hustoj-text-soft);
   text-decoration: none;
+  font-size: 0.9rem;
 }
-.pagination .page-item > a:hover { background: rgba(0, 0, 0, 0.05); }
-.pagination .page-item.active > a {
+
+.pagination .page-item > a:hover {
+  background: var(--hustoj-surface-3);
+}
+
+.pagination .page-item.active > a,
+.pagination .page-item.active > a:visited {
   background: var(--hustoj-accent);
-  border-color: transparent;
-  color: #fff;
+  border-color: var(--hustoj-accent);
+  color: var(--hustoj-on-accent);
 }
 
-/* ── 消息条 ───────────────────────────────────────────── */
-.ui.message {
-  padding: 0.75rem 1rem;
+/* ── Markdown / 题面正文 ──────────────────────────────── */
+.md-body,
+.font-content {
+  line-height: 1.75;
+  color: var(--hustoj-text-soft);
+  overflow-wrap: break-word;
+}
+
+.md-body > :first-child {
+  margin-top: 0;
+}
+
+.md-body h1,
+.md-body h2,
+.md-body h3,
+.md-body h4 {
+  color: var(--hustoj-text);
+  margin: 1.6rem 0 0.6rem;
+}
+
+.md-body h1 { font-size: 1.5rem; }
+.md-body h2 { font-size: 1.3rem; }
+.md-body h3 { font-size: 1.12rem; }
+
+.md-body a {
+  color: var(--hustoj-accent);
+  text-underline-offset: 2px;
+}
+
+.md-body code {
+  padding: 0.12em 0.38em;
+  border-radius: 5px;
+  background: var(--hustoj-surface-3);
+  color: var(--hustoj-text);
+  font-size: 0.9em;
+}
+
+.md-body pre {
+  padding: 0.95rem 1.1rem;
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius-sm);
+  background: var(--hustoj-surface-2);
+  color: var(--hustoj-text);
+  overflow-x: auto;
+  line-height: 1.55;
+}
+
+.md-body pre code {
+  padding: 0;
+  background: transparent;
+  color: inherit;
+}
+
+.md-body blockquote {
   margin: 1rem 0;
-  border-left: 4px solid var(--hustoj-info);
-  border-radius: var(--hustoj-radius);
-  background: rgba(9, 105, 218, 0.08);
-}
-.ui.warning.message {
-  border-left-color: var(--hustoj-warn);
-  background: rgba(154, 103, 0, 0.1);
-}
-.ui.negative.message, .ui.error.message {
-  border-left-color: var(--hustoj-err);
-  background: rgba(207, 34, 46, 0.1);
+  padding: 0.5rem 1rem;
+  border-left: 3px solid var(--hustoj-accent);
+  background: var(--hustoj-accent-soft);
+  border-radius: 0 var(--hustoj-radius-sm) var(--hustoj-radius-sm) 0;
+  color: var(--hustoj-text-soft);
+  font-style: normal;
 }
 
-/* ── 按钮（仅链接式按钮；真正的 <button>/<input> 交给 Simple）── */
-a.ui.button, a.ui.button:visited {
-  display: inline-block;
-  padding: 0.35rem 0.9rem;
+.md-body img {
+  border-radius: var(--hustoj-radius-sm);
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+.md-body table {
+  font-size: 0.9rem;
+}
+
+.md-body ul,
+.md-body ol {
+  padding-left: 1.5rem;
+}
+
+.md-body li {
+  margin: 0.3rem 0;
+}
+
+.md-body hr {
+  margin: 1.5rem 0;
+}
+
+/* ── 题面 ─────────────────────────────────────────────── */
+.problem-description {
+  margin-top: 1rem;
+}
+
+.problem-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  margin: 0.6rem 0;
+}
+
+.problem-meta .ui.label {
+  background: var(--hustoj-surface-2);
+  border: 1px solid var(--hustoj-border);
+}
+
+.problem-detail h3.ui.header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 1px solid var(--hustoj-border);
+}
+
+.sample-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.85rem;
+  margin: 1rem 0 1.4rem;
+}
+
+.sample-card {
+  display: flex;
+  flex-direction: column;
   border: 1px solid var(--hustoj-border);
   border-radius: var(--hustoj-radius);
-  color: inherit;
-  text-decoration: none;
+  overflow: hidden;
+  background: var(--hustoj-surface);
+  box-shadow: var(--hustoj-shadow-sm);
 }
-a.ui.button:hover { background: rgba(0, 0, 0, 0.05); }
-a.ui.primary.button {
+
+.sample-card h4 {
+  margin: 0;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.82rem;
+  font-weight: 650;
+  letter-spacing: 0.03em;
+  color: var(--hustoj-muted);
+  background: var(--hustoj-surface-2);
+  border-bottom: 1px solid var(--hustoj-border);
+}
+
+.sample-card pre {
+  margin: 0;
+  padding: 0.85rem 0.95rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.9rem;
+  overflow-x: auto;
+}
+
+/* ── 状态页 ───────────────────────────────────────────── */
+.status-filters {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 12px;
+  padding: 0.65rem 0.85rem;
+  overflow-x: auto;
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+.status-filters .field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  margin: 0;
+}
+
+.status-filters .field label {
+  display: inline;
+  margin: 0;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  color: var(--hustoj-muted);
+}
+
+.status-filters input,
+.status-filters select {
+  width: auto;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+.status-filters .field .ui.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.status-page .ui.button,
+.status-page button {
+  white-space: nowrap;
+}
+
+main:has(> .status-page) { font-size: 0.9em; }
+
+/* ── 状态表（#result-tab）─────────────────────────────────
+ * 宽屏铺满内容区（上限由 main 的 92rem 决定），窄屏缩到
+ * --status-table-min-width 后由外层横向滚动，而不是把列压扁。
+ * 列宽比例由模板 <colgroup> 指定，table-layout:fixed 让比例生效。 */
+.status-table-wrap {
+  overflow-y: auto;
+  max-height: calc(100vh - 180px);
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--hustoj-radius);
+}
+
+#result-tab {
+  table-layout: fixed;
+  width: 100%;
+  min-width: var(--status-table-min-width, 1000px);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#result-tab th, #result-tab td {
+  text-align: center;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+#result-tab tbody tr {
+  transition: background-color 0.12s ease;
+}
+
+#result-tab .ac {
+  font-weight: 700;
+}
+
+#ranklist-tab thead {
+  top: 0;
+}
+
+#result-tab thead {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* ── 题库 / 排名 ──────────────────────────────────────── */
+.problemset-contest {
+  display: inline-block;
+  max-width: 12em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  margin-right: 0.4em;
+  color: var(--hustoj-muted);
+  font-size: 0.88em;
+}
+
+.ranklist-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  margin-bottom: 1rem;
+  padding: 0.65rem 0.85rem;
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius);
+  box-shadow: var(--hustoj-shadow-sm);
+}
+
+.ranklist-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+/* 五个周期按钮在模板里分别用了 primary/red/green/violet 等语义色，
+ * 同时出现会显得花；这里统一成中性胶囊，悬停再用品牌色。 */
+.ranklist-scopes .ui.button,
+.ranklist-scopes a.ui.button,
+.ranklist-scopes a.ui.button:visited {
+  background: var(--hustoj-surface);
+  border-color: var(--hustoj-border);
+  color: var(--hustoj-text-soft);
+}
+
+.ranklist-scopes .ui.button:hover,
+.ranklist-scopes a.ui.button:hover {
+  background: var(--hustoj-accent-soft);
+  border-color: var(--hustoj-accent);
+  color: var(--hustoj-accent);
+}
+
+.ranklist-search {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.ranklist-search .field {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.ranklist-search input {
+  width: 150px;
+  margin: 0;
+  padding: 0.35rem 0.5rem;
+  font-size: 0.88rem;
+}
+
+.ranklist-search button { margin: 0; }
+
+.ranklist-table-wrap {
+  overflow-y: auto;
+  max-height: calc(100vh - 140px);
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: var(--hustoj-radius);
+}
+
+#ranklist-tab {
+  table-layout: fixed;
+  width: var(--ranklist-table-width, 1080px);
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#ranklist-tab th, #ranklist-tab td {
+  text-align: center;
+  vertical-align: middle;
+}
+
+#ranklist-tab tbody tr:nth-child(1) td {
+  background: rgba(234, 179, 8, 0.12);
+}
+
+#ranklist-tab tbody tr:nth-child(2) td {
+  background: rgba(148, 163, 184, 0.16);
+}
+
+#ranklist-tab tbody tr:nth-child(3) td {
+  background: rgba(180, 83, 9, 0.12);
+}
+
+#ranklist-tab tbody tr:nth-child(-n + 3) td:first-child {
+  font-weight: 800;
+}
+
+/* ── 竞赛榜 ───────────────────────────────────────────── */
+.rank-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.6rem;
+  margin: 0 0 1rem;
+  font-size: 1.15rem;
+}
+
+.rank-title .ui.button {
+  font-size: 0.8rem;
+  padding: 0.3em 0.65em;
+}
+
+#rankdiv > table {
+  width: calc(100% - 2rem);
+  margin: 1.5rem auto;
+}
+
+.ribbon.label {
+  background: var(--hustoj-surface-3);
+  color: var(--hustoj-text);
+}
+
+.ui.yellow.ribbon.label { background: #facc15; color: #3f3200; }
+.ui.ribbon.label { background: var(--hustoj-surface-3); color: var(--hustoj-text); }
+.ui.brown.ribbon.label { background: #c47222; color: #fff; }
+
+/* ── 提交页 ───────────────────────────────────────────── */
+.submit-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.85rem;
+  max-width: 60rem;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.submit-page form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.submit-page .submit-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem 1rem;
+  color: var(--hustoj-text-soft);
+  font-size: 0.92rem;
+}
+
+.submit-page #source {
+  width: 100%;
+  height: 32rem;
+  min-height: 20rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid #2a3442;
+  border-radius: var(--hustoj-radius);
+  background: #0f172a;
+  color: #e2e8f0;
+  font-family: var(--hustoj-mono);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  tab-size: 4;
+  resize: vertical;
+}
+
+.submit-page #source:focus {
+  border-color: var(--hustoj-accent);
+  box-shadow: 0 0 0 3px var(--hustoj-accent-soft);
+}
+
+/* ── 登录 / 注册 ──────────────────────────────────────── */
+.auth-card {
+  max-width: 27rem;
+  margin: 2.5rem auto 3rem;
+  padding: 1.8rem 1.9rem;
+  background: var(--hustoj-surface);
+  border: 1px solid var(--hustoj-border);
+  border-radius: var(--hustoj-radius-lg);
+  box-shadow: var(--hustoj-shadow);
+}
+
+.auth-card h2 {
+  margin: 0 0 1.2rem;
+  font-size: 1.35rem;
+  text-align: center;
+}
+
+.auth-card form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.auth-card label {
+  display: block;
+}
+
+.auth-card input:not([type="checkbox"]):not([type="radio"]),
+.auth-card select {
+  width: 100%;
+  margin-top: 0.25rem;
+}
+
+.auth-card button,
+.auth-card input[type="submit"] {
+  width: 100%;
+  margin-top: 0.35rem;
+}
+
+.auth-card .ui.submit.button,
+.auth-card .ui.primary.button {
   background: var(--hustoj-accent);
-  border-color: transparent;
-  color: #fff;
+  border-color: var(--hustoj-accent);
+  color: var(--hustoj-on-accent);
 }
-.ui.buttons { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
-/* ── 复选框 ───────────────────────────────────────────── */
-.ui.checkbox { display: inline-flex; align-items: center; gap: 0.4rem; }
-.ui.checkbox input[type="checkbox"] { margin: 0; }
+.auth-card .ui.submit.button:hover,
+.auth-card .ui.primary.button:hover {
+  background: var(--hustoj-accent-hover);
+  border-color: var(--hustoj-accent-hover);
+}
 
-/* ── 语义图标字体未加载，避免留白 ──────────────────────── */
-i.icon { display: none; }
+.auth-card p.center {
+  margin: 1.1rem 0 0;
+  font-size: 0.9rem;
+  color: var(--hustoj-muted);
+}
+
+/* ── 源码页 ───────────────────────────────────────────── */
+main pre code[class*="language-"] {
+  display: block;
+  border-radius: var(--hustoj-radius-sm);
+}
+
+/* ── 新闻页 ───────────────────────────────────────────── */
+.news-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.5rem;
+  margin: 0 0 1rem;
+  color: var(--hustoj-muted);
+  font-size: 0.9rem;
+}
+
+.news-meta b {
+  font-weight: 500;
+}
+
+.chart-empty {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  color: var(--hustoj-muted);
+  font-size: 0.9rem;
+}
 
 /* ── KaTeX 上/下标（脚本）字号 ───────────────────────────
  * KaTeX 默认脚本 = 数学字号 × 0.7；而数学整体是 1.21× 正文、正文在
@@ -182,132 +1809,143 @@ i.icon { display: none; }
 .katex .katex-sizing.reset-size6.size1 { font-size: 0.39em; }
 
 /* ── 链接 ─────────────────────────────────────────────────
- * 普通链接不必自己设色：Simple.css 已有 `a, a:visited { color: var(--accent) }`，
- * 未访问/已访问同色。需要自定义颜色的组件（结果色、徽章、分页、按钮）各自
- * 补上 :visited 变体即可，见上面对应段落。 */
+ * 普通链接不必自己设色：Simple.css 已有同色链接规则，
+ * 需要自定义颜色的组件（结果色、徽章、分页、按钮）各自补 :visited。 */
 
-/* ── 状态页筛选栏：居中 + 同一行 ──────────────────────────
- * Simple.css 默认 label{display:block} 且 input/select{width:100%}，
- * 会把每个筛选项拆成两行、并把下拉框撑满整行。这里改回"标签与控件并排"、
- * 控件自动宽度，并把整条筛选栏居中、强制单行（窄屏横向滚动而非换行）。 */
-.status-filters {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: center;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 12px;
-  overflow-x: auto;
-}
-.status-filters .field {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  white-space: nowrap;
-  margin: 0;
-}
-.status-filters .field label {
-  display: inline;
-  margin: 0;
-  font-size: 0.95em;
-  white-space: nowrap;
-}
-.status-filters input,
-.status-filters select {
-  width: auto;
-  margin: 0;
-}
-.status-filters .field .ui.checkbox {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
+/* ── 响应式 ───────────────────────────────────────────── */
+@media only screen and (width <= 960px) {
+  .ui.grid > .column[class*="wide"],
+  .ui.grid > .row > .column[class*="wide"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  #result-tab thead th,
+  #ranklist-tab thead th {
+    position: static;
+  }
 }
 
-/* ── 状态页整体字号 ─────────────────────────────────────
- * 状态表列多、内容密，整页缩到 0.9em 更好扫读；配合模板里加宽的 ID 列，
- * 6~8 位的 solution_id 在 table-layout:fixed + nowrap 下不会再挤出单元格。
- * 页面标题 <h1> 由 layout 渲染在内容之外，用 :has() 从内容反选 <main>，
- * 让标题与正文一起缩放（只影响状态页，其他页面不受牵连）。 */
-main:has(> .status-page) { font-size: 0.9em; }
+@media only screen and (width <= 720px) {
+  body {
+    font-size: 0.98rem;
+  }
 
-/* ── 状态表（#result-tab）─────────────────────────────────
- * 宽屏铺满内容区（上限由 main 的 85rem 决定），窄屏缩到
- * --status-table-min-width 后由外层改为横向滚动，而不是把列压扁。
- * 列宽比例由模板 <colgroup> 指定，table-layout:fixed 让比例生效。 */
-.status-table-wrap {
-  max-width: 100%;
-  overflow-x: auto;
-}
-#result-tab {
-  table-layout: fixed;
-  width: 100%;
-  min-width: var(--status-table-min-width, 1000px);
-  margin-left: auto;
-  margin-right: auto;
-}
-#result-tab th, #result-tab td {
-  text-align: center;
-  vertical-align: middle;
-  white-space: nowrap;
+  h1 { font-size: 1.6rem; }
+  h2 { font-size: 1.3rem; }
+
+  .site-header {
+    position: static;
+  }
+
+  .site-header-inner {
+    gap: 0.35rem 0.6rem;
+  }
+
+  .site-brand-name {
+    max-width: 11rem;
+  }
+
+  .site-nav {
+    order: 3;
+    width: 100%;
+    flex-wrap: wrap;
+    padding: 0 0 0.15rem;
+  }
+
+  .site-nav a {
+    flex: 0 0 auto;
+    padding: 0.3rem 0.5rem;
+    font-size: 0.86rem;
+  }
+
+  .site-user {
+    margin-left: auto;
+  }
+
+  .site-user-nick {
+    display: none;
+  }
+
+  .site-footer-inner {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .site-footer-note {
+    margin-left: 0;
+  }
+
+  .ui.two.fields,
+  .two.fields {
+    grid-template-columns: 1fr;
+  }
+
+  .ranklist-toolbar {
+    align-items: stretch;
+  }
+
+  .ranklist-search {
+    width: 100%;
+  }
+
+  .ranklist-search .field {
+    flex: 1 1 12rem;
+  }
+
+  .ranklist-search input {
+    width: 100%;
+    flex: 1;
+  }
+
+  .status-filters {
+    justify-content: flex-start;
+  }
+
+  .ranklist-table-wrap {
+  overflow-y: auto;
+  max-height: calc(100vh - 140px);
+    overflow-x: auto;
+  }
+
+  #ranklist-tab {
+    width: 720px;
+    max-width: none;
+  }
+  .status-page {
+    font-size: 0.92rem;
+  }
+
+  main table:not(#result-tab):not(#ranklist-tab) {
+    display: block;
+    overflow-x: auto;
+  }
+
+  .auth-card {
+    margin-top: 1.25rem;
+    padding: 1.35rem 1.2rem;
+  }
+
+  .submit-page #source {
+    height: 24rem;
+  }
 }
 
-/* 题库列表的"比赛"列：一题可能参加过好几场，比赛名又长，
-   限宽 + 省略号，完整名字放在 title 里。 */
-.problemset-contest {
-  display: inline-block;
-  max-width: 12em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  vertical-align: bottom;
-  margin-right: 0.4em;
-}
+@media print {
+  .site-header,
+  .site-footer,
+  .site-user,
+  .admin-nav,
+  .status-filters,
+  .ui.pagination.menu {
+    display: none !important;
+  }
 
-/* ── 全局排名页（.ranklist-toolbar / #ranklist-tab）─────────
- * 顶部 scope 导航与两个查找框放同一行：按钮靠左、查找靠右，窄屏可换行。
- * 表格整表居中、总宽可调（--ranklist-table-width），列宽比例由模板
- * <colgroup> 指定，table-layout:fixed 让比例生效。 */
-.ranklist-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.5rem 1rem;
-  margin-bottom: 1rem;
-}
-.ranklist-scopes {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.5rem;
-}
-.ranklist-search {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.75rem;
-  margin: 0;
-}
-.ranklist-search .field {
-  display: inline-flex;
-  align-items: center;
-  margin: 0;
-  white-space: nowrap;
-}
-.ranklist-search input {
-  width: 160px;
-  margin: 0;
-}
-.ranklist-search button { margin: 0; }
-#ranklist-tab {
-  table-layout: fixed;
-  width: var(--ranklist-table-width, 1080px);
-  max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
-}
-#ranklist-tab th, #ranklist-tab td {
-  text-align: center;
-  vertical-align: middle;
-}
+  body {
+    display: block;
+    background: #fff;
+  }
 
+  main {
+    padding: 0;
+  }
+}
