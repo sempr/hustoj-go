@@ -1,0 +1,10 @@
+# goose 数据库迁移配置
+# 详见: https://github.com/pressly/goose
+provider: mysql
+dialect: mysql
+dir: migrations
+table: schema_migrations
+verbose: true
+# 数据库连接串（开发环境用；生产/部署由 migrate.sh 处理）
+# 格式: user:password@tcp(host:port)/dbname?parseTime=true
+# goose -dir migrations mysql "user:pass@tcp(127.0.0.1:3306)/hustoj?parseTime=true" up

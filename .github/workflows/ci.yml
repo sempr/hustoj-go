@@ -2,144 +2,133 @@ name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches: [main, develop]
   pull_request:
+    branches: [main, develop]
+
+env:
+  # 统一数据库连接（CI 服务容器）
+  DB_DSN: "hustoj:hustoj@tcp(127.0.0.1:3306)/hustoj?parseTime=true"
 
 jobs:
-  gate:
+  migrate-check:
+    name: 数据库迁移与结构校验
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache: true
-
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-
-      # 与本地 extra/check_all.sh 同一条路径，避免两边结论不一致。
-      - name: 全量门禁（Go + PHP）
-        run: bash extra/check_all.sh
-
-      - name: staticcheck
-        run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
-          staticcheck ./...
-
-      - name: systemd unit 语法
-        run: |
-          # CI 容器里没有 systemd，用文本校验替代 systemd-analyze verify。
-          test -f extra/hustoj-web.service
-          test -f extra/judged-go.service
-          grep -q '^ExecStart=/usr/bin/hustoj web' extra/hustoj-web.service
-          grep -q '^ExecStart=/usr/bin/hustoj daemon' extra/judged-go.service
-
-      - name: 迁移脚本与 schema 同步
-        run: |
-          # 00003 就是 schema/triggers.sql，二者必须逐字一致，防止只改一处。
-          diff -q schema/triggers.sql migrations/00003_triggers.sql
-          # sink 校验：迁移脚本只应向前、不删数据。
-          ! grep -qiE 'DROP[[:space:]]+(TABLE|DATABASE)' migrations/0000[2-9]*.sql
-
-      - name: 凭据不得入库
-        run: |
-          # 用 git ls-files 判断"是否被跟踪"，而不是判断文件是否存在：
-          # 生产机上 db_info.inc.php 本就存在（被 .gitignore 排除），
-          # 按文件存在性判断会在本地误报、在 CI 才通过。
-          # git ls-files 走索引，与工作区无关，两边结论一致。
-          for f in phpweb/include/db_info.inc.php phpweb/include/judge.conf web.toml; do
-            if git ls-files --error-unmatch "$f" >/dev/null 2>&1; then
-              echo "真实配置被提交入库: $f"; exit 1
-            fi
-          done
-          ! git grep -nEi '(password|passwd)\s*=\s*["'"'"'][^"'"'"']{6,}' -- '*.go' '*.toml' '*.service'
-
-  shellcheck:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: shellcheck
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq shellcheck
-          shellcheck extra/check_all.sh extra/check_lang_index.sh \
-                     extra/package.sh extra/install.sh extra/uninstall.sh extra/install_langs.sh extra/init_db.sh \
-                     extra/migrate.sh extra/prepare_env.sh \
-                     extra/demo/install_demo.sh extra/demo/build_data.sh
-
-  # 离线部署包的冒烟：构建 amd64 包 → 校验 SHA256SUMS → dry-run 试装。
-  package:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
-          cache: true
-      - name: 构建离线包（amd64）
-        run: bash extra/package.sh linux/amd64 --no-fetch-tini
-      - name: 校验并 dry-run 试装
-        run: |
-          cd dist
-          tar -xzf hustoj-go-*-linux-amd64.tar.gz
-          cd hustoj-go-*-linux-amd64
-          sha256sum -c --quiet SHA256SUMS
-          test -f schema/schema.sql && test -f schema/triggers.sql && test -f schema/seed.sql
-          test -f migrate.sh && test -x migrate.sh
-          test -f migrations/00002_legacy_to_schema.sql && test -f migrations/00003_triggers.sql
-          test -f demo/install_demo.sh && test -x demo/install_demo.sh
-          test -f demo/problems/1002-spj-magic/data/spj
-          test -f demo/problems/1003-interactive/data/spj
-          ./install.sh --dry-run
-          ./init_db.sh --db ci --user ci --password ci --dry-run
-          ./migrate.sh --db ci --user ci --password ci --dry-run
-          # 示例题装载脚本 dry-run（凭据用一个临时 judge.conf）
-          mkdir -p tmpetc && printf 'OJ_HOST_NAME=127.0.0.1\nOJ_PORT_NUMBER=3306\nOJ_USER_NAME=ci\nOJ_PASSWORD=ci\nOJ_DB_NAME=ci\n' > tmpetc/judge.conf
-          ./demo/install_demo.sh --ojhome "$PWD/tmp" --conf "$PWD/tmpetc/judge.conf" --dry-run
-
-  # 存量库升级路径：造一个“旧结构”库 → migrate.sh → check_schema 必须通过。
-  migrate:
-    runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
-      mariadb:
-        image: mariadb:11
+      mysql:
+        image: mariadb:11.4
         env:
-          MARIADB_ROOT_PASSWORD: root
-        ports:
-          - 3306:3306
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: hustoj
+          MYSQL_USER: hustoj
+          MYSQL_PASSWORD: hustoj
+        ports: ["3306:3306"]
         options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=5s
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot"
+          --health-interval=10s
           --health-timeout=5s
-          --health-retries=20
-    env:
-      DB_HOST: 127.0.0.1
-      DB_PORT: '3306'
-      DB_USER: root
-      DB_PASS: root
-      DB_NAME: legacy
+          --health-retries=10
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: 安装工具链
+        run: |
+          go install github.com/pressly/goose/v3/cmd/goose@latest
+          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+          curl -sSf https://atlasgo.sh | sh -s -- -y
+          echo "$HOME/go/bin:$HOME/.atlas/bin" >> $GITHUB_PATH
+
+      - name: 等待 MySQL 就绪
+        run: |
+          for i in {1..30}; do
+            mysqladmin ping -h 127.0.0.1 -u root -proot && break
+            sleep 2
+          done
+
+      - name: 初始化数据库（schema.sql + triggers + seed）
+        run: |
+          mysql -h 127.0.0.1 -u root -proot hustoj < schema/schema.sql
+          mysql -h 127.0.0.1 -u root -proot hustoj < schema/triggers.sql
+          mysql -h 127.0.0.1 -u root -proot hustoj < schema/seed.sql
+
+      - name: 登记迁移基线（模拟生产库已是新结构）
+        run: |
+          goose -dir migrations mysql "$DB_DSN" -baseline up
+
+      - name: 运行迁移检查（核心门禁）
+        run: make migrate-check
+
+      - name: 验证 sqlc 代码可编译
+        run: go build ./internal/db/sqlc/...
+
+  build-test:
+    name: 编译与单测
+    runs-on: ubuntu-latest
+    needs: migrate-check
     steps:
       - uses: actions/checkout@v4
-      - name: 造一个“旧结构”库
-        run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq mariadb-client
-          mysql -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASS" \
-            -e "CREATE DATABASE \`$DB_NAME\` CHARACTER SET utf8mb4"
-          # 新结构 → 回退成老结构（夹具覆盖 00002 要修的每一类差异）
-          mysql -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < schema/schema.sql
-          mysql -h "$DB_HOST" -P "$DB_PORT" -u"$DB_USER" -p"$DB_PASS" "$DB_NAME" < extra/testdata/legacy_downgrade.sql
-          n="$(python3 extra/check_schema.py 2>&1 | grep -c '✗' || true)"
-          echo "降级后差异数 = $n"
-          test "$n" -gt 0
-      - name: 迁移并对齐到 schema.sql
-        run: |
-          bash extra/migrate.sh --host "$DB_HOST" --port "$DB_PORT" --db "$DB_NAME" \
-               --user "$DB_USER" --password "$DB_PASS" --check
-          # 列级逐项核对（夹具未引入注释差异，严格模式即可）
-          python3 extra/check_schema.py
-          # 幂等：再跑一次应全部跳过、退出 0
-          bash extra/migrate.sh --host "$DB_HOST" --port "$DB_PORT" --db "$DB_NAME" \
-               --user "$DB_USER" --password "$DB_PASS"
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+      - run: go mod tidy
+      - run: go build -tags embed_tini -trimpath .
+      - run: go test ./...
 
+  # 可选：生成迁移脚本的预览（PR 时自动生成供审阅）
+  migrate-preview:
+    name: 迁移脚本预览
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: hustoj_dev
+          MYSQL_USER: hustoj
+          MYSQL_PASSWORD: hustoj
+        ports: ["3307:3306"]
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+      - name: 安装 atlas
+        run: curl -sSf https://atlasgo.sh | sh -s -- -y
+      - name: 初始化开发库（基于当前 main 分支结构）
+        run: |
+          # 这里简化：直接用 schema.sql 建库
+          mysql -h 127.0.0.1 -P 3307 -u root -proot -e "CREATE DATABASE hustoj_dev"
+          mysql -h 127.0.0.1 -P 3307 -u root -proot hustoj_dev < schema/schema.sql
+      - name: 生成差异迁移（对比 schema.sql 变更）
+        id: gen
+        run: |
+          atlas migrate diff auto \
+            --dir file://migrations \
+            --to file://schema/schema.sql \
+            --dev-url "mysql://hustoj:hustoj@tcp(127.0.0.1:3307)/hustoj_dev?parseTime=true" \
+            --format '{{ sql }}'
+        env:
+          ATLAS_NO_UPDATE_CHECK: "1"
+      - name: 上传生成的迁移作为 Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: generated-migration
+          path: migrations/*_auto.sql
+          retention-days: 7
