@@ -318,6 +318,24 @@ jobs:
           - lang: csharp
             id: 9
             arch: arm64
+          - lang: pascal
+            id: 2
+            arch: amd64
+          - lang: pascal
+            id: 2
+            arch: arm64
+          - lang: bash
+            id: 5
+            arch: amd64
+          - lang: bash
+            id: 5
+            arch: arm64
+          - lang: perl
+            id: 8
+            arch: amd64
+          - lang: perl
+            id: 8
+            arch: arm64
     steps:
       - name: Checkout 代码
         uses: actions/checkout@v4
@@ -425,7 +443,11 @@ jobs:
             | 语言 | ID | amd64 | arm64 |
             |------|-----|-------|-------|
             | C | 0 | ✅ | ✅ |
-            | C++ | 1 | ✅ | ✅ |
+            | C++ (C++14 默认) | 1 | ✅ | ✅ |
+            | C++11 | 26 | ✅ | ✅ |
+            | C++17 | 27 | ✅ | ✅ |
+            | C++20 | 28 | ✅ | ✅ |
+            | C++23 | 29 | ✅ | ✅ |
             | Java | 3 | ✅ | ✅ |
             | Python | 6 | ✅ | ✅ |
             | Node.js | 16 | ✅ | ✅ |
@@ -433,6 +455,9 @@ jobs:
             | Rust | 25 | ✅ | ✅ |
             | PHP | 7 | ✅ | ✅ |
             | C# | 9 | ✅ | ✅ |
+            | Pascal | 2 | ✅ | ✅ |
+            | Bash | 5 | ✅ | ✅ |
+            | Perl | 8 | ✅ | ✅ |
 
             ## 自动安装（推荐）
             离线部署包自带 `install_langs.sh`，会自动检测并使用预构建 rootfs：
