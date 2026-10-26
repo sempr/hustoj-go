@@ -483,11 +483,12 @@ func TestStatusFilterExplicitZeroIsHonoured(t *testing.T) {
 
 // 越界语言值要归一成"不过滤"，而不是当成语言 0。
 func TestStatusFilterRejectsOutOfRangeLanguage(t *testing.T) {
-	r := httptest.NewRequest(http.MethodGet, "/status.php?language=27", nil)
+	// 现在有 30 种语言 (0-29)，用 30 作为越界值
+	r := httptest.NewRequest(http.MethodGet, "/status.php?language=30", nil)
 	f := parseStatusFilter(r)
 
 	if f.HasLanguage {
-		t.Errorf("language=27 超出 0..26，应视为未指定，实际 Language=%d", f.Language)
+		t.Errorf("language=30 超出 0..29，应视为未指定，实际 Language=%d", f.Language)
 	}
 	sqlStr, _ := (&Server{}).buildWhere(f, Anonymous())
 	if strings.Contains(sqlStr, "s.language") {
@@ -507,8 +508,11 @@ func TestParseStatusFilterDistinguishesAbsentFromZero(t *testing.T) {
 		{"/status.php?language=3", 3, -1, true, false},
 		{"/status.php?jresult=4", -1, 4, false, true},
 		{"/status.php?jresult=-1", -1, -1, false, false},
-		{"/status.php?language=26", 26, -1, true, false},
-		{"/status.php?language=27", -1, -1, false, false},
+		{"/status.php?language=26", 26, -1, true, false},   // Pascal
+		{"/status.php?language=27", 27, -1, true, false},   // C++11
+		{"/status.php?language=28", 28, -1, true, false},   // C++17
+		{"/status.php?language=29", 29, -1, true, false},   // C++20
+		{"/status.php?language=30", -1, -1, false, false},  // 越界
 		// 空串必须表示"不过滤"，不能当成 0。
 		//
 		// PHP 的 intval("")==0 会把 ?language= 当成"筛语言 0（C）"，
