@@ -158,65 +158,11 @@ jobs:
           - lang: cpp
             id: 1
             arch: arm64
-          - lang: java
-            id: 3
-            arch: amd64
-          - lang: java
-            id: 3
-            arch: arm64
           - lang: python
             id: 6
             arch: amd64
           - lang: python
             id: 6
-            arch: arm64
-          - lang: node
-            id: 16
-            arch: amd64
-          - lang: node
-            id: 16
-            arch: arm64
-          - lang: go
-            id: 17
-            arch: amd64
-          - lang: go
-            id: 17
-            arch: arm64
-          - lang: rust
-            id: 25
-            arch: amd64
-          - lang: rust
-            id: 25
-            arch: arm64
-          - lang: php
-            id: 7
-            arch: amd64
-          - lang: php
-            id: 7
-            arch: arm64
-          - lang: csharp
-            id: 9
-            arch: amd64
-          - lang: csharp
-            id: 9
-            arch: arm64
-          - lang: pascal
-            id: 2
-            arch: amd64
-          - lang: pascal
-            id: 2
-            arch: arm64
-          - lang: bash
-            id: 5
-            arch: amd64
-          - lang: bash
-            id: 5
-            arch: arm64
-          - lang: perl
-            id: 8
-            arch: amd64
-          - lang: perl
-            id: 8
             arch: arm64
     steps:
       - name: Checkout 代码
@@ -323,24 +269,16 @@ jobs:
             tar -xzf rootfs-go-amd64.tar.gz -C /opt/hustoj/langs/go
             ```
 
-            ## 支持的语言
+            ## 支持的语言（当前首批发布）
             | 语言 | ID | amd64 | arm64 | 备注 |
             |------|-----|-------|-------|------|
             | C/C++ (共用) | 0/1 | ✅ | ✅ | 共用 debian:13-slim + gcc/g++ |
-            | C++11 | 26 | ✅ | ✅ | 仅 PCH 不同 |
+            | Python | 6 | ✅ | ✅ | |
+            | C++11 | 26 | ✅ | ✅ | 仅 PCH 不同（随 C++ 共用 rootfs 发布） |
             | C++17 | 27 | ✅ | ✅ | 仅 PCH 不同 |
             | C++20 | 28 | ✅ | ✅ | 仅 PCH 不同 |
             | C++23 | 29 | ✅ | ✅ | 仅 PCH 不同 |
-            | Java | 3 | ✅ | ✅ | |
-            | Python | 6 | ✅ | ✅ | |
-            | Node.js | 16 | ✅ | ✅ | |
-            | Go | 17 | ✅ | ✅ | |
-            | Rust | 25 | ✅ | ✅ | |
-            | PHP | 7 | ✅ | ✅ | |
-            | C# | 9 | ✅ | ✅ | |
-            | Pascal | 2 | ✅ | ✅ | |
-            | Bash | 5 | ✅ | ✅ | |
-            | Perl | 8 | ✅ | ✅ | |
+            | *更多语言敬请期待* | | | | 后续版本陆续添加 |
 
             ## 自动安装（推荐）
             离线部署包自带 `install_langs.sh`，会自动检测并使用预构建 rootfs：
