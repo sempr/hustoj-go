@@ -51,9 +51,9 @@ func RunGooseDown(db *sql.DB, migrationsDir string) error {
 }
 
 // GetMigrationStatus 获取迁移状态（用于健康检查/监控）
-func GetMigrationStatus(db *sql.DB, migrationsDir string) ([]*goose.Migration, error) {
+func GetMigrationStatus(db *sql.DB, migrationsDir string) (int64, error) {
 	if err := goose.SetDialect("mysql"); err != nil {
-		return nil, fmt.Errorf("set dialect: %w", err)
+		return 0, fmt.Errorf("set dialect: %w", err)
 	}
 	return goose.GetDBVersion(db)
 }

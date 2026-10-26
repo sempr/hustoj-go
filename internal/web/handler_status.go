@@ -180,7 +180,7 @@ func parseStatusFilter(r *http.Request) StatusFilter {
 	language := int32(-1)
 	hasLanguage := false
 	if raw := q.Get("language"); raw != "" {
-		if v := int32(parseInt(raw)); v >= 0 && v <= maxStatusLanguageID() {
+		if v := int32(parseInt(raw)); v >= 0 && v < maxStatusLanguageID() {
 			language = v
 			hasLanguage = true
 		}

@@ -86,18 +86,18 @@ func TestBuildWhereOmitsAbsentFilters(t *testing.T) {
 	}
 }
 
-// language 超出上界按 -1 处理（status.php:158 的 count($language_ext) = 26）。
+// language 超出上界按 -1 处理（当前语言数 30，合法 ID 0-29）。
 func TestParseStatusFilterRejectsOutOfRangeLanguage(t *testing.T) {
-	for _, q := range []string{"language=27", "language=999", "language=-1"} {
+	for _, q := range []string{"language=30", "language=999", "language=-1"} {
 		f := parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php?"+q, nil))
 		if f.Language != -1 {
 			t.Errorf("%s 解析为 %d，期望 -1（越界即不过滤）", q, f.Language)
 		}
 	}
-	// 边界值 26 仍然有效。
-	f := parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php?language=26", nil))
-	if f.Language != 26 {
-		t.Errorf("language=26 解析为 %d，期望 26（上界含端点）", f.Language)
+	// 边界值 29 仍然有效。
+	f := parseStatusFilter(httptest.NewRequest(http.MethodGet, "/status.php?language=29", nil))
+	if f.Language != 29 {
+		t.Errorf("language=29 解析为 %d，期望 29（上界含端点）", f.Language)
 	}
 }
 
