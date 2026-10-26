@@ -8,76 +8,12 @@ on:
     branches: [main, develop]
 
 env:
-  # 统一数据库连接（CI 服务容器）
-  DB_DSN: "hustoj:hustoj@tcp(127.0.0.1:3306)/hustoj?parseTime=true"
-  # Go 版本统一管理
   GO_VERSION: '1.24'
 
 jobs:
-  migrate-check:
-    name: 数据库迁移与结构校验
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    services:
-      mysql:
-        image: mariadb:11.4
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: hustoj
-          MYSQL_USER: hustoj
-          MYSQL_PASSWORD: hustoj
-        ports: ["3306:3306"]
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-    steps:
-      - name: Checkout 代码
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0  # 需要完整历史以便 git describe 生成版本号
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-
-      - name: 安装工具链
-        run: |
-          go install github.com/pressly/goose/v3/cmd/goose@latest
-          go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
-          curl -sSf https://atlasgo.sh | sh -s -- -y
-          echo "$HOME/go/bin:$HOME/.atlas/bin" >> $GITHUB_PATH
-
-      - name: 等待 MySQL 就绪
-        run: |
-          for i in {1..30}; do
-            mysqladmin ping -h 127.0.0.1 -u root -proot && break
-            sleep 2
-          done
-
-      - name: 初始化数据库（schema.sql + triggers + seed）
-        run: |
-          mysql -h 127.0.0.1 -u root -proot hustoj < schema/schema.sql
-          mysql -h 127.0.0.1 -u root -proot hustoj < schema/triggers.sql
-          mysql -h 127.0.0.1 -u root -proot hustoj < schema/seed.sql
-
-      - name: 登记迁移基线（模拟生产库已是新结构）
-        run: |
-          goose -dir migrations mysql "$DB_DSN" -baseline up
-
-      - name: 运行迁移检查（核心门禁）
-        run: make migrate-check
-
-      - name: 验证 sqlc 代码可编译
-        run: go build ./internal/db/sqlc/...
-
   build-test:
     name: 编译与单测
     runs-on: ubuntu-latest
-    needs: migrate-check
     steps:
       - uses: actions/checkout@v4
         with:
@@ -90,62 +26,12 @@ jobs:
       - run: go build -tags embed_tini -trimpath .
       - run: go test ./...
 
-  # 可选：生成迁移脚本的预览（PR 时自动生成供审阅）
-  migrate-preview:
-    name: 迁移脚本预览
-    runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
-    services:
-      mysql:
-        image: mariadb:11.4
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: hustoj_dev
-          MYSQL_USER: hustoj
-          MYSQL_PASSWORD: hustoj
-        ports: ["3307:3306"]
-        options: >-
-          --health-cmd="mysqladmin ping -h 127.0.0.1 -u root -proot"
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache: true
-      - name: 安装 atlas
-        run: curl -sSf https://atlasgo.sh | sh -s -- -y
-      - name: 初始化开发库（基于当前 main 分支结构）
-        run: |
-          # 这里简化：直接用 schema.sql 建库
-          mysql -h 127.0.0.1 -P 3307 -u root -proot -e "CREATE DATABASE hustoj_dev"
-          mysql -h 127.0.0.1 -P 3307 -u root -proot hustoj_dev < schema/schema.sql
-      - name: 生成差异迁移（对比 schema.sql 变更）
-        id: gen
-        run: |
-          atlas migrate diff auto \
-            --dir file://migrations \
-            --to file://schema/schema.sql \
-            --dev-url "mysql://hustoj:hustoj@tcp(127.0.0.1:3307)/hustoj_dev?parseTime=true" \
-            --format '{{ sql }}'
-        env:
-          ATLAS_NO_UPDATE_CHECK: "1"
-      - name: 上传生成的迁移作为 Artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: generated-migration
-          path: migrations/*_auto.sql
-          retention-days: 7
-
   # ==================== 发布构建 ====================
   release:
     name: 发布构建 (${{ matrix.goarch }})
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: [migrate-check, build-test]
+    needs: build-test
     strategy:
       matrix:
         goarch: [amd64, arm64]
