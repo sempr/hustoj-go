@@ -151,12 +151,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - lang: c
-            id: 0
-            arch: amd64
-          - lang: c
-            id: 0
-            arch: arm64
+          # C/C++ 共用同一个 rootfs (debian:13-slim + gcc/g++)
           - lang: cpp
             id: 1
             arch: amd64
@@ -239,15 +234,16 @@ jobs:
           cd extra
           chmod +x build_prebuilt_rootfs.sh
           VERSION="${GITHUB_REF_NAME#v}"
-          ./build_prebuilt_rootfs.sh --lang ${{ matrix.id }} --arch ${{ matrix.arch }} --load --out-dir "$ROOT/dist/prebuilt-rootfs"
+          # 使用 github.workspace 作为绝对路径，避免权限问题
+          ./build_prebuilt_rootfs.sh --lang ${{ matrix.id }} --arch ${{ matrix.arch }} --load --out-dir "${{ github.workspace }}/dist/prebuilt-rootfs"
 
       - name: 上传 Rootfs 产物
         uses: actions/upload-artifact@v4
         with:
           name: rootfs-${{ matrix.lang }}-${{ matrix.arch }}
           path: |
-            extra/dist/prebuilt-rootfs/rootfs-${{ matrix.lang }}-${{ matrix.arch }}.tar.gz
-            extra/dist/prebuilt-rootfs/rootfs-${{ matrix.lang }}-${{ matrix.arch }}.tar.gz.sha256
+            ${{ github.workspace }}/dist/prebuilt-rootfs/rootfs-${{ matrix.lang }}-${{ matrix.arch }}.tar.gz
+            ${{ github.workspace }}/dist/prebuilt-rootfs/rootfs-${{ matrix.lang }}-${{ matrix.arch }}.tar.gz.sha256
           retention-days: 30
 
   rootfs-release:
@@ -328,24 +324,23 @@ jobs:
             ```
 
             ## 支持的语言
-            | 语言 | ID | amd64 | arm64 |
-            |------|-----|-------|-------|
-            | C | 0 | ✅ | ✅ |
-            | C++ (C++14 默认) | 1 | ✅ | ✅ |
-            | C++11 | 26 | ✅ | ✅ |
-            | C++17 | 27 | ✅ | ✅ |
-            | C++20 | 28 | ✅ | ✅ |
-            | C++23 | 29 | ✅ | ✅ |
-            | Java | 3 | ✅ | ✅ |
-            | Python | 6 | ✅ | ✅ |
-            | Node.js | 16 | ✅ | ✅ |
-            | Go | 17 | ✅ | ✅ |
-            | Rust | 25 | ✅ | ✅ |
-            | PHP | 7 | ✅ | ✅ |
-            | C# | 9 | ✅ | ✅ |
-            | Pascal | 2 | ✅ | ✅ |
-            | Bash | 5 | ✅ | ✅ |
-            | Perl | 8 | ✅ | ✅ |
+            | 语言 | ID | amd64 | arm64 | 备注 |
+            |------|-----|-------|-------|------|
+            | C/C++ (共用) | 0/1 | ✅ | ✅ | 共用 debian:13-slim + gcc/g++ |
+            | C++11 | 26 | ✅ | ✅ | 仅 PCH 不同 |
+            | C++17 | 27 | ✅ | ✅ | 仅 PCH 不同 |
+            | C++20 | 28 | ✅ | ✅ | 仅 PCH 不同 |
+            | C++23 | 29 | ✅ | ✅ | 仅 PCH 不同 |
+            | Java | 3 | ✅ | ✅ | |
+            | Python | 6 | ✅ | ✅ | |
+            | Node.js | 16 | ✅ | ✅ | |
+            | Go | 17 | ✅ | ✅ | |
+            | Rust | 25 | ✅ | ✅ | |
+            | PHP | 7 | ✅ | ✅ | |
+            | C# | 9 | ✅ | ✅ | |
+            | Pascal | 2 | ✅ | ✅ | |
+            | Bash | 5 | ✅ | ✅ | |
+            | Perl | 8 | ✅ | ✅ | |
 
             ## 自动安装（推荐）
             离线部署包自带 `install_langs.sh`，会自动检测并使用预构建 rootfs：

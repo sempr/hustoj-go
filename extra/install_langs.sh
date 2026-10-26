@@ -97,7 +97,19 @@ find_prebuilt() {
         fi
     done
     
-    # 2. 远程下载
+    # 2. C 语言回退到 C++ rootfs (共用同一个 rootfs)
+    if [ "$lang_name" = "c" ]; then
+        local cpp_file="rootfs-cpp-${ARCH}.tar.gz"
+        for dir in "${PREBUILT_SEARCH_DIRS[@]}"; do
+            if [ -f "$dir/$cpp_file" ]; then
+                info "C 语言使用 C++ 共享 rootfs: $cpp_file"
+                echo "$dir/$cpp_file"
+                return 0
+            fi
+        done
+    fi
+    
+    # 3. 远程下载
     if [ "$USE_PREBUILT" -eq 1 ] && [ -n "$PREBUILT_URL" ]; then
         local tmpdir="/tmp/hustoj-prebuilt-rootfs"
         mkdir -p "$tmpdir"
@@ -113,6 +125,28 @@ find_prebuilt() {
             else
                 warn "无校验和文件，跳过校验: ${file}"
                 echo "${tmpdir}/${file}"
+                return 0
+            fi
+        fi
+    fi
+    
+    # 4. 远程下载也尝试 C++ 回退
+    if [ "$lang_name" = "c" ] && [ "$USE_PREBUILT" -eq 1 ] && [ -n "$PREBUILT_URL" ]; then
+        local cpp_file="rootfs-cpp-${ARCH}.tar.gz"
+        local tmpdir="/tmp/hustoj-prebuilt-rootfs"
+        mkdir -p "$tmpdir"
+        if wget -q --timeout=30 --tries=2 "${PREBUILT_URL}/${cpp_file}" -O "${tmpdir}/${cpp_file}" 2>/dev/null; then
+            if wget -q --timeout=10 --tries=1 "${PREBUILT_URL}/${cpp_file}.sha256" -O "${tmpdir}/${cpp_file}.sha256" 2>/dev/null; then
+                if (cd "$tmpdir" && sha256sum -c "${cpp_file}.sha256" >/dev/null 2>&1); then
+                    info "C 语言远程下载使用 C++ 共享 rootfs: $cpp_file"
+                    echo "${tmpdir}/${cpp_file}"
+                    return 0
+                else
+                    warn "校验失败: ${cpp_file}"
+                fi
+            else
+                warn "无校验和文件，跳过校验: ${cpp_file}"
+                echo "${tmpdir}/${cpp_file}"
                 return 0
             fi
         fi
