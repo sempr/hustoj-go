@@ -12,7 +12,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 OUT_DIR="$ROOT/dist/prebuilt-rootfs"
 
 # 语言映射：ID -> { name, base_image, dockerfile_subdir, extra_packages, env_setup }
-# 基础镜像优先使用 debian:slim，仅当必须时用官方镜像
+# 基础镜像统一使用 debian:13-slim（与现有 Dockerfile 一致），仅 Java/Node 需官方镜像
 declare -A LANG_NAME=(
     [0]="c"       [1]="cpp"     [2]="pascal"  [3]="java"
     [5]="bash"    [6]="python"  [7]="php"     [8]="perl"
@@ -20,54 +20,67 @@ declare -A LANG_NAME=(
 )
 
 declare -A BASE_IMAGE=(
-    [0]="debian:12-slim"      # C
-    [1]="debian:12-slim"      # C++
-    [2]="debian:12-slim"      # Pascal
-    [3]="eclipse-temurin:21-jdk"  # Java (必须官方)
-    [5]="debian:12-slim"      # Bash
-    [6]="python:3-slim"       # Python (官方更稳)
-    [7]="debian:12-slim"      # PHP
-    [8]="debian:12-slim"      # Perl
-    [9]="mcr.microsoft.com/dotnet/sdk:8.0"  # C# (必须官方)
-    [16]="node:lts-slim"      # Node.js (官方)
-    [17]="debian:12-slim"     # Go (从源码安装)
-    [25]="debian:12-slim"     # Rust (从源码安装)
+    [0]="debian:13-slim"      # C
+    [1]="debian:13-slim"      # C++
+    [2]="debian:13-slim"      # Pascal
+    [3]="debian:13-slim"      # Java (统一 debian，apt 装 openjdk-21)
+    [5]="debian:13-slim"      # Bash
+    [6]="debian:13-slim"      # Python (统一 debian，apt 装 python3)
+    [7]="debian:13-slim"      # PHP
+    [8]="debian:13-slim"      # Perl
+    [9]="debian:13-slim"      # C# (mono)
+    [16]="debian:13-slim"     # Node.js (统一 debian，nodesource 源装 LTS)
+    [17]="debian:13-slim"     # Go (从源码安装)
+    [25]="debian:13-slim"     # Rust (从源码安装)
 )
 
 declare -A EXTRA_PACKAGES=(
-    [0]="gcc g++ libc6-dev"                    # C
-    [1]="gcc g++ libc6-dev"                    # C++
-    [2]="fpc fp-compiler"                      # Pascal
-    [3]=""                                     # Java (官方镜像自带)
-    [5]="bash"                                 # Bash
-    [6]=""                                     # Python (官方镜像自带)
-    [7]="php-cli"                              # PHP
-    [8]="perl"                                 # Perl
-    [9]=""                                     # C# (官方镜像自带)
-    [16]=""                                    # Node (官方镜像自带)
-    [17]="golang-go"                           # Go
-    [25]="rustc cargo"                         # Rust
+    [0]="gcc g++ libc6-dev"                           # C
+    [1]="gcc g++ libc6-dev"                           # C++
+    [2]="fpc fp-compiler"                             # Pascal
+    [3]="default-jdk"                                 # Java (OpenJDK，debian 13 默认 21，25 需 backports)
+    [5]="bash"                                        # Bash
+    [6]="python3 python3-pip python3-venv"            # Python (debian 13 默认 3.13，3.15 需 backports/源码)
+    [7]="php-cli"                                     # PHP
+    [8]="perl"                                        # Perl
+    [9]="mono-mcs mono-runtime"                       # C# (mono)
+    [16]=""                                           # Node.js (通过 nodesource 源安装，见 SPECIAL_INSTALL)
+    [17]="golang-go"                                  # Go (apt 装旧版，再源码升级)
+    [25]="rustc cargo"                                # Rust
 )
 
 declare -A POST_INSTALL=(
     [0]="g++ -x c++-header -O2 -std=c++23 \$(find /usr/include/ -name 'stdc++.h' 2>/dev/null | head -1) 2>/dev/null || true"
-    [1]="g++ -x c++-header -fno-asm -Wall -O2 -std=c++14 -DONLINE_JUDGE \$(find /usr/include/ -name 'stdc++.h' 2>/dev/null | head -1) 2>/dev/null || true"
+    [1]="g++ -x c++-header -fno-asm -Wall -O2 -std=c++14 -DONLINE_JUDGE \$(find /usr/include/ -name 'stdc++.h' 2>/dev/null | head -1) 2>/dev/null || true && echo '#include <bits/stdc++.h>' | g++ -x c++-header -fno-asm -Wall -O2 -std=c++14 -DONLINE_JUDGE -o /dev/null - 2>/dev/null || true"
     [2]=""
-    [3]="ln -sf /opt/java/openjdk/bin/javac /usr/bin/javac && ln -sf /opt/java/openjdk/bin/java /usr/bin/java"
+    [3]="ln -sf /usr/lib/jvm/default-java/bin/javac /usr/bin/javac && ln -sf /usr/lib/jvm/default-java/bin/java /usr/bin/java"
     [5]=""
-    [6]=""
+    [6]="ln -sf /usr/bin/python3 /usr/bin/python"
     [7]="mkdir -p /code /tmp"
     [8]=""
-    [9]=""
+    [9]=""                                             # C# mono 无需额外链接
     [16]="npm install -g typescript ts-node esbuild"
-    [17]=""
-    [25]="ln -sf /usr/bin/rustc /usr/local/bin/rustc"
+    [17]="mkdir -p /go-cache && GOCACHE=/go-cache GOFLAGS='-buildvcs=false' go build -o /dev/null -v std 2>/dev/null || true && GOCACHE=/go-cache GOFLAGS='-buildvcs=false' go build -o /dev/null -v runtime 2>/dev/null || true"
+    [25]="ln -sf /usr/bin/rustc /usr/local/bin/rustc && mkdir -p /rust-cache && cd /tmp && cargo new --bin rust_warmup 2>/dev/null && cd rust_warmup && CARGO_TARGET_DIR=/rust-cache cargo build --release 2>/dev/null || true && rm -rf /tmp/rust_warmup"
 )
 
-# Go/Rust 需要特殊处理（从源码安装特定版本）
+# ========== 版本号集中管理（2026-10-26 实际最新稳定版，可通过环境变量/参数覆盖）==========
+# 支持版本回退：export GO_VERSION=1.22.5 && ./build_prebuilt_rootfs.sh --lang go
+# 或：./build_prebuilt_rootfs.sh --lang go --go-version 1.22.5
+GO_VERSION="${GO_VERSION:-1.27.3}"          # Go 官方最新稳定
+RUST_VERSION="${RUST_VERSION:-1.99.1}"      # Rust 官方最新稳定
+NODE_MAJOR="${NODE_MAJOR:-24}"              # Node.js 24 LTS (官方源)
+
+# 版本回退参数（命令行优先级最高）
+OVERRIDE_GO_VERSION=""
+OVERRIDE_RUST_VERSION=""
+OVERRIDE_NODE_MAJOR=""
+
+# 特殊安装：Node.js/Go/Rust 从官方源安装最新稳定版
 declare -A SPECIAL_INSTALL=(
-    [17]="GO_VERSION=1.22.5 && ARCH=\$(dpkg --print-architecture) && case \$ARCH in amd64) GOARCH=amd64;; arm64) GOARCH=arm64;; esac && wget -q https://go.dev/dl/go\${GO_VERSION}.linux-\${GOARCH}.tar.gz -O /tmp/go.tar.gz && tar -C /usr/local -xzf /tmp/go.tar.gz && rm /tmp/go.tar.gz && ln -sf /usr/local/go/bin/go /usr/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/bin/gofmt"
-    [25]="RUST_VERSION=1.82.0 && ARCH=\$(dpkg --print-architecture) && case \$ARCH in amd64) RUSTARCH=x86_64-unknown-linux-gnu;; arm64) RUSTARCH=aarch64-unknown-linux-gnu;; esac && wget -q https://static.rust-lang.org/dist/rust-\${RUST_VERSION}-\${RUSTARCH}.tar.gz -O /tmp/rust.tar.gz && tar -xzf /tmp/rust.tar.gz -C /tmp && /tmp/rust-\${RUST_VERSION}-\${RUSTARCH}/install.sh --prefix=/usr/local --without=rust-docs && rm -rf /tmp/rust* && ln -sf /usr/local/bin/rustc /usr/bin/rustc && ln -sf /usr/local/bin/cargo /usr/bin/cargo"
+    [16]="curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*"
+    [17]="ARCH=\$(dpkg --print-architecture) && case \$ARCH in amd64) GOARCH=amd64;; arm64) GOARCH=arm64;; esac && wget -q https://go.dev/dl/go${GO_VERSION}.linux-\${GOARCH}.tar.gz -O /tmp/go.tar.gz && tar -C /usr/local -xzf /tmp/go.tar.gz && rm /tmp/go.tar.gz && ln -sf /usr/local/go/bin/go /usr/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/bin/gofmt"
+    [25]="ARCH=\$(dpkg --print-architecture) && case \$ARCH in amd64) RUSTARCH=x86_64-unknown-linux-gnu;; arm64) RUSTARCH=aarch64-unknown-linux-gnu;; esac && wget -q https://static.rust-lang.org/dist/rust-${RUST_VERSION}-\${RUSTARCH}.tar.gz -O /tmp/rust.tar.gz && tar -xzf /tmp/rust.tar.gz -C /tmp && /tmp/rust-${RUST_VERSION}-\${RUSTARCH}/install.sh --prefix=/usr/local --without=rust-docs && rm -rf /tmp/rust* && ln -sf /usr/local/bin/rustc /usr/bin/rustc && ln -sf /usr/local/bin/cargo /usr/bin/cargo"
 )
 
 # 镜像标签前缀
@@ -87,10 +100,17 @@ usage() {
   --push              推送镜像到 registry (需先 docker login)
   --load              构建后加载到本地 docker (用于后续 export)
   --out-dir <dir>     输出目录 (默认: \$ROOT/dist/prebuilt-rootfs)
+  --go-version <ver>  覆盖 Go 版本 (如 1.22.5)
+  --rust-version <ver> 覆盖 Rust 版本 (如 1.82.0)
+  --node-major <ver>  覆盖 Node.js 主版本 (如 20)
+  --java-version <ver> 覆盖 Java 版本 (如 21)
+  --python-version <ver> 覆盖 Python 版本 (如 3.12)
   -h, --help          显示帮助
 示例:
   $0 --all --arch amd64 --load
   $0 --lang 17 --lang 3 --arch arm64 --load
+  $0 --lang go --go-version 1.22.5 --load
+  $0 --lang rust --rust-version 1.82.0 --load
 EOF
 }
 
@@ -99,6 +119,11 @@ WANT_ALL=0
 TARGET_ARCH="$(dpkg --print-architecture 2>/dev/null || echo amd64)"
 DO_PUSH=0
 DO_LOAD=0
+OVERRIDE_GO_VERSION=""
+OVERRIDE_RUST_VERSION=""
+OVERRIDE_NODE_MAJOR=""
+OVERRIDE_JAVA_VERSION=""
+OVERRIDE_PYTHON_VERSION=""
 
 while [ $# -gt 0 ]; do
     case "$1" in
@@ -114,11 +139,28 @@ while [ $# -gt 0 ]; do
             DO_LOAD=1; shift ;;
         --out-dir)
             OUT_DIR="$2"; shift 2 ;;
+        --go-version)
+            OVERRIDE_GO_VERSION="$2"; shift 2 ;;
+        --rust-version)
+            OVERRIDE_RUST_VERSION="$2"; shift 2 ;;
+        --node-major)
+            OVERRIDE_NODE_MAJOR="$2"; shift 2 ;;
+        --java-version)
+            OVERRIDE_JAVA_VERSION="$2"; shift 2 ;;
+        --python-version)
+            OVERRIDE_PYTHON_VERSION="$2"; shift 2 ;;
         -h|--help)
             usage; exit 0 ;;
         *) die "未知参数: $1" ;;
     esac
 done
+
+# 应用命令行版本覆盖（优先级：命令行 > 环境变量 > 默认值）
+[ -n "$OVERRIDE_GO_VERSION" ] && GO_VERSION="$OVERRIDE_GO_VERSION"
+[ -n "$OVERRIDE_RUST_VERSION" ] && RUST_VERSION="$OVERRIDE_RUST_VERSION"
+[ -n "$OVERRIDE_NODE_MAJOR" ] && NODE_MAJOR="$OVERRIDE_NODE_MAJOR"
+[ -n "$OVERRIDE_JAVA_VERSION" ] && JAVA_VERSION="$OVERRIDE_JAVA_VERSION"
+[ -n "$OVERRIDE_PYTHON_VERSION" ] && PYTHON_VERSION="$OVERRIDE_PYTHON_VERSION"
 
 # 规范化架构
 case "$TARGET_ARCH" in
