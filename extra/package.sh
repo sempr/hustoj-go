@@ -137,6 +137,62 @@ copy_lang_inputs() { # <dest-langs-dir>
     done
 }
 
+# 收集预构建 rootfs（解压即用，免 Docker）
+copy_prebuilt_rootfs() { # <dest-langs-prebuilt-dir>
+    local dst="$1"
+    local src="$ROOT/dist/prebuilt-rootfs"
+    
+    if [ ! -d "$src" ]; then
+        # 尝试从 CI 产物目录查找
+        for alt in "$ROOT/../dist/prebuilt-rootfs" "$ROOT/prebuilt-rootfs"; do
+            [ -d "$alt" ] && src="$alt" && break
+        done
+    fi
+    
+    if [ ! -d "$src" ]; then
+        return 0  # 无预构建产物，静默跳过
+    fi
+    
+    info "  收集预构建 rootfs"
+    mkdir -p "$dst/prebuilt"
+    
+    # 复制当前架构的 rootfs
+    local goarch="$2"
+    local found=0
+    for f in "$src"/rootfs-*-${goarch}.tar.gz; do
+        [ -f "$f" ] || continue
+        cp "$f" "$dst/prebuilt/"
+        cp "$f.sha256" "$dst/prebuilt/" 2>/dev/null || true
+        found=1
+    done
+    
+    if [ "$found" -eq 1 ]; then
+        # 生成 manifest.json（仅当前架构）
+        cat > "$dst/prebuilt/manifest.json" <<EOF
+{
+  "version": "${VERSION}",
+  "date": "${DATE}",
+  "architectures": ["${goarch}"],
+  "languages": {}
+}
+EOF
+        for f in "$dst/prebuilt"/rootfs-*-${goarch}.tar.gz; do
+            [ -f "$f" ] || continue
+            lang=$(basename "$f" .tar.gz | sed "s/rootfs-//; s/-${goarch}$//")
+            sha256=$(cat "$f.sha256" 2>/dev/null | awk '{print $1}')
+            size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+            if command -v jq >/dev/null 2>&1 && [ -n "$sha256" ]; then
+                jq --arg lang "$lang" --arg sha "$sha256" --arg size "$size" \
+                    '.languages[$lang][$ENV.goarch] = {sha256: $sha, size: ($size|tonumber)}' \
+                    "$dst/prebuilt/manifest.json" > "$dst/prebuilt/manifest.json.tmp" && mv "$dst/prebuilt/manifest.json.tmp" "$dst/prebuilt/manifest.json"
+            fi
+        done
+        info "    预构建 rootfs: $(ls "$dst/prebuilt"/rootfs-*.tar.gz | wc -l) 个"
+    else
+        rmdir "$dst/prebuilt" 2>/dev/null || true
+    fi
+}
+
 make_package() { # <goos> <goarch>
     local goos="$1" goarch="$2"
     local name="hustoj-go-${VERSION}-${goos}-${goarch}"
@@ -175,6 +231,7 @@ make_package() { # <goos> <goarch>
     [ -f "$ROOT/docs/deploy-package.md" ] && cp "$ROOT/docs/deploy-package.md" "$dir/README.md"
 
     copy_lang_inputs "$dir/langs"
+    copy_prebuilt_rootfs "$dir/langs" "$goarch"
     chmod 0755 "$dir/langs/install_langs.sh" "$dir/langs/prepare_langs.sh" \
                "$dir/langs/replace.sh" "$dir/langs/build_rootfs.sh"
 

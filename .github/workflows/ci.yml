@@ -194,7 +194,7 @@ jobs:
             extra/dist/hustoj-go-${{ github.ref_name }}*-linux-${{ matrix.goarch }}.tar.gz.sha256
           retention-days: 30
 
-  # 创建 GitHub Release
+  # 创建 GitHub Release (主程序)
   create-release:
     name: 创建 GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -254,3 +254,194 @@ jobs:
             dist/hustoj-go-linux-arm64.tar.gz.sha256
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
+
+  # ==================== 预构建 Rootfs 发布 ====================
+  rootfs-build:
+    name: 构建 Rootfs (${{ matrix.lang }}/${{ matrix.arch }})
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: build-test
+    strategy:
+      matrix:
+        include:
+          - lang: c
+            id: 0
+            arch: amd64
+          - lang: c
+            id: 0
+            arch: arm64
+          - lang: cpp
+            id: 1
+            arch: amd64
+          - lang: cpp
+            id: 1
+            arch: arm64
+          - lang: java
+            id: 3
+            arch: amd64
+          - lang: java
+            id: 3
+            arch: arm64
+          - lang: python
+            id: 6
+            arch: amd64
+          - lang: python
+            id: 6
+            arch: arm64
+          - lang: node
+            id: 16
+            arch: amd64
+          - lang: node
+            id: 16
+            arch: arm64
+          - lang: go
+            id: 17
+            arch: amd64
+          - lang: go
+            id: 17
+            arch: arm64
+          - lang: rust
+            id: 25
+            arch: amd64
+          - lang: rust
+            id: 25
+            arch: arm64
+          - lang: php
+            id: 7
+            arch: amd64
+          - lang: php
+            id: 7
+            arch: arm64
+          - lang: csharp
+            id: 9
+            arch: amd64
+          - lang: csharp
+            id: 9
+            arch: arm64
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 设置 QEMU (arm64)
+        if: matrix.arch == 'arm64'
+        uses: docker/setup-qemu-action@v3
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 构建预构建 Rootfs
+        run: |
+          cd extra
+          chmod +x build_prebuilt_rootfs.sh
+          VERSION="${GITHUB_REF_NAME#v}"
+          ./build_prebuilt_rootfs.sh --lang ${{ matrix.id }} --arch ${{ matrix.arch }} --load --out-dir "$ROOT/dist/prebuilt-rootfs"
+
+      - name: 上传 Rootfs 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: rootfs-${{ matrix.lang }}-${{ matrix.arch }}
+          path: |
+            extra/dist/prebuilt-rootfs/rootfs-${{ matrix.lang }}-${{ matrix.arch }}.tar.gz
+            extra/dist/prebuilt-rootfs/rootfs-${{ matrix.lang }}-${{ matrix.arch }}.tar.gz.sha256
+          retention-days: 30
+
+  rootfs-release:
+    name: 发布 Rootfs 集合
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    needs: rootfs-build
+    permissions:
+      contents: write
+    steps:
+      - name: 下载所有架构/语言产物
+        uses: actions/download-artifact@v4
+        with:
+          path: rootfs-dist
+          pattern: rootfs-*
+          merge-multiple: true
+
+      - name: 生成 manifest.json
+        run: |
+          cd rootfs-dist
+          VERSION="${{ github.ref_name#v }}"
+          cat > manifest.json <<EOF
+          {
+            "version": "$VERSION",
+            "date": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "architectures": ["amd64", "arm64"],
+            "languages": {}
+          }
+          EOF
+          
+          for f in rootfs-*-amd64.tar.gz; do
+            [ -f "$f" ] || continue
+            lang=$(echo "$f" | sed 's/rootfs-\(.*\)-amd64.tar.gz/\1/')
+            sha256=$(cat "rootfs-${lang}-amd64.tar.gz.sha256" 2>/dev/null | awk '{print $1}')
+            size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+            if [ -n "$sha256" ]; then
+              jq --arg lang "$lang" --arg sha "$sha256" --arg size "$size" \
+                '.languages[$lang].amd64 = {sha256: $sha, size: ($size|tonumber)}' \
+                manifest.json > manifest.json.tmp && mv manifest.json.tmp manifest.json
+            fi
+          done
+          
+          for f in rootfs-*-arm64.tar.gz; do
+            [ -f "$f" ] || continue
+            lang=$(echo "$f" | sed 's/rootfs-\(.*\)-arm64.tar.gz/\1/')
+            sha256=$(cat "rootfs-${lang}-arm64.tar.gz.sha256" 2>/dev/null | awk '{print $1}')
+            size=$(stat -c%s "$f" 2>/dev/null || echo 0)
+            if [ -n "$sha256" ]; then
+              jq --arg lang "$lang" --arg sha "$sha256" --arg size "$size" \
+                '.languages[$lang].arm64 = {sha256: $sha, size: ($size|tonumber)}' \
+                manifest.json > manifest.json.tmp && mv manifest.json.tmp manifest.json
+            fi
+          done
+          
+          cat manifest.json
+
+      - name: 创建 Rootfs Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rootfs-${{ github.ref_name }}
+          name: Prebuilt Rootfs ${{ github.ref_name }}
+          body: |
+            预构建语言运行环境 Rootfs，解压即用，无需 Docker。
+
+            ## 使用方法
+            ```bash
+            # 下载对应语言和架构
+            wget https://github.com/${{ github.repository }}/releases/download/rootfs-${{ github.ref_name }}/rootfs-go-amd64.tar.gz
+            wget https://github.com/${{ github.repository }}/releases/download/rootfs-${{ github.ref_name }}/rootfs-go-amd64.tar.gz.sha256
+
+            # 校验
+            sha256sum -c rootfs-go-amd64.tar.gz.sha256
+
+            # 解压到判题沙箱目录
+            mkdir -p /opt/hustoj/langs/go
+            tar -xzf rootfs-go-amd64.tar.gz -C /opt/hustoj/langs/go
+            ```
+
+            ## 支持的语言
+            | 语言 | ID | amd64 | arm64 |
+            |------|-----|-------|-------|
+            | C | 0 | ✅ | ✅ |
+            | C++ | 1 | ✅ | ✅ |
+            | Java | 3 | ✅ | ✅ |
+            | Python | 6 | ✅ | ✅ |
+            | Node.js | 16 | ✅ | ✅ |
+            | Go | 17 | ✅ | ✅ |
+            | Rust | 25 | ✅ | ✅ |
+            | PHP | 7 | ✅ | ✅ |
+            | C# | 9 | ✅ | ✅ |
+
+            ## 自动安装（推荐）
+            离线部署包自带 `install_langs.sh`，会自动检测并使用预构建 rootfs：
+            ```bash
+            sudo ./install_langs.sh --ojhome /home/judge --use-prebuilt
+            ```
+          files: |
+            rootfs-dist/rootfs-*.tar.gz
+            rootfs-dist/rootfs-*.tar.gz.sha256
+            rootfs-dist/manifest.json
+          draft: false
+          prerelease: false
