@@ -103,12 +103,6 @@ jobs:
           for f in dist/hustoj-go-*-linux-amd64.tar.gz.sha256; do
             [ -f "$f" ] && mv "$f" "dist/hustoj-go-linux-amd64.tar.gz.sha256"
           done
-          for f in dist/hustoj-go-*-linux-arm64.tar.gz; do
-            [ -f "$f" ] && mv "$f" "dist/hustoj-go-linux-arm64.tar.gz"
-          done
-          for f in dist/hustoj-go-*-linux-arm64.tar.gz.sha256; do
-            [ -f "$f" ] && mv "$f" "dist/hustoj-go-linux-arm64.tar.gz.sha256"
-          done
           ls -la dist/
 
       - name: 生成发布说明
