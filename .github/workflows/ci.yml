@@ -381,7 +381,8 @@ jobs:
       - name: 生成 manifest.json
         run: |
           cd rootfs-dist
-          VERSION="${{ github.ref_name#v }}"
+          # GitHub Actions 表达式不支持 # 前缀删除，在 shell 中处理
+          VERSION="${GITHUB_REF_NAME#v}"
           cat > manifest.json <<EOF
           {
             "version": "$VERSION",
