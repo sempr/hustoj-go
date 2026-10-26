@@ -181,3 +181,33 @@ name = "RUST"
 display_name = "Rust"
 id = 25
 suffix = ".rs"
+
+# C++ 标准变体（共享基础 rootfs，仅预编译头文件不同）
+# id=1 (CPP) 为默认 C++14，其它标准追加在末尾
+[[lang]]
+name = "CPP11"
+display_name = "C++11"
+id = 26
+suffix = ".cc"
+brush = "cpp"
+
+[[lang]]
+name = "CPP17"
+display_name = "C++17"
+id = 27
+suffix = ".cc"
+brush = "cpp"
+
+[[lang]]
+name = "CPP20"
+display_name = "C++20"
+id = 28
+suffix = ".cc"
+brush = "cpp"
+
+[[lang]]
+name = "CPP23"
+display_name = "C++23"
+id = 29
+suffix = ".cc"
+brush = "cpp"

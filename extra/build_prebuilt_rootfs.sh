@@ -51,7 +51,7 @@ declare -A EXTRA_PACKAGES=(
 
 declare -A POST_INSTALL=(
     [0]="g++ -x c++-header -O2 -std=c++23 \$(find /usr/include/ -name 'stdc++.h' 2>/dev/null | head -1) 2>/dev/null || true"
-    [1]="g++ -x c++-header -fno-asm -Wall -O2 -std=c++14 -DONLINE_JUDGE \$(find /usr/include/ -name 'stdc++.h' 2>/dev/null | head -1) 2>/dev/null || true && echo '#include <bits/stdc++.h>' | g++ -x c++-header -fno-asm -Wall -O2 -std=c++14 -DONLINE_JUDGE -o /dev/null - 2>/dev/null || true"
+    [1]="mkdir -p /opt/hustoj/langs/cpp-pch/cpp11 /opt/hustoj/langs/cpp-pch/cpp14 /opt/hustoj/langs/cpp-pch/cpp17 /opt/hustoj/langs/cpp-pch/cpp20 /opt/hustoj/langs/cpp-pch/cpp23 && STD_H=\$(find /usr/include/ -name 'stdc++.h' 2>/dev/null | head -1) && for std in 11 14 17 20 23; do g++ -x c++-header -fno-asm -Wall -O2 -std=c++\${std} -DONLINE_JUDGE \${STD_H} -o /opt/hustoj/langs/cpp-pch/cpp\${std}/bits_std++.h.gch 2>/dev/null || true; done && echo '#include <bits/stdc++.h>' | g++ -x c++-header -fno-asm -Wall -O2 -std=c++14 -DONLINE_JUDGE -o /dev/null - 2>/dev/null || true"
     [2]=""
     [3]="ln -sf /usr/lib/jvm/default-java/bin/javac /usr/bin/javac && ln -sf /usr/lib/jvm/default-java/bin/java /usr/bin/java"
     [5]=""

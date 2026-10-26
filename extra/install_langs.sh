@@ -46,9 +46,11 @@ done
 
 # 语言 ID -> 名称映射（用于文件名匹配）
 declare -A LANG_NAME=(
-    [0]="c"       [1]="cpp"     [2]="pascal"  [3]="java"
-    [5]="bash"    [6]="python"  [7]="php"     [8]="perl"
-    [9]="csharp"  [16]="node"   [17]="go"     [25]="rust"
+    [0]="c"       [1]="cpp"       [2]="pascal"  [3]="java"
+    [5]="bash"    [6]="python"    [7]="php"     [8]="perl"
+    [9]="csharp"  [16]="node"     [17]="go"     [25]="rust"
+    # C++ 标准变体（共享 cpp rootfs，仅 PCH 目录不同）
+    [26]="cpp11"  [27]="cpp17"    [28]="cpp20"  [29]="cpp23"
 )
 
 # 确定架构
@@ -134,27 +136,50 @@ extract_prebuilt() {
 }
 
 # 生成 lang.toml（基于模板 + 预构建 rootfs 路径）
+# C++ 变体 (26-29) 共享 cpp (id=1) 的基础 rootfs，仅设置各自的 pch_dir
 generate_lang_toml() {
     local id="$1"
     local lang_name="${LANG_NAME[$id]}"
     local template="$SRC_DIR/etc/langs/${id}.lang.toml"
     local output="$OJHOME/etc/langs/${id}.lang.toml"
-    local rootfs_dir="$OJHOME/var/rootfs/$id"
+    
+    # C++ 标准变体：共享 cpp 的基础 rootfs，指定各自的 PCH 目录
+    local rootfs_dir
+    local pch_dir=""
+    case "$id" in
+        26) rootfs_dir="$OJHOME/var/rootfs/1"; pch_dir="/opt/hustoj/langs/cpp-pch/cpp11" ;;  # C++11
+        27) rootfs_dir="$OJHOME/var/rootfs/1"; pch_dir="/opt/hustoj/langs/cpp-pch/cpp17" ;;  # C++17
+        28) rootfs_dir="$OJHOME/var/rootfs/1"; pch_dir="/opt/hustoj/langs/cpp-pch/cpp20" ;;  # C++20
+        29) rootfs_dir="$OJHOME/var/rootfs/1"; pch_dir="/opt/hustoj/langs/cpp-pch/cpp23" ;;  # C++23
+        *)  rootfs_dir="$OJHOME/var/rootfs/$id" ;;
+    esac
     
     if [ ! -f "$template" ]; then
-        warn "模板不存在: $template，跳过 $lang_name"
-        return 1
+        # C++ 变体没有独立模板，基于 cpp (id=1) 模板生成
+        if [[ "$id" =~ ^(26|27|28|29)$ ]]; then
+            template="$SRC_DIR/etc/langs/1.lang.toml"
+        else
+            warn "模板不存在: $template，跳过 $lang_name"
+            return 1
+        fi
     fi
     
-    info "生成配置: $output (base=$rootfs_dir)"
+    info "生成配置: $output (base=$rootfs_dir, pch_dir=$pch_dir)"
     
-    # 读取模板，替换 base 路径
+    # 读取模板，替换 base 路径，添加 pch_dir
     local content
     content=$(cat "$template")
     content=$(echo "$content" | sed "s|^base = .*|base = \"$rootfs_dir\"|")
     
-    # 如果模板没有 env，从镜像获取（这里简化：保留模板 env）
-    # 实际 replace.sh 会处理 env 合并，这里只更新 base
+    # 添加/更新 pch_dir (仅 C++ 变体)
+    if [ -n "$pch_dir" ]; then
+        if echo "$content" | grep -q '^pch_dir ='; then
+            content=$(echo "$content" | sed "s|^pch_dir = .*|pch_dir = \"$pch_dir\"|")
+        else
+            # 在 [fs] section 后插入 pch_dir
+            content=$(echo "$content" | sed "/^\[fs\]/a pch_dir = \"$pch_dir\"")
+        fi
+    fi
     
     mkdir -p "$(dirname "$output")"
     echo "$content" > "$output"
