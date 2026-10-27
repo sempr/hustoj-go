@@ -3,15 +3,17 @@
 // 页面 /admin/test_data.php?pid=N 管理 <OJHome>/data/<pid>/：
 // 列表 / 上传（含 zip 自动解压）/ 下载 / 打包下载 / 查看 / 编辑 / 新建 / 重命名 / 删除。
 //
-// 判题侧的约定（internal/client/run.go、executor.go、interactive.go）：
-//   - 扫描 *.in，按同名 X.in → X.out 严格配对；没有 .ans 回退；
+// 判题侧的约定（internal/client/run.go、executor.go、interactive.go、communication.go）：
+//   - 扫描 *.in，按同名 X.in → X.out 严格配对；通讯题（SPJ=4）配对 X.ans；
 //   - SPJ 靠目录内存在 spj / tpj / upj 文件判定：spj/upj 的参数为
 //     输入文件 标准输出 选手输出，tpj 为 输入文件 选手输出 标准输出
 //     （testlib 的 inf/ouf/ans 顺序）；退出码 0=AC 非 0=WA，upj 的
 //     退出码即 0–100 的分值（executor.go handleSpecialJudge）；
 //   - 交互评测（SPJ=3）用目录里预编译的 spj 作交互器，附加用例文件
 //     作参数，经两个 FIFO 与玩家程序双向通信，退出码 0=AC 非 0=WA
-//     （interactive.go）。
+//     （interactive.go）；
+//   - 通讯题（SPJ=4）用目录里预编译的 validator／output_validator 逐轮
+//     校验选手输出，退出码 42/0=本轮通过，nextpass.in 续轮（communication.go）。
 //
 // 这两条是页面上"完整性检查"横幅的判定依据。
 //
@@ -64,14 +66,17 @@ type testDataFile struct {
 
 // testDataReport 是完整性检查结果。
 type testDataReport struct {
-	Total        int      // 普通文件总数
-	Pairs        int      // X.in 与 X.out 齐全的组数
-	InWithoutOut []string // 缺 .out 的 .in（判题会异常）
-	OutWithoutIn []string // 孤立的 .out（判题用不到）
-	Numbering    string   // 形如 "0–4 缺 3" 或 "0–3 连续"
-	OddNames     []string // 非数字编号的 .in
-	SPJPrograms  []string // 目录内存在的 spj / tpj / upj
-	SPJWarn      bool     // 题目标记为 SPJ 但目录内没有判题程序
+	Total         int      // 普通文件总数
+	Pairs         int      // X.in 与答案文件（.out／通讯题 .ans）齐全的组数
+	InWithoutOut  []string // 缺答案文件的 .in（判题会异常）
+	OutWithoutIn  []string // 孤立的答案文件（判题用不到）
+	Numbering     string   // 形如 "0–4 缺 3" 或 "0–3 连续"
+	OddNames      []string // 非数字编号的 .in
+	SPJPrograms   []string // 目录内存在的 spj / tpj / upj
+	SPJWarn       bool     // 题目标记为 SPJ 但目录内没有判题程序
+	CommMode      bool     // 题目标记为通讯题：配对按 .ans，校验器是 validator／output_validator
+	CommValidator string   // 目录内存在的通讯题校验器
+	CommWarn      bool     // 题目标记为通讯题但目录内没有校验器
 }
 
 type adminTestDataVM struct {
@@ -526,7 +531,8 @@ func (s *Server) testDataZip(w http.ResponseWriter, r *http.Request, pid int32, 
 // ── 完整性检查 ──────────────────────────────────────────────────────
 
 // analyzeTestData 依据判题的实际读取方式做检查（纯函数，便于单测）：
-// X.in 与 X.out 必须同名成对；编号是否连续；SPJ 题目是否有判题程序。
+// 普通/SPJ 题目 X.in 与 X.out 必须同名成对，通讯题则配 X.ans；
+// 编号是否连续；SPJ 题目是否有判题程序，通讯题是否有 output validator。
 func analyzeTestData(names []string, spj int32) testDataReport {
 	rep := testDataReport{Total: len(names)}
 	has := func(n string) bool {
@@ -538,12 +544,19 @@ func analyzeTestData(names []string, spj int32) testDataReport {
 		return false
 	}
 
+	// 通讯题的答案文件是 .ans（常为空文件），没有 .out 参与判题。
+	answerExt := ".out"
+	if spj == 4 {
+		answerExt = ".ans"
+		rep.CommMode = true
+	}
+
 	var nums []int64
 	for _, n := range names {
 		switch {
 		case strings.HasSuffix(n, ".in"):
 			base := strings.TrimSuffix(n, ".in")
-			if has(base + ".out") {
+			if has(base + answerExt) {
 				rep.Pairs++
 			} else {
 				rep.InWithoutOut = append(rep.InWithoutOut, n)
@@ -553,8 +566,13 @@ func analyzeTestData(names []string, spj int32) testDataReport {
 			} else {
 				rep.OddNames = append(rep.OddNames, n)
 			}
-		case strings.HasSuffix(n, ".out"):
+		case answerExt == ".out" && strings.HasSuffix(n, ".out"):
 			base := strings.TrimSuffix(n, ".out")
+			if !has(base + ".in") {
+				rep.OutWithoutIn = append(rep.OutWithoutIn, n)
+			}
+		case answerExt == ".ans" && strings.HasSuffix(n, ".ans"):
+			base := strings.TrimSuffix(n, ".ans")
 			if !has(base + ".in") {
 				rep.OutWithoutIn = append(rep.OutWithoutIn, n)
 			}
@@ -573,6 +591,16 @@ func analyzeTestData(names []string, spj int32) testDataReport {
 	}
 	if spj == 1 && len(rep.SPJPrograms) == 0 {
 		rep.SPJWarn = true
+	}
+
+	for _, prog := range []string{"validator", "output_validator"} {
+		if has(prog) {
+			rep.CommValidator = prog
+			break
+		}
+	}
+	if spj == 4 && rep.CommValidator == "" {
+		rep.CommWarn = true
 	}
 	return rep
 }

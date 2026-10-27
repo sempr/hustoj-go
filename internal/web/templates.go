@@ -2271,6 +2271,7 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 <input type="radio" name="spj" value="1">特殊评测(SPJ)<br>
 <input type="radio" name="spj" value="2">判断题(Raw Text)<br>
 <input type="radio" name="spj" value="3">交互题<br>
+<input type="radio" name="spj" value="4">通讯题（多轮交互）<br>
 <h4>来源</h4>
 <textarea name="source" style="width:100%;" rows="1">{{.Source}}</textarea><br><br>
 <h4>比赛</h4>
@@ -2322,6 +2323,7 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 <input type="radio" name="spj" value="1" {{if eq .Spj "1"}}checked{{end}}>特殊评测(SPJ)<br>
 <input type="radio" name="spj" value="2" {{if eq .Spj "2"}}checked{{end}}>判断题(Raw Text)<br>
 <input type="radio" name="spj" value="3" {{if eq .Spj "3"}}checked{{end}}>交互题<br>
+<input type="radio" name="spj" value="4" {{if eq .Spj "4"}}checked{{end}}>通讯题（多轮交互）<br>
 <h4>来源</h4>
 <textarea name="source" style="width:100%;" rows="1">{{.Source}}</textarea><br>
 <h4>远程 OJ</h4>
@@ -2345,9 +2347,11 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 <li>子任务与分值：文件名可用 <code>1_1.in</code>／<code>1_2.in</code> 形式（下划线前是子任务编号，同编号为一个子任务），<code>[10]</code> 标记该测试点分值（如 <code>sub[10].in</code>）；多用例时按 OI 模式计分，同一子任务的用例全部通过才拿到该子任务的分值</li>
 <li>文本评测题：整题只有一对 <code>data.in</code>／<code>data.out</code></li>
 <li>交互题：每个 <code>.in</code> 是一个交互会话；目录里没有 <code>.in</code> 时系统会注入合成用例</li>
+<li>通讯题：<code>X.in</code> 与 <code>X.ans</code> 成对（<code>.ans</code> 可为空文件），目录里必须有预编译的 <code>validator</code>（或 <code>output_validator</code>）；每轮校验器以 <code>本轮输入 答案文件 工作目录</code> 为参数、选手本轮输出接 stdin，退出码 42（或 0）通过并写 <code>nextpass.in</code> 进入下一轮，最多 100 轮</li>
 <li>特殊评测程序：<code>spj</code>（参数：<code>spj 输入文件 标准输出 选手输出</code>）、<code>tpj</code>（参数：<code>tpj 输入文件 选手输出 标准输出</code>，即 testlib 的 inf／ouf／ans 顺序）、<code>upj</code>（参数同 spj，退出码即 0–100 的分值，100 为 AC）；题目标记为特殊评测时目录内必须有其一，同时存在时按 upj → tpj → spj 的优先级取用。判题程序退出码 0 判 AC，非 0 判 WA</li>
 <li>交互评测（题目标记为交互评测）：交互器是目录里预编译的 <code>spj</code> 二进制，判题时拷入沙箱并附加用例文件作参数（如 <code>/code/spj /code/data.in</code>）；玩家程序与交互器经两个 FIFO 双向通信（各自的 stdout 接对方的 stdin），双方同时受时限与内存限制，交互器退出码 0 判 AC、非 0 判 WA，任一侧超限或崩溃优先作为最终结果</li>
-<li>编译方法：<code>spj</code>／<code>tpj</code>／<code>upj</code> 与交互器都由出题人预先编译成二进制放入数据目录（判题时不编译），如 <code>g++ -O2 -static spj.cc -o spj</code>；<code>tpj</code> 源码需 <code>#include "testlib.h"</code>，编译时用 <code>-I</code> 指向 testlib.h 所在目录（通常放数据根目录共享）。目录里的 <code>.cc</code>／<code>.cpp</code> 源码仅作存档</li>
+<li>通讯题（题目标记为通讯题，即 ICPC/Kattis 的 custom multi-pass）：每个 <code>X.in</code> 配一个 <code>X.ans</code>（答案常为空文件，缺省按空文件处理）；目录里必须有预编译的 <code>validator</code>（或 <code>output_validator</code>）。每轮先以本轮输入跑选手程序，再以 <code>validator 本轮输入 答案文件 工作目录</code> 运行校验器、选手本轮输出接 stdin；校验器退出码 42（或 0）表示本轮通过并写出 <code>nextpass.in</code> 进入下一轮，未写 <code>nextpass.in</code> 时本组数据通过，其余退出码判 WA（校验器崩溃/超时判 RE），最多 100 轮。校验器可用 <code>state.txt</code> 跨轮保存状态，<code>judgemessage.txt</code> 会显示在评测详情里</li>
+<li>编译方法：<code>spj</code>／<code>tpj</code>／<code>upj</code>、交互器与通讯题校验器都由出题人预先编译成二进制放入数据目录（判题时不编译），如 <code>g++ -O2 -static spj.cc -o spj</code>；<code>tpj</code> 源码需 <code>#include "testlib.h"</code>，编译时用 <code>-I</code> 指向 testlib.h 所在目录（通常放数据根目录共享）。目录里的 <code>.cc</code>／<code>.cpp</code> 源码仅作存档</li>
 <li>强制文件输入/输出：<code>input.name</code>／<code>output.name</code>，内容即程序 freopen 使用的文件名（如 <code>sort.in</code>）；<code>solution.name</code> 则强制用户按指定文件名上传答案</li>
 <li>代码辅助：<code>template.&lt;语言后缀&gt;</code> 是答案模版，<code>prepend.&lt;后缀&gt;</code>／<code>append.&lt;后缀&gt;</code> 会拼到用户源码前后；<code>Main.c</code>／<code>Main.cc</code>（标程）与 <code>Gen.py</code>（数据生成器）仅作存档，判题不读取</li>
 <li>文件名只能是纯文件名（不能含 <code>/</code>、<code>\</code> 等路径字符）；上传单个文件限 64MB，<code>.zip</code> 解压限 2000 个条目、总量 512MB</li>
@@ -2360,11 +2364,14 @@ Move <input type="text" name="from"> -&gt; <input type="text" name="to">
 
 <div class="ui message">
 <strong>完整性检查：</strong>共 {{.Report.Total}} 个文件，<strong>{{.Report.Pairs}}</strong> 组用例配对齐全{{if .Report.Numbering}}，编号 {{.Report.Numbering}}{{end}}。
-{{if .Report.InWithoutOut}}<br><span class="red">缺 .out（判题会异常）：{{range .Report.InWithoutOut}}{{.}} {{end}}</span>{{end}}
-{{if .Report.OutWithoutIn}}<br><span class="orange">孤立 .out（判题用不到）：{{range .Report.OutWithoutIn}}{{.}} {{end}}</span>{{end}}
+{{if .Report.CommMode}}<br>本题是通讯题：用例按 <code>X.in</code>／<code>X.ans</code> 配对，判题结果由 <code>validator</code> 决定，<code>.out</code> 不参与判题。{{end}}
+{{if .Report.InWithoutOut}}<br><span class="red">缺 {{if .Report.CommMode}}.ans{{else}}.out{{end}}（判题会异常）：{{range .Report.InWithoutOut}}{{.}} {{end}}</span>{{end}}
+{{if .Report.OutWithoutIn}}<br><span class="orange">孤立 {{if .Report.CommMode}}.ans{{else}}.out{{end}}（判题用不到）：{{range .Report.OutWithoutIn}}{{.}} {{end}}</span>{{end}}
 {{if .Report.OddNames}}<br>非数字编号的 .in：{{range .Report.OddNames}}{{.}} {{end}}{{end}}
 {{if .Report.SPJPrograms}}<br>SPJ 程序：{{range .Report.SPJPrograms}}{{.}} {{end}}{{end}}
 {{if .Report.SPJWarn}}<br><span class="red">该题标记为特殊评测，但目录内没有 spj／tpj／upj 文件。</span>{{end}}
+{{if .Report.CommValidator}}<br>通讯题校验器：{{.Report.CommValidator}}{{end}}
+{{if .Report.CommWarn}}<br><span class="red">该题标记为通讯题，但目录内没有 validator／output_validator 文件。</span>{{end}}
 </div>
 
 <form method="post" action="/admin/test_data.php?pid={{.PID}}" enctype="multipart/form-data">

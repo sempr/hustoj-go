@@ -67,7 +67,7 @@ func (jc *JudgeClient) prepareInteractor(rootfs, dataDir string) (*InteractorInf
 
 // buildRunArgs 组装一次 run 子命令参数（沿用 runAndCompare 的方式）。
 // fileIn/fileOut 为沙箱内绝对路径，空字符串表示不传递对应 flag（沿用默认文件）。
-func (jc *JudgeClient) buildInteractiveRunArgs(config RunConfig, cmdline, fileIn, fileOut, fileErr string, env []string) []string {
+func (jc *JudgeClient) buildInteractiveRunArgs(config RunConfig, cmdline, fileIn, fileOut, fileErr string) []string {
 	runArgs := []string{
 		"run",
 		fmt.Sprintf("--rootfs=%s", config.Rootdir),
@@ -86,14 +86,16 @@ func (jc *JudgeClient) buildInteractiveRunArgs(config RunConfig, cmdline, fileIn
 	if fileErr != "" {
 		runArgs = append(runArgs, fmt.Sprintf("--stderr=%s", fileErr))
 	}
-	_ = env
 	return runArgs
 }
 
 // spawnSandboxRun 以 ExtraFiles[0] 作为结果 JSON 通道启动一次 run 子进程。
-func (jc *JudgeClient) spawnSandboxRun(args []string) (*exec.Cmd, *os.File, error) {
+func (jc *JudgeClient) spawnSandboxRun(args, env []string) (*exec.Cmd, *os.File, error) {
 	selfName, _ := os.Executable()
 	cmd := exec.Command(selfName, args...)
+	if len(env) > 0 {
+		cmd.Env = append(cmd.Env, env...)
+	}
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -120,6 +122,8 @@ func readRunOutput(cmd *exec.Cmd, r *os.File) models.SandboxOutput {
 	}
 	if err := json.NewDecoder(r).Decode(&out); err != nil {
 		slog.Warn("failed to decode run output", "error", err)
+		out.SystemError = true
+		out.UserStatus = constants.OJ_SE
 	}
 	return out
 }
@@ -166,17 +170,17 @@ func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 		interCmdline = info.Cmdline + " " + dataInPath
 	}
 
-	playerArgs := jc.buildInteractiveRunArgs(config, langConfig.Cmd.Run, info.I2PFifo, info.P2IFifo, "", langConfig.Cmd.Env)
-	interArgs := jc.buildInteractiveRunArgs(config, interCmdline, info.P2IFifo, info.I2PFifo, "/code/spj.err", nil)
+	playerArgs := jc.buildInteractiveRunArgs(config, langConfig.Cmd.Run, info.I2PFifo, info.P2IFifo, "")
+	interArgs := jc.buildInteractiveRunArgs(config, interCmdline, info.P2IFifo, info.I2PFifo, "/code/spj.err")
 
 	// 先起 interactor 再起玩家：FIFO 由 run 进程的 os.Create(O_RDWR) 提供对侧写端，
 	// 起两个 run 子进程后它们会自动配对，不会互锁。
-	interCmd, interR, err := jc.spawnSandboxRun(interArgs)
+	interCmd, interR, err := jc.spawnSandboxRun(interArgs, nil)
 	if err != nil {
 		slog.Error("Failed to start interactor sandbox", "error", err)
 		return constants.OJ_SE, 0, 0
 	}
-	playerCmd, playerR, err := jc.spawnSandboxRun(playerArgs)
+	playerCmd, playerR, err := jc.spawnSandboxRun(playerArgs, langConfig.Cmd.Env)
 	if err != nil {
 		_ = interCmd.Process.Kill()
 		slog.Error("Failed to start player sandbox", "error", err)

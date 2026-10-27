@@ -183,6 +183,45 @@ func TestAnalyzeTestData(t *testing.T) {
 	}
 }
 
+func TestAnalyzeTestDataCommunication(t *testing.T) {
+	// 通讯题按 X.in／X.ans 配对，并检查 validator 是否存在。
+	rep := analyzeTestData([]string{"0.in", "0.ans", "1.in", "1.ans", "validator"}, 4)
+	if !rep.CommMode {
+		t.Error("CommMode = false, 期望 true")
+	}
+	if rep.Pairs != 2 {
+		t.Errorf("Pairs = %d, 期望 2", rep.Pairs)
+	}
+	if rep.CommValidator != "validator" {
+		t.Errorf("CommValidator = %q, 期望 validator", rep.CommValidator)
+	}
+	if rep.CommWarn {
+		t.Error("CommWarn = true, 期望 false")
+	}
+	if len(rep.InWithoutOut) != 0 || len(rep.OutWithoutIn) != 0 {
+		t.Errorf("配对异常: 缺答案 %v, 孤立答案 %v", rep.InWithoutOut, rep.OutWithoutIn)
+	}
+
+	// 空答案文件是常态；缺 .ans 与缺校验器都要报出来。
+	rep = analyzeTestData([]string{"0.in", "0.out", "1.in", "1.ans"}, 4)
+	if strings.Join(rep.InWithoutOut, ",") != "0.in" {
+		t.Errorf("InWithoutOut = %v, 期望 [0.in]", rep.InWithoutOut)
+	}
+	// .out 在通讯题里不参与判题，不该被当成孤立答案。
+	if len(rep.OutWithoutIn) != 0 {
+		t.Errorf("OutWithoutIn = %v, 期望空", rep.OutWithoutIn)
+	}
+	if !rep.CommWarn {
+		t.Error("CommWarn = false, 期望 true（缺少 validator）")
+	}
+
+	// output_validator 是 validator 的合法替代名。
+	rep = analyzeTestData([]string{"0.in", "0.ans", "output_validator"}, 4)
+	if rep.CommValidator != "output_validator" {
+		t.Errorf("CommValidator = %q, 期望 output_validator", rep.CommValidator)
+	}
+}
+
 // ── 路径安全 ────────────────────────────────────────────────────────
 
 func TestTestDataPathRejectsTraversal(t *testing.T) {

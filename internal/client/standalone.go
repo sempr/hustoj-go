@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/sempr/hustoj-go/pkg/constants"
 	"github.com/sempr/hustoj-go/pkg/language"
@@ -160,6 +161,10 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 
 	if details, err := jc.renderResults(totalResults); err == nil {
 		result.RuntimeInfo = details
+	}
+	// 通讯题：把校验器的 judgemessage/日志附在结果表后面，便于出题人排查。
+	if len(ctx.CommMessages) > 0 {
+		result.RuntimeInfo += "\n" + strings.Join(ctx.CommMessages, "\n")
 	}
 
 	slog.Info("Standalone judge completed",
