@@ -132,6 +132,10 @@ type TestContext struct {
 	SpjProgram int
 	InName     string
 	OutName    string
+	// Communication 非 nil 表示这是通讯题（spj=4）。
+	Communication *CommunicationInfo
+	// CommMessages 累积通讯题校验器的诊断信息，最终写入 runtimeinfo。
+	CommMessages []string
 }
 
 // ExecutionStats holds statistics from test execution
@@ -150,6 +154,12 @@ func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem
 	// 交互评测（spj=3）：每个 .in 文件一个交互会话；没有 .in 时注入合成用例。
 	if problem.SPJ == constants.OJ_SPJ_MODE_INTERACTIVE {
 		dataFiles = jc.interactiveDataFiles(dataDir, dataFiles)
+	}
+
+	// 通讯题（spj=4）：答案文件是 X.ans，校验器来自数据目录。
+	var comm *CommunicationInfo
+	if problem.SPJ == constants.OJ_SPJ_MODE_COMMUNICATION {
+		comm, dataFiles = jc.prepareCommunication(dataDir, dataFiles)
 	}
 
 	inName := jc.findInputName(dataDir)
@@ -177,14 +187,15 @@ func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem
 	}
 
 	return &TestContext{
-		Solution:   solution,
-		Problem:    problem,
-		RunConfig:  runConfig,
-		DataFiles:  dataFiles,
-		OIMode:     jc.determineOIMode(dataFiles),
-		SpjProgram: spjProgram,
-		InName:     inName,
-		OutName:    outName,
+		Solution:      solution,
+		Problem:       problem,
+		RunConfig:     runConfig,
+		DataFiles:     dataFiles,
+		OIMode:        jc.determineOIMode(dataFiles),
+		SpjProgram:    spjProgram,
+		InName:        inName,
+		OutName:       outName,
+		Communication: comm,
 	}, nil
 }
 
@@ -217,10 +228,14 @@ func (jc *JudgeClient) executeAllTestCases(ctx *TestContext) ([]subtask.TestResu
 }
 
 func (jc *JudgeClient) executeSingleTestCase(ctx *TestContext, dataFile []string) (subtask.TestResult, models.OneResult, error) {
-	ctx.RunConfig.InFile = dataFile[0]
-	ctx.RunConfig.OutFile = dataFile[1]
-
-	result, timeUsed, memUsed := jc.runAndCompare(ctx.RunConfig)
+	var result, timeUsed, memUsed int
+	if ctx.Communication != nil {
+		result, timeUsed, memUsed = jc.runCommunicationCase(ctx, dataFile)
+	} else {
+		ctx.RunConfig.InFile = dataFile[0]
+		ctx.RunConfig.OutFile = dataFile[1]
+		result, timeUsed, memUsed = jc.runAndCompare(ctx.RunConfig)
+	}
 
 	filename := filepath.Base(dataFile[0])
 
