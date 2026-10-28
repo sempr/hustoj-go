@@ -87,10 +87,13 @@ func (jc *JudgeClient) runCommunicationCase(ctx *TestContext, dataFile []string)
 	}
 
 	// state.txt / validator.log 在本组数据内跨轮累积，其余文件每组数据重来。
+	// .pass 与 .state0/.state1 是 DOMjudge 那套 validate.h 的跨轮状态（轮次计数 + 状态文件
+	// 交替写），和 Kattis 的 state.txt 一样必须在每组数据开始前清掉，否则第二组起校验器
+	// 会把这一组当成上一组的下一轮来读状态。
 	for _, name := range []string{
-		"data.in", "data.usr", "nextpass.in", "judgemessage.txt",
+		"data.in", "data.usr", "nextpass.in", "judgemessage.txt", "teammessage.txt",
 		"validator", "validator.out", "validator.err", "jury.ans",
-		"state.txt", "validator.log",
+		"state.txt", "validator.log", ".pass", ".state0", ".state1",
 	} {
 		os.Remove(filepath.Join(codeDir, name))
 	}
@@ -143,6 +146,7 @@ func (jc *JudgeClient) runCommunicationCase(ctx *TestContext, dataFile []string)
 		// 先删掉，避免上一轮留下的符号链接被跟随写到宿主机路径。
 		os.Remove(filepath.Join(codeDir, "nextpass.in"))
 		os.Remove(filepath.Join(codeDir, "judgemessage.txt"))
+		os.Remove(filepath.Join(codeDir, "teammessage.txt"))
 		os.Remove(filepath.Join(codeDir, "validator.out"))
 		os.Remove(filepath.Join(codeDir, "validator.err"))
 
@@ -268,7 +272,7 @@ func (jc *JudgeClient) installCommFile(src, dst string, mode os.FileMode) error 
 
 // appendValidatorFeedback 把校验器留下的说明与日志附到题目的 runtimeinfo。
 func (jc *JudgeClient) appendValidatorFeedback(ctx *TestContext, codeDir string) {
-	for _, name := range []string{"judgemessage.txt", "validator.log", "validator.err", "validator.out"} {
+	for _, name := range []string{"judgemessage.txt", "teammessage.txt", "validator.log", "validator.err", "validator.out"} {
 		msg := readRegularFile(filepath.Join(codeDir, name), validatorFeedbackLimit)
 		if strings.TrimSpace(msg) == "" {
 			continue
