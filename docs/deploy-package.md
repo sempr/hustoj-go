@@ -225,7 +225,7 @@ sudo ./migrate.sh --host 127.0.0.1 --db hustoj --user hustoj --password '...' --
 | 1002 | 特殊评测：构造幻方 | SPJ（多解） |
 | 1003 | 交互题：猜数字 | 交互评测 |
 | 1004 | 文件 IO：读 sum.in 写 sum.out | 文件读写 |
-| 1005 | 通讯题：多轮猜数 | 通讯评测（多轮运行） |
+| 1005 | 通讯题：奇偶子集的双射 | 通讯评测（run-twice toggle n） |
 | 1006 | 两次通信：编码与定位 | run-twice 通讯 |
 
 ```bash
