@@ -16,7 +16,6 @@ int main() {
 
     std::vector<int> out;
     out.reserve(k + 1);
-    bool wo = false; // 额外的 n 追加标记
     for (int x : a) if (x != n) out.push_back(x);
     if (!have) out.push_back(n);
 
