@@ -805,6 +805,45 @@ func TestProblemDetailTitleOnceAndMetaAboveDescription(t *testing.T) {
 	}
 }
 
+// 特殊评测类型不能只显示数字：题面顶部要写清这是什么类型的题。
+// spj=0（普通评测）不显示类型标签。
+func TestProblemDetailJudgeTypeLabel(t *testing.T) {
+	base := ProblemDetail{ProblemID: 1, Title: "T", TimeLimit: 1, MemoryLimit: 128}
+
+	cases := []struct {
+		spj  string
+		want string
+		tip  string
+	}{
+		{"1", "特殊评测（SPJ）", "评测程序"},
+		{"2", "判断题（Raw Text）", "原始文本"},
+		{"3", "交互题", "双向交互"},
+		{"4", "通讯题（多轮交互）", "重复运行"},
+	}
+	for _, c := range cases {
+		d := base
+		d.SPJ = c.spj
+		got := mustRenderDetail(t, d)
+		if !strings.Contains(got, "评测类型："+c.want) {
+			t.Errorf("spj=%s 应显示类型「%s」:\n%s", c.spj, c.want, got)
+		}
+		if !strings.Contains(got, c.tip) {
+			t.Errorf("spj=%s 的类型说明应包含 %q:\n%s", c.spj, c.tip, got)
+		}
+		if strings.Contains(got, "Special Judge：") {
+			t.Errorf("spj=%s 不应再显示裸数字的 Special Judge 标签:\n%s", c.spj, got)
+		}
+	}
+
+	for _, spj := range []string{"", "0"} {
+		d := base
+		d.SPJ = spj
+		if got := mustRenderDetail(t, d); strings.Contains(got, "评测类型：") {
+			t.Errorf("spj=%q 为普通评测，不应显示类型标签:\n%s", spj, got)
+		}
+	}
+}
+
 // 需要 freopen 的题目（数据目录有 input.name/output.name）应在题面提示
 // 读写文件名；没有时不应出现该提示。
 func TestProblemDetailFreopenNotice(t *testing.T) {

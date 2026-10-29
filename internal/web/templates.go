@@ -79,6 +79,8 @@ var templateFuncs = template.FuncMap{
 	"navActive":         navActive,
 	"judgeResultLabel":  judgeResultLabel,
 	"judgeResultClass":  judgeResultClass,
+	"judgeTypeName":     judgeTypeName,
+	"judgeTypeTip":      judgeTypeTip,
 	"languageName":      languageName,
 	// asset 给静态资源 URL 拼上内容哈希（?v=...），用于缓存击穿。
 	"asset":                 func(p string) template.URL { return template.URL(p + "?v=" + assetVersion) },
@@ -374,11 +376,11 @@ const pageContentTmpls = `
 {{if eq .Defunct "Y"}}
 <div class="ui warning message">该题目已被删除或尚未公开</div>
 {{else}}
-{{/* 时限/内存（含 Special Judge）排成一行，放在描述上方、命题人下方。 */}}
+{{/* 时限/内存/评测类型排成一行，放在描述上方、命题人下方。 */}}
 <div class="problem-meta">
 <span class="ui label">Time Limit：{{trimFloat .TimeLimit}} 秒</span>
 <span class="ui label">Memory Limit：{{.MemoryLimit}} KB</span>
-{{if .SPJ}}<span class="ui label">Special Judge：{{.SPJ}}</span>{{end}}
+{{$spj := .SPJ}}{{with judgeTypeName $spj}}<span class="ui label" title="{{judgeTypeTip $spj}}">评测类型：{{.}}</span>{{end}}
 </div>
 <div class="problem-meta">
 <span class="ui label">提交：{{if .StatsHidden}}?{{else}}{{if .SubmitStat.Valid}}{{.SubmitStat.Int32}}{{else}}0{{end}}{{end}}</span>

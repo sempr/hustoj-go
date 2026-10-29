@@ -454,3 +454,40 @@ func problemFromRow(r dbgen.Problem) ProblemDetail {
 		RemoteID:     r.RemoteID,
 	}
 }
+
+// judgeTypeName 把 problem.spj 的数值翻译成题面顶部展示的中文类型名。
+// 与后台题目编辑页的选项保持一致（0 普通 / 1 SPJ / 2 判断题 / 3 交互 / 4 通讯）；
+// 0 与空串返回空，表示不需要展示类型标签。
+func judgeTypeName(spj string) string {
+	switch spj {
+	case "", "0":
+		return ""
+	case "1":
+		return "特殊评测（SPJ）"
+	case "2":
+		return "判断题（Raw Text）"
+	case "3":
+		return "交互题"
+	case "4":
+		return "通讯题（多轮交互）"
+	default:
+		return "特殊评测（SPJ）"
+	}
+}
+
+// judgeTypeTip 给类型标签补充一句说明：讲清这种题目与普通题的区别，
+// 让选手在题面顶部就能知道该怎么读写数据。
+func judgeTypeTip(spj string) string {
+	switch spj {
+	case "1":
+		return "答案可能不唯一，由评测程序检查你的输出是否合法，而不是逐字比对标准答案。"
+	case "2":
+		return "按原始文本比对输出，不做数值或空白归一化。"
+	case "3":
+		return "程序需要与评测器通过标准输入/输出双向交互，每个测试点是一次独立会话。"
+	case "4":
+		return "同一程序会在一组数据上被重复运行多轮；轮与轮之间内存清空，只能依据评测器在轮间给出的输入作答。"
+	default:
+		return ""
+	}
+}
