@@ -166,3 +166,39 @@ func TestEmptyValueIsFatal(t *testing.T) {
 		}
 	}
 }
+
+// 通讯题轮数上限：judge.conf 不写时用默认值 10；写了就以配置为准。
+func TestCommunicationMaxPasses(t *testing.T) {
+	cfg, err := LoadJudgeConf(writeConf(t, goodConf))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CommunicationMaxPasses != DefaultCommunicationMaxPasses {
+		t.Errorf("未配置时应为默认值 %d，得到 %d",
+			DefaultCommunicationMaxPasses, cfg.CommunicationMaxPasses)
+	}
+
+	cfg, err = LoadJudgeConf(writeConf(t, goodConf+"OJ_COMMUNICATION_MAX_PASSES=37\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.CommunicationMaxPasses != 37 {
+		t.Errorf("配置未生效：CommunicationMaxPasses = %d，期望 37", cfg.CommunicationMaxPasses)
+	}
+}
+
+// 轮数上限写错时必须在加载阶段报错，而不是悄悄退回默认值：
+// 否则 "0" / "ten" 会让长时间通讯题被误判成 WA，却没有一行提示。
+func TestCommunicationMaxPassesRejectsInvalid(t *testing.T) {
+	for _, bad := range []string{"0", "-1", "ten", "", "3.5"} {
+		conf := goodConf + "OJ_COMMUNICATION_MAX_PASSES=" + bad + "\n"
+		_, err := LoadJudgeConf(writeConf(t, conf))
+		if err == nil {
+			t.Errorf("OJ_COMMUNICATION_MAX_PASSES=%q 应报错", bad)
+			continue
+		}
+		if !strings.Contains(err.Error(), "OJ_COMMUNICATION_MAX_PASSES") {
+			t.Errorf("错误信息应点名配置项，得到: %v", err)
+		}
+	}
+}

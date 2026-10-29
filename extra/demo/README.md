@@ -170,7 +170,8 @@ extra/demo/build_data.sh "$(go env GOARCH)" extra/demo
 - 校验器调用方式：`/code/validator <本轮输入> <答案> <工作目录>`，选手本轮
   输出走它的 stdin，反馈走 stdout/stderr。
 - 退出码：`0` / `42` = 本轮通过，其它 = WA，崩溃/超时 = RE；本轮通过后
-  `nextpass.in` 存在就继续下一轮，不存在即本组通过。最多 100 轮，超出判 WA。
+  `nextpass.in` 存在就继续下一轮，不存在即本组通过。每组数据最多 10 轮
+  （judge.conf 的 `OJ_COMMUNICATION_MAX_PASSES` 可调），超出判 WA。
 
 ## 本地自检（无需数据库）
 

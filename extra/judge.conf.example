@@ -15,3 +15,9 @@ OJ_DB_NAME=hustoj
 # 判题受理语言 id（逗号分隔）。安装语言运行时的 install_langs.sh 会按实际
 # 安装的 <id>.lang.toml 自动重写这一行；这里给默认的 C/C++/Python。
 OJ_LANG_SET=0,1,6
+
+# 通讯题（spj=4）每组数据允许的最大运行轮数，默认 10。
+# 只用于挡住写错而无限出题的校验器：正常题目由校验器自己决定何时结束
+# （不再写 nextpass.in）。题目确实需要更多轮（例如二分 10^9 约需 30 轮）
+# 时调大即可，写小了会让正确程序在第 N 轮被判 WA。
+OJ_COMMUNICATION_MAX_PASSES=10

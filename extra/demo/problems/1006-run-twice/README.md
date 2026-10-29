@@ -40,7 +40,7 @@ run-twice 通讯题（`problem.spj = 4`）的完整资源：题面、3 组测试
   `/code/validator /code/data.in /code/jury.ans /code`；
 - 校验器退出码 `0` / `42` = 本轮通过，其它 = WA，崩溃/超时 = RE；
 - 本轮通过且存在 `nextpass.in` → 进入下一轮，否则本组通过；
-- 最多 100 轮。
+- 每组数据最多 10 轮（judge.conf 的 `OJ_COMMUNICATION_MAX_PASSES` 可调）；本题固定 2 轮。
 
 本题固定两轮：第一轮校验器把选手输出存进 `nextpass.in`，第二轮核对位置。
 

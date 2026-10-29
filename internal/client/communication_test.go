@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/sempr/hustoj-go/pkg/config"
 )
 
 func TestPrepareCommunicationPairsAns(t *testing.T) {
@@ -89,5 +91,22 @@ func TestReadRegularFileRejectsSymlink(t *testing.T) {
 	}
 	if got := readRegularFile(link, 10); got != "aaaaaaaaaa" {
 		t.Errorf("readRegularFile 限长失败: %q", got)
+	}
+}
+
+// 轮数上限优先取 judge.conf 的配置；没有配置（或配成 0）时退回默认值。
+func TestCommunicationPassLimit(t *testing.T) {
+	if got := (&JudgeClient{}).communicationPassLimit(); got != defaultCommunicationMaxPasses {
+		t.Errorf("无配置时应为默认值 %d，得到 %d", defaultCommunicationMaxPasses, got)
+	}
+
+	jc := &JudgeClient{config: &config.JudgeConfig{CommunicationMaxPasses: 25}}
+	if got := jc.communicationPassLimit(); got != 25 {
+		t.Errorf("应取配置值 25，得到 %d", got)
+	}
+
+	jc = &JudgeClient{config: &config.JudgeConfig{}}
+	if got := jc.communicationPassLimit(); got != defaultCommunicationMaxPasses {
+		t.Errorf("配置为 0 时应退回默认值，得到 %d", got)
 	}
 }

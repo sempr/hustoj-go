@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/sempr/hustoj-go/pkg/config"
 	"github.com/sempr/hustoj-go/pkg/constants"
 	"github.com/sempr/hustoj-go/pkg/models"
 )
@@ -18,15 +19,27 @@ import (
 // 选手本轮输出接 stdin；退出码 42（或 0）表示通过并写出 nextpass.in，
 // 校验器不再写 nextpass.in 时本组数据通过。
 const (
-	// communicationMaxPasses 与 C++ 判题器 COMM_MAX_PASS 一致。
-	communicationMaxPasses   = 100
-	communicationValidatorAC = 42
+	// defaultCommunicationMaxPasses 是 judge.conf 未配置
+	// OJ_COMMUNICATION_MAX_PASSES 时使用的轮数上限（默认 10）。
+	defaultCommunicationMaxPasses = config.DefaultCommunicationMaxPasses
+	communicationValidatorAC      = 42
 	// 校验器的时限/内存与选手分开：C++ 侧给校验器固定 10 秒 alarm，
 	// 且不套用题目内存限制（校验器可能要读整份答案）。
 	validatorTimeLimitMS   = 10000
 	validatorMemoryLimitMB = 1024
 	validatorFeedbackLimit = 4096
 )
+
+// communicationPassLimit 返回通讯题每组数据允许的最大轮数。
+//
+// judge.conf 的 OJ_COMMUNICATION_MAX_PASSES 优先；未配置（或配置对象缺失，
+// 例如单元测试里直接构造的 JudgeClient）时退回默认值。
+func (jc *JudgeClient) communicationPassLimit() int {
+	if jc.config != nil && jc.config.CommunicationMaxPasses > 0 {
+		return jc.config.CommunicationMaxPasses
+	}
+	return defaultCommunicationMaxPasses
+}
 
 // CommunicationInfo 描述通讯题判题所需的外部程序。
 type CommunicationInfo struct {
@@ -100,7 +113,8 @@ func (jc *JudgeClient) runCommunicationCase(ctx *TestContext, dataFile []string)
 	result := constants.OJ_AC
 	totalTime, peakMem, passes := 0, 0, 0
 
-	for pass := 1; pass <= communicationMaxPasses; pass++ {
+	maxPasses := jc.communicationPassLimit()
+	for pass := 1; pass <= maxPasses; pass++ {
 		passes = pass
 
 		passInput := dataFile[0]
@@ -212,8 +226,8 @@ func (jc *JudgeClient) runCommunicationCase(ctx *TestContext, dataFile []string)
 		if _, err := os.Stat(filepath.Join(codeDir, "nextpass.in")); err != nil {
 			break // 本轮通过且校验器不再出题，本组数据通过
 		}
-		if pass == communicationMaxPasses {
-			jc.appendCommMessage(ctx, "communication %s: validator asked for more than %d passes", caseName, communicationMaxPasses)
+		if pass == maxPasses {
+			jc.appendCommMessage(ctx, "communication %s: validator asked for more than %d passes (raise OJ_COMMUNICATION_MAX_PASSES in judge.conf if this is intended)", caseName, maxPasses)
 			result = constants.OJ_WA
 			break
 		}

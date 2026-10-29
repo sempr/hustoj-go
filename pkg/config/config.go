@@ -30,12 +30,22 @@ func (d DatabaseConfig) Redacted() string {
 	return fmt.Sprintf("%s@%s:%d/%s", user, d.Host, d.Port, name)
 }
 
+// DefaultCommunicationMaxPasses 是通讯题（spj=4）每组数据默认的最大轮数。
+//
+// 轮数上限只用于挡住写错而无限出题的校验器：正常题目由校验器自己决定何时
+// 结束（不再写 nextpass.in）。judge.conf 的 OJ_COMMUNICATION_MAX_PASSES
+// 可以覆盖这个默认值。
+const DefaultCommunicationMaxPasses = 10
+
 // JudgeConfig holds the main judge configuration
 type JudgeConfig struct {
 	Database DatabaseConfig
 	OJHome   string
 	Debug    bool
 	Once     bool
+	// CommunicationMaxPasses 是通讯题（spj=4）每组数据允许的最大运行轮数，
+	// 取自 judge.conf 的 OJ_COMMUNICATION_MAX_PASSES；未配置时用默认值。
+	CommunicationMaxPasses int
 }
 
 // valueOf 按键名取数据库字段值，供"写了键但留空"的校验使用。
@@ -72,7 +82,10 @@ func LoadJudgeConf(homePath string) (*JudgeConfig, error) {
 	// 四个必需键一律要求显式出现，不靠默认值蒙混过关：
 	// 保留默认值等于把"写漏了"和"就想要这个值"变成同一种状态，
 	// 从而静默连到别处。OJ_PASSWORD 例外（空口令本身合法）。
-	config := &JudgeConfig{OJHome: homePath}
+	config := &JudgeConfig{
+		OJHome:                 homePath,
+		CommunicationMaxPasses: DefaultCommunicationMaxPasses,
+	}
 	seen := map[string]bool{}
 
 	// Parse key=value pairs
@@ -113,6 +126,14 @@ func LoadJudgeConf(homePath string) (*JudgeConfig, error) {
 		case "OJ_DB_NAME":
 			config.Database.Name = value
 			seen[key] = true
+		case "OJ_COMMUNICATION_MAX_PASSES":
+			// 通讯题轮数上限：省略时用默认值，写了就必须是正整数，
+			// 避免 "0" / 拼错被静默当成默认值而掩盖配置错误。
+			n, perr := strconv.Atoi(value)
+			if perr != nil || n < 1 {
+				return nil, fmt.Errorf("%s 中 OJ_COMMUNICATION_MAX_PASSES=%q 不是正整数（轮数上限至少为 1）", confPath, value)
+			}
+			config.CommunicationMaxPasses = n
 		}
 	}
 
