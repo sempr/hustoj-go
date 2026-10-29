@@ -9,7 +9,7 @@
 #   - MariaDB / Redis / Docker / nginx（Ubuntu/Debian + systemd）
 #   - hustoj-go 二进制、systemd 服务，OJ 根目录 /srv/hustoj
 #   - 初始化 hustoj 库 + 触发器 + admin 管理员
-#   - 示例题（5 题）+ 示例比赛 + 多语言 AC / 部分分 / 各类判罚演示提交
+#   - 示例题（7 题）+ 示例比赛 + 多语言 AC / 部分分 / 各类判罚演示提交
 #   - 12 种判题运行时（C/C++/Pascal/Java/Bash/Python/PHP/Perl/C#/
 #     TypeScript/Go/Rust，Docker rootfs）
 #   - nginx 80 端口反向代理到 127.0.0.1:8080（不配 SSL）

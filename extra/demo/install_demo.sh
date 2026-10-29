@@ -13,9 +13,9 @@
 #   --ojhome DIR    OJ 根目录（默认 /home/judge）
 #   --conf FILE     judge.conf 路径（默认 <ojhome>/etc/judge.conf）
 #   --only LIST     只装载列出的题号（逗号/空格分隔），如 --only 1000,1002
-#   --pid-base N    把示例题固有序号 1000..1004 整体顺延到 N 起（如 N=1739 得
-#                   1739..1743），用于把示例题追加到已有题库末尾；--only 仍按
-#                   原始题号（1000..1004）筛选
+#   --pid-base N    把示例题固有序号 1000..1006 整体顺延到 N 起（如 N=1739 得
+#                   1739..1745），用于把示例题追加到已有题库末尾；--only 仍按
+#                   原始题号（1000..1006）筛选
 #   --auto-pid      取库中最大题号 +1 作为起始序号（等价于 --pid-base <该值>），
 #                   即自动追加到题库末尾
 #   --contest-id N  演示比赛编号（默认 1000）；仅在创建比赛时生效
@@ -117,7 +117,7 @@ sqlq() { local s="$1"; s="${s//\\/\\\\}"; s="${s//\'/\'\'}"; printf "'%s'" "$s";
 # 读文件为 SQL 字符串字面量。
 sqlfile() { local s; s="$(cat "$1")"; s="${s//\\/\\\\}"; s="${s//\'/\'\'}"; printf "'%s'" "$s"; }
 
-# 示例题固有序号是 1000..1004；--pid-base N 把它们整体平移到 N..N+4。
+# 示例题固有序号是 1000..1006；--pid-base N 把它们整体平移到 N..N+6。
 # --auto-pid 则取库中最大题号 +1 作起始，追加到题库末尾。
 if [ "$AUTO_PID" -eq 1 ]; then
     [ "$DRY" -eq 1 ] || [ -n "$MYSQL_BIN" ] || die "未找到 mysql/mariadb 客户端（--auto-pid 需要查库）"
@@ -154,6 +154,10 @@ copy_data() { # <srcdir> <pid>
     mkdir -p "$dst"
     cp -a "$src/." "$dst/"
     [ -f "$dst/spj" ] && chmod 0755 "$dst/spj"
+    # 通讯题（spj=4）的校验器同样必须可执行，否则判题侧会当成缺校验器。
+    for f in validator output_validator; do
+        [ -f "$dst/$f" ] && chmod 0755 "$dst/$f"
+    done
     if id judge >/dev/null 2>&1; then
         chown -R judge:judge "$dst" 2>/dev/null || warn "chown judge:judge $dst 失败"
     fi
@@ -170,7 +174,7 @@ for d in "$PROBLEMS_DIR"/*/; do
     # shellcheck disable=SC1090
     . "$d/meta.env"
     [ -n "$PID" ] && [ -n "$TITLE" ] || { warn "$d/meta.env 缺少 PID/TITLE，跳过"; continue; }
-    # --only 按原始题号（1000..1004）筛选，再按 --pid-base/--auto-pid 平移。
+    # --only 按原始题号（1000..1006）筛选，再按 --pid-base/--auto-pid 平移。
     want_pid "$PID" || continue
     orig_pid="$PID"
     PID="$(remap_pid "$orig_pid")"

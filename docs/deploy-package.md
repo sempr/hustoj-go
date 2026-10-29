@@ -44,7 +44,7 @@ hustoj-go-<version>-linux-<arch>/
 ├── schema/triggers.sql         # 触发器 firstAC / simfilter（新库必装）
 ├── schema/seed.sql             # 种子：管理员账号 + administrator 权限
 ├── migrations/                 # 存量库迁移脚本（00002 结构对齐 / 00003 触发器）
-├── demo/                       # 示例题库（5 题 + 演示比赛 + 预编译判题程序）
+├── demo/                       # 示例题库（7 题 + 演示比赛 + 预编译判题程序）
 ├── install.sh / uninstall.sh / init_db.sh / migrate.sh
 ├── prepare_env.sh /            # 目标机环境准备（MariaDB/Redis/Docker，见「二」）
 ├── install_hustoj_go.sh        # 一键部署（系统依赖+DB+演示+12语言+nginx）
@@ -215,8 +215,8 @@ sudo ./migrate.sh --host 127.0.0.1 --db hustoj --user hustoj --password '...' --
 
 ## 五、示例题库（可选）
 
-首次安装可顺带装入 5 道示例题 + 1 个演示比赛，用来演示普通评测、子任务部分分、
-特殊评测（SPJ）、交互评测、文件 IO：
+首次安装可顺带装入 7 道示例题 + 1 个演示比赛，用来演示普通评测、子任务部分分、
+特殊评测（SPJ）、交互评测、通讯评测、文件 IO：
 
 | 题号 | 标题 | 演示点 |
 | --- | --- | --- |
@@ -225,6 +225,8 @@ sudo ./migrate.sh --host 127.0.0.1 --db hustoj --user hustoj --password '...' --
 | 1002 | 特殊评测：构造幻方 | SPJ（多解） |
 | 1003 | 交互题：猜数字 | 交互评测 |
 | 1004 | 文件 IO：读 sum.in 写 sum.out | 文件读写 |
+| 1005 | 通讯题：多轮猜数 | 通讯评测（多轮运行） |
+| 1006 | 两次通信：编码与定位 | run-twice 通讯 |
 
 ```bash
 # 方式 A：安装时一并装载（须与 --init-db 一起，或 judge.conf 已配好凭据）

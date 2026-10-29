@@ -145,7 +145,8 @@ lang_installed() { # <id>
 #      Pascal/Bash/PHP/Perl/C#/TypeScript/Rust）；
 #   2) 子任务题 1001 的部分分（C/C++/Python，均 30 分）与捆绑测试 0 分；
 #   3) SPJ 题 1002 的 WA 反例；
-#   4) A+B 的各类非 AC 判罚（PE/WA/TL/ML/OL/RE/CE 等）。
+#   4) 通讯题 1005 的 AC、1006 的 AC 与「第 1 轮 WA / 第 2 轮 WA」两个反例；
+#   5) A+B 的各类非 AC 判罚（PE/WA/TL/ML/OL/RE/CE 等）。
 # 未安装的语言由 lang_installed 跳过。
 SEED_ITEMS=(
     "ac_1000_c:1000-aplusb/solutions/ac.c:满分 AC（C）"
@@ -174,6 +175,10 @@ SEED_ITEMS=(
     "ac_1004_c:1004-fileio/solutions/ac.c:满分 AC（C，文件 IO）"
     "ac_1004_cpp:1004-fileio/solutions/ac.cpp:满分 AC（C++，文件 IO）"
     "ac_1004_py:1004-fileio/solutions/ac.py:满分 AC（Python，文件 IO）"
+    "ac_1005_cpp:1005-communication-guess/solutions/ac.cpp:满分 AC（C++，通讯）"
+    "ac_1006_cpp:1006-run-twice/solutions/ac.cpp:满分 AC（C++，两次通信）"
+    "wa_1006_first:1006-run-twice/solutions/wa_first.cpp:第 1 轮 WA（编码含大写）"
+    "wa_1006_second:1006-run-twice/solutions/wa_second.cpp:第 2 轮 WA（位置错误）"
     "partial_1001_c:1001-subtask/solutions/partial.c:部分分 30/100（C）"
     "partial_1001_cpp:1001-subtask/solutions/partial.cpp:部分分 30/100（C++）"
     "partial_1001_py:1001-subtask/solutions/partial.py:部分分 30/100（Python）"
@@ -205,6 +210,8 @@ pid_of_file() { # <相对路径>
         1002-spj-magic/*)   printf '%s' "$(( PID_BASE + 2 ))" ;;
         1003-interactive/*) printf '%s' "$(( PID_BASE + 3 ))" ;;
         1004-fileio/*)      printf '%s' "$(( PID_BASE + 4 ))" ;;
+        1005-communication-guess/*) printf '%s' "$(( PID_BASE + 5 ))" ;;
+        1006-run-twice/*)   printf '%s' "$(( PID_BASE + 6 ))" ;;
         *) return 1 ;;
     esac
 }

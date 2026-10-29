@@ -13,19 +13,23 @@
 | 1002 | 特殊评测：构造幻方 | 1 | SPJ（多解，退出码判定） |
 | 1003 | 交互题：猜数字 | 3 | 交互评测（FIFO 双向通信） |
 | 1004 | 文件 IO：读 sum.in 写 sum.out | 0 | 文件读写（`input.name`/`output.name`） |
+| 1005 | 通讯题：多轮猜数 | 4 | 通讯评测（同一程序多轮运行，`nextpass.in` 传递下一轮输入） |
+| 1006 | 两次通信：编码与定位 | 4 | run-twice 通讯（第一轮输出经 `nextpass.in` 传给第二轮） |
 
-另有一个演示比赛 `contest_id=1000`，把上面 5 题全部挂进去。
+另有一个演示比赛 `contest_id=1000`，把上面 7 题全部挂进去。
 
 ## 演示提交：多语言 AC、部分分与各种判罚
 
 `solutions/` 下有各语言的参考解和一批"反例"程序。`seed_samples.sh` 会写入：
 
-- **所有有代码语言的满分 AC**：1000~1004 每题每种已安装语言各一条，包括
+- **多语言满分 AC**：1000~1004 每题每种已安装语言各一条，包括
   C / C++ / Python / Go / Java / Pascal / Bash / PHP / Perl / C# /
   TypeScript / Rust；
+- **通讯题 AC**：1005、1006 的 C++ 参考解；
 - **部分分**：1001 的 `partial.c` / `partial.cpp` / `partial.py`，均得 30 分；
 - **捆绑测试 0 分**：1001 的 `bundle_partial.cpp`；
 - **SPJ 反例**：1002 的 `wa.cpp`，输出不是幻方，判 WA；
+- **通讯题反例**：1006 的 `wa_first.cpp`（第 1 轮 WA）、`wa_second.cpp`（第 2 轮 WA）；
 - **各种非 AC 判罚**：PE / WA / TL / ML / OL / RE / CE 等。
 
 ```bash
@@ -39,6 +43,10 @@ sudo ./demo/seed_samples.sh --ojhome /srv/hustoj --pid-base 1739 --user demo
 | `ac_1002_{c,cpp,py}` | `1002-spj-magic/solutions/ac.{c,cpp,py}` | 满分 AC（4，SPJ） |
 | `ac_1003_{c,cpp,py,java,go,pas,sh,php,pl,cs,ts,rs}` | `1003-interactive/solutions/ac.*` | 满分 AC（4，交互） |
 | `ac_1004_{c,cpp,py}` | `1004-fileio/solutions/ac.{c,cpp,py}` | 满分 AC（4，文件 IO） |
+| `ac_1005_cpp` | `1005-communication-guess/solutions/ac.cpp` | 满分 AC（4，通讯） |
+| `ac_1006_cpp` | `1006-run-twice/solutions/ac.cpp` | 满分 AC（4，两次通信） |
+| `wa_1006_first` | `1006-run-twice/solutions/wa_first.cpp` | 第 1 轮 WA(6)：编码串含大写字母 |
+| `wa_1006_second` | `1006-run-twice/solutions/wa_second.cpp` | 第 2 轮 WA(6)：位置输出 0 |
 | `partial_1001_{c,cpp,py}` | `1001-subtask/solutions/partial.{c,cpp,py}` | 部分分 **30/100**（`pass_rate=0.300`） |
 | `wa_1002` | `1002-spj-magic/solutions/wa.cpp` | SPJ 答案错误 WA(6)：按行输出 1..n²，不是幻方 |
 | `pe` | `1000-aplusb/solutions/pe.cpp` | 格式错误 PE(5)：答案对，行首多一个空格 |
@@ -85,11 +93,11 @@ sudo ./demo/install_demo.sh --ojhome /home/judge
 
 ### 追加到已有题库末尾
 
-已有题库时，示例题固有序号 1000..1004 往往被占用。用 `--pid-base`/`--auto-pid`
-把示例题整体顺延到末尾（`--only` 仍按原始序号 1000..1004 筛选）：
+已有题库时，示例题固有序号 1000..1006 往往被占用。用 `--pid-base`/`--auto-pid`
+把示例题整体顺延到末尾（`--only` 仍按原始序号 1000..1006 筛选）：
 
 ```bash
-# 取库中最大题号 +1 作起始，追加到题库末尾（如库里到 1738，则装成 1739..1743）
+# 取库中最大题号 +1 作起始，追加到题库末尾（如库里到 1738，则装成 1739..1745）
 sudo ./demo/install_demo.sh --ojhome /srv/hustoj --auto-pid --no-contest
 
 # 或显式指定起始序号
@@ -109,7 +117,7 @@ sudo ./demo/install_demo.sh --ojhome /srv/hustoj --auto-pid --contest-id 1119
 与题目页里，只能从比赛入口 `contest.php?cid=<编号>` 进入 —— 这是防泄题的既定
 行为，不是装载失败。
 
-若希望这 5 题同时出现在题库列表，把演示比赛设为**已结束**（`end_time` 早于当前
+若希望这 7 题同时出现在题库列表，把演示比赛设为**已结束**（`end_time` 早于当前
 时间），或不创建比赛（`--no-contest`）。管理员登录后在题库列表能看到全部题目，
 不受此限制。
 
@@ -131,17 +139,38 @@ demo/
         └── solutions/        # 多语言参考解与反例（仅供自检/参考/演示）
 ```
 
-## SPJ / 交互器二进制
+## SPJ / 交互器 / 通讯校验器二进制
 
 目标机没有编译器，所以 `data/BUILD` 列出的判题程序（如 1002 的 `spj.c`、
-1003 的 `spj.cc`）在**打包机**由 `build_data.sh <goarch> <demo-dir>` 交叉编译，
-产物随部署包分发。缺交叉编译器时会告警并跳过该产物（该题将无法判题）。
+1003 的 `spj.cc`、1005 / 1006 的 `validator.cpp`）在**打包机**由
+`build_data.sh <goarch> <demo-dir>` 交叉编译，产物随部署包分发。缺交叉编译器时
+会告警并跳过该产物（该题将无法判题）。
 
 本地重新编译（当前架构）：
 
 ```bash
 extra/demo/build_data.sh "$(go env GOARCH)" extra/demo
 ```
+
+## 通讯题（`spj=4`）
+
+1005 / 1006 演示通讯评测：**同一个程序在一组数据上被反复运行**，每轮之间
+内存与变量全部丢弃，只能通过评测器写出的 `nextpass.in` 传递信息。实现见
+`internal/client/communication.go`，各题细节见
+`problems/1005-communication-guess/README.md` 和
+`problems/1006-run-twice/README.md`。
+
+数据目录约定：
+
+- 必须有可执行的 `validator`（旧数据可叫 `output_validator`），打包时由
+  `data/BUILD` 编译；缺失时该提交判 RE，并提示 `missing output validator`。
+- 每个 `<用例>.in` 是一组数据的**首轮**输入；之后各轮输入由校验器写
+  `<工作目录>/nextpass.in` 产生。
+- `<用例>.ans` 是给校验器的答案文件（argv[2]）；缺失时判题侧补一个空文件。
+- 校验器调用方式：`/code/validator <本轮输入> <答案> <工作目录>`，选手本轮
+  输出走它的 stdin，反馈走 stdout/stderr。
+- 退出码：`0` / `42` = 本轮通过，其它 = WA，崩溃/超时 = RE；本轮通过后
+  `nextpass.in` 存在就继续下一轮，不存在即本组通过。最多 100 轮，超出判 WA。
 
 ## 本地自检（无需数据库）
 
@@ -162,6 +191,16 @@ go build -o hustoj .
 ./hustoj judge --source extra/demo/problems/1003-interactive/solutions/ac.cpp \
   --lang 1 --data extra/demo/problems/1003-interactive/data --time 2000 --memory 262144 \
   --spj 3 --ojhome extra --workbase /tmp
+
+# 1005 通讯（需先生成 data/validator）
+./hustoj judge --source extra/demo/problems/1005-communication-guess/solutions/ac.cpp \
+  --lang 1 --data extra/demo/problems/1005-communication-guess/data --time 2000 --memory 262144 \
+  --spj 4 --ojhome extra --workbase /tmp
+
+# 1006 两次通信（同上；另有两份 WA 反例）
+./hustoj judge --source extra/demo/problems/1006-run-twice/solutions/ac.cpp \
+  --lang 1 --data extra/demo/problems/1006-run-twice/data --time 2000 --memory 262144 \
+  --spj 4 --ojhome extra --workbase /tmp
 ```
 
 判题结果里 `final_result=4` 表示 AC。更多端到端脚本见 `tests/`。
