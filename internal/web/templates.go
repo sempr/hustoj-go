@@ -379,7 +379,7 @@ const pageContentTmpls = `
 {{/* 时限/内存/评测类型排成一行，放在描述上方、命题人下方。 */}}
 <div class="problem-meta">
 <span class="ui label">Time Limit：{{trimFloat .TimeLimit}} 秒</span>
-<span class="ui label">Memory Limit：{{.MemoryLimit}} KB</span>
+<span class="ui label">Memory Limit：{{.MemoryLimit}} MiB</span>
 {{$spj := .SPJ}}{{with judgeTypeName $spj}}<span class="ui label" title="{{judgeTypeTip $spj}}">评测类型：{{.}}</span>{{end}}
 </div>
 <div class="problem-meta">

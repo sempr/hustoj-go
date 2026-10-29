@@ -796,6 +796,11 @@ func TestProblemDetailTitleOnceAndMetaAboveDescription(t *testing.T) {
 	if ti < 0 || mi < 0 || di < 0 {
 		t.Fatalf("缺少时限/内存/描述：ti=%d mi=%d di=%d\n%s", ti, mi, di, got)
 	}
+	// problem.memory_limit 的单位是 MiB（与 PHP 的 "MiB" 一致、与判题器
+	// <<10 换 KB 的口径一致），不能标成 KB。
+	if !strings.Contains(got, "Memory Limit：128 MiB") {
+		t.Errorf("内存单位应为 MiB:\n%s", got)
+	}
 	if ti > di || mi > di {
 		t.Errorf("时限/内存应在题目描述之上:\n%s", got)
 	}
