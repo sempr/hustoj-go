@@ -72,8 +72,7 @@ jobs:
         with:
           name: release-${{ matrix.goarch }}
           path: |
-            extra/dist/hustoj-go-*-linux-${{ matrix.goarch }}.tar.gz
-            extra/dist/hustoj-go-*-linux-${{ matrix.goarch }}.tar.gz.sha256
+            extra/dist/*
           retention-days: 30
 
   # 创建 GitHub Release (主程序)
