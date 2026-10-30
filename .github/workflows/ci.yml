@@ -103,7 +103,7 @@ jobs:
           find dist -type f -printf '%p\\n' | sort
           echo "=== flatten ==="
           # download-artifact v4 may place files under per-artifact subdirs; flatten
-          find dist -mindepth 2 -type f -exec cp -f {} dist/ \\;
+          find dist -mindepth 2 -type f -exec cp -f {} dist/ ';'
           # rename to a clean user-friendly name
           for f in dist/hustoj-go-*.tar.gz; do
             [ -f "$f" ] || continue
