@@ -72,7 +72,7 @@ jobs:
         with:
           name: release-${{ matrix.goarch }}
           path: |
-            extra/dist/*
+            dist/*
           retention-days: 30
 
   # 创建 GitHub Release (主程序)
