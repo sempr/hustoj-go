@@ -72,8 +72,8 @@ jobs:
         with:
           name: release-${{ matrix.goarch }}
           path: |
-            extra/dist/hustoj-go-${{ github.ref_name }}*-linux-${{ matrix.goarch }}.tar.gz
-            extra/dist/hustoj-go-${{ github.ref_name }}*-linux-${{ matrix.goarch }}.tar.gz.sha256
+            extra/dist/hustoj-go-*-linux-${{ matrix.goarch }}.tar.gz
+            extra/dist/hustoj-go-*-linux-${{ matrix.goarch }}.tar.gz.sha256
           retention-days: 30
 
   # 创建 GitHub Release (主程序)
@@ -85,6 +85,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
       - name: 下载所有架构产物
         uses: actions/download-artifact@v4
         with:
@@ -94,6 +99,7 @@ jobs:
 
       - name: 整理产物结构
         run: |
+          mkdir -p dist
           ls -la dist/
           # package.sh 生成的文件名包含版本号，如 hustoj-go-v0.2.1-linux-amd64.tar.gz
           # 重命名为简洁名便于用户下载
