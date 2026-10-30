@@ -99,17 +99,22 @@ jobs:
       - name: 整理产物结构
         run: |
           mkdir -p dist
-          ls -la dist/
-          # package.sh 生成的文件名包含版本号，如 hustoj-go-v0.2.1-linux-amd64.tar.gz
-          # 重命名为简洁名便于用户下载
-          for f in dist/hustoj-go-*-linux-amd64.tar.gz; do
-            [ -f "$f" ] && mv "$f" "dist/hustoj-go-linux-amd64.tar.gz"
+          echo "=== downloaded tree ==="
+          find dist -type f -printf '%p\\n' | sort
+          echo "=== flatten ==="
+          # download-artifact v4 may place files under per-artifact subdirs; flatten
+          find dist -mindepth 2 -type f -exec cp -f {} dist/ \\;
+          # rename to a clean user-friendly name
+          for f in dist/hustoj-go-*.tar.gz; do
+            [ -f "$f" ] || continue
+            case "$f" in dist/hustoj-go-linux-amd64.tar.gz) : ;; *) mv "$f" "dist/hustoj-go-linux-amd64.tar.gz" ;; esac
           done
-          for f in dist/hustoj-go-*-linux-amd64.tar.gz.sha256; do
-            [ -f "$f" ] && mv "$f" "dist/hustoj-go-linux-amd64.tar.gz.sha256"
+          for f in dist/hustoj-go-*.tar.gz.sha256; do
+            [ -f "$f" ] || continue
+            case "$f" in dist/hustoj-go-linux-amd64.tar.gz.sha256) : ;; *) mv "$f" "dist/hustoj-go-linux-amd64.tar.gz.sha256" ;; esac
           done
-          ls -la dist/
-
+          echo "=== final ==="
+          find dist -type f -printf '%p\\n' | sort
       - name: 生成发布说明
         id: changelog
         run: |
@@ -129,8 +134,7 @@ jobs:
           name: Release ${{ github.ref_name }}
           body_path: changelog.md
           files: |
-            dist/hustoj-go-linux-amd64.tar.gz
-            dist/hustoj-go-linux-amd64.tar.gz.sha256
+            dist/*
           draft: false
           prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-alpha') }}
 
