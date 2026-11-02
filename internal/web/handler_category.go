@@ -38,7 +38,7 @@ func (s *Server) registerCategoryRoutes(mux *http.ServeMux) {
 
 func (s *Server) handleCategory(w http.ResponseWriter, r *http.Request) {
 	rows, err := s.db.QueryContext(r.Context(),
-		`SELECT DISTINCT COALESCE(source, '') FROM problem WHERE defunct = 'N' ORDER BY source LIMIT ?`,
+		`SELECT DISTINCT COALESCE(source, '') AS source FROM problem WHERE defunct = 'N' ORDER BY source LIMIT ?`,
 		categorySourceLimit)
 	if err != nil {
 		s.log.Error("查询题目来源失败", "err", err)
