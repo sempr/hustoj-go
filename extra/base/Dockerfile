@@ -8,6 +8,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     mono-mcs mono-runtime \
     ruby lua5.4 \
     fp-compiler \
+    openjdk-21-jdk-headless \
     wget ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
