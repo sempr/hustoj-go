@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"mime/multipart"
@@ -29,13 +30,19 @@ func newUploadServer(t *testing.T, session string) (*Server, string) {
 	home := t.TempDir()
 	srv := newTestServer(t, &fakeQuerier{}, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = sessDir
 		c.OJHome = home
+		c.GoSessionCookie = "HJGOSESSID"
 	})
-	srv.sessionBridge = NewSessionBridge(sessDir, testOJName)
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
+		if err := srv.sessions.Save(context.Background(), newsSID, &GoSession{
+			UserID:     "admin",
+			Nick:       "admin",
+			Privileges: GoPrivileges{Admin: true},
+			CreatedAt:  time.Now().Unix(),
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return srv, home
 }
@@ -64,7 +71,7 @@ const uploadPath = "/assets/editor/upload.php"
 
 // withSessionRequest 带上测试会话 cookie（doProblem 里用同一枚 sid）。
 func withSessionRequest(req *http.Request) *http.Request {
-	req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+	req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 	return req
 }
 
