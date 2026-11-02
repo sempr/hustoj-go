@@ -43,15 +43,10 @@ type Config struct {
 	// 在 validate() 里填好，避免每次请求都重新解析。
 	trustedProxyNets []*net.IPNet
 
-	// SessionDir 是 PHP session 文件目录，用于迁移期的 PHP 会话桥。
-	SessionDir string `toml:"session_dir"`
 
-	// SessionBridge 启用 PHP session 只读桥。
-	//
-	// 只读：Go 只解析 PHP 写入的会话以识别身份，绝不写回。
-	// 写回会与 PHP-FPM 争抢同一批文件，且一旦 Go 开始写 user_id，
-	// 两端对"谁拥有登录态"的约定就分裂了，后续下线 PHP 时还要再迁一次。
-	// PHP 下线后置 false 并移除相关代码。
+	// SessionDir / SessionBridge 保留为兼容字段，仅被老 web.toml 读入；
+	// Go 版本登录态完全走 Go 会话，这两个值 runtime 不再使用。
+	SessionDir string `toml:"session_dir"`
 	SessionBridge bool `toml:"session_bridge"`
 
 	// UploadDir 是编辑器上传文件的落盘目录（默认 <OJHome>/src/web/upload）。
@@ -82,7 +77,6 @@ type Config struct {
 	//
 	// 必须与 PHP 侧逐字节相同。线上实测为 "吉尔吉斯倔驴大学OJ"。
 	// 配错不会报错，只会让所有人被当成匿名、CSRF 恒失败，
-	// 因此启用 session_bridge 时该值不能为空（见 validate）。
 	OJName string `toml:"oj_name"`
 
 	// Debug 输出调试信息（含路由命中），生产必须为 false。
@@ -269,8 +263,6 @@ func Default() *Config {
 		OJHome:          "/home/judge",
 		Template:        "syzoj",
 		TrustedProxies:  []string{"127.0.0.1/32", "::1/128"},
-		SessionDir:      "/var/lib/php/sessions",
-		SessionBridge:   true,
 		RedisURL:        "redis://127.0.0.1:6379/0",
 		GoSessionTTL:    86400,
 		GoSessionCookie: goSessionCookieDefault,
@@ -367,11 +359,9 @@ func applyTOML(cfg *Config, path string) error {
 func applyEnv(cfg *Config) {
 	setStr(&cfg.Listen, "HUSTOJ_WEB_LISTEN")
 	setStr(&cfg.Template, "OJ_TEMPLATE")
-	setStr(&cfg.SessionDir, "HUSTOJ_WEB_SESSION_DIR")
 	setStr(&cfg.UploadDir, "HUSTOJ_WEB_UPLOAD_DIR")
 	setStr(&cfg.OJName, "HUSTOJ_WEB_OJ_NAME")
 	setBool(&cfg.Debug, "HUSTOJ_WEB_DEBUG")
-	setBool(&cfg.SessionBridge, "HUSTOJ_WEB_SESSION_BRIDGE")
 	setStr(&cfg.RedisURL, "HUSTOJ_WEB_REDIS_URL")
 	setStr(&cfg.GoSessionCookie, "HUSTOJ_WEB_SESSION_COOKIE")
 	setBool(&cfg.FreePractice, "HUSTOJ_WEB_FREE_PRACTICE")
@@ -502,16 +492,6 @@ func (c *Config) validate() error {
 	}
 	if !cookieNameAllowed(c.GoSessionCookie) {
 		return fmt.Errorf("go_session_cookie 含非法字符: %q", c.GoSessionCookie)
-	}
-	if c.SessionBridge {
-		if c.SessionDir == "" {
-			return fmt.Errorf("启用了 session_bridge 但未设置 session_dir")
-		}
-		if c.OJName == "" {
-			// 缺这个值的后果是静默的：会话文件读得到但没有一个键名对得上，
-			// 表现为全员匿名 + CSRF 恒失败。宁可启动失败。
-			return fmt.Errorf("启用了 session_bridge 但未设置 oj_name（必须与 PHP 的 $OJ_NAME 逐字节相同）")
-		}
 	}
 	// 可信代理网段要在这里就解析掉：配错一个网段却静默失效，
 	// 表现出来是"真实 IP 一直取不到"，极难排查。

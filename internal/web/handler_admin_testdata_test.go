@@ -36,9 +36,9 @@ func newTestDataServer(t *testing.T, session string, spj string) (*Server, strin
 		c.SessionDir = sessDir
 		c.OJHome = home
 	})
-	srv.sessionBridge = NewSessionBridge(sessDir, testOJName)
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
+		seedGoSessionFromBits(t, srv, newsSID, session)
 	}
 	return srv, home
 }
@@ -72,7 +72,7 @@ func doTestData(srv *Server, method, target string, form url.Values, withSession
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	if withSession {
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 	}
 	rec := httptest.NewRecorder()
 	srv.handleTestData(rec, req)
@@ -103,7 +103,7 @@ func doTestDataUpload(t *testing.T, srv *Server, pid int32, files map[string][]b
 		"/admin/test_data.php?pid="+strconv.Itoa(int(pid)), &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
 	if withSession {
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 	}
 	rec := httptest.NewRecorder()
 	srv.handleTestData(rec, req)
@@ -539,7 +539,7 @@ func TestTestDataPostNeedsCSRF(t *testing.T) {
 	form := url.Values{"action": {"delete"}, "names": {"0.in"}}
 	req := httptest.NewRequest(http.MethodPost, "/admin/test_data.php?pid=1001", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+	req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 	rec := httptest.NewRecorder()
 	srv.handler().ServeHTTP(rec, req)
 

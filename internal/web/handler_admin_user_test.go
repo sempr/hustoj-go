@@ -201,8 +201,8 @@ func TestAdminUserRoutesAreMounted(t *testing.T) {
 		c.SessionBridge = true
 		c.SessionDir = dir
 	})
-	srv.sessionBridge = NewSessionBridge(dir, testOJName)
 	srv.sessions = newTestSessionStore(t)
+	seedGoSessionFromBits(t, srv, newsSID, seedAdmin())
 	h := srv.handler()
 
 	for _, p := range []string{
@@ -213,7 +213,7 @@ func TestAdminUserRoutesAreMounted(t *testing.T) {
 		"/admin/user_list.php",
 	} {
 		req := httptest.NewRequest(http.MethodGet, p, nil)
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {

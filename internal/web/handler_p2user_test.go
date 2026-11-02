@@ -23,16 +23,14 @@ func doP2(t *testing.T, target string, h func(*Server, http.ResponseWriter, *htt
 	}
 	srv := newTestServer(t, &fakeQuerier{}, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = dir
 	})
-	srv.sessionBridge = NewSessionBridge(dir, testOJName)
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
+	seedGoSessionFromBits(t, srv, p2SID, seedAdmin())
 	}
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	if session != "" {
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: p2SID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: p2SID})
 	}
 	rec := httptest.NewRecorder()
 	h(srv, rec, req)

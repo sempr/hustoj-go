@@ -70,8 +70,8 @@ func doImport(t *testing.T, f *fakeQuerier, csvContent string) *httptest.Respons
 		c.SessionBridge = true
 		c.SessionDir = dir
 	})
-	srv.sessionBridge = NewSessionBridge(dir, testOJName)
 	srv.sessions = newTestSessionStore(t)
+	seedGoSessionFromBits(t, srv, newsSID, seedAdmin())
 
 	var buf bytes.Buffer
 	mw := multipart.NewWriter(&buf)
@@ -86,7 +86,7 @@ func doImport(t *testing.T, f *fakeQuerier, csvContent string) *httptest.Respons
 
 	req := httptest.NewRequest(http.MethodPost, "/admin/user_import.php", &buf)
 	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+	req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 	rec := httptest.NewRecorder()
 	srv.handleAdminUserImport(rec, req)
 	return rec

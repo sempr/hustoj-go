@@ -30,9 +30,9 @@ func doProblem(t *testing.T, f *fakeQuerier, session, method, target string, for
 		c.SessionDir = dir
 		c.OJHome = ojhome
 	})
-	srv.sessionBridge = NewSessionBridge(dir, testOJName)
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
+		seedGoSessionFromBits(t, srv, newsSID, session)
 	}
 	var body *strings.Reader
 	if form != nil {
@@ -45,7 +45,7 @@ func doProblem(t *testing.T, f *fakeQuerier, session, method, target string, for
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	if session != "" {
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 	}
 	rec := httptest.NewRecorder()
 	h(srv, rec, req)

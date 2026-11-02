@@ -40,10 +40,6 @@ type Server struct {
 
 	// sessions 是 Go 自身的会话存储（Redis），登录态与 CSRF 的真相来源。
 	sessions *GoSessionStore
-
-	// sessionBridge 只读解析 PHP 会话，仅用于识别切流前已登录的老用户。
-	// 为 nil 时跳过迁移兜底，resolveIdentity 直接按 Go 会话/匿名处理。
-	sessionBridge *SessionBridge
 }
 
 // New 按配置构造服务：打开数据库连接池并验证连通性。
@@ -66,11 +62,6 @@ func New(cfg *config.Config, log *slog.Logger) (*Server, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	var bridge *SessionBridge
-	if cfg.SessionBridge {
-		log.Warn("session_bridge compatibility mode is inert; Go web uses its own Redis sessions; remove session_bridge and session_dir from web.toml.")
-		bridge = nil
-	}
 	// 语言注册表来自 <OJHome>/etc/langs/all.toml，是展示名/后缀/可选语言
 	// 的唯一来源。缺失或格式错误直接启动失败：否则会静默退化成"没有任何
 	// 可选语言"，提交页对所有人空白。
@@ -81,7 +72,7 @@ func New(cfg *config.Config, log *slog.Logger) (*Server, error) {
 		return nil, fmt.Errorf("加载语言配置失败: %w", err)
 	}
 	setLangTable(langTable)
-	return &Server{cfg: cfg, log: log, db: db, sessions: sessions, sessionBridge: bridge}, nil
+	return &Server{cfg: cfg, log: log, db: db, sessions: sessions}, nil
 }
 
 // Close 释放数据库连接池与 Redis 连接。调用方（cmd/web.go）必须在退出时执行。
@@ -250,7 +241,6 @@ func (s *Server) Run() error {
 		"listen", s.cfg.Listen,
 		"template", s.cfg.Template,
 		"oj_home", s.cfg.OJHome,
-		"session_bridge", s.cfg.SessionBridge,
 		"redis_url", s.cfg.RedisURL,
 		"free_practice", s.cfg.FreePractice,
 		"debug", s.cfg.Debug,

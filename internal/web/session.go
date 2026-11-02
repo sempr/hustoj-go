@@ -100,12 +100,6 @@ func (s *Server) resolveIdentity(w http.ResponseWriter, r *http.Request) Identit
 		}
 	}
 
-	if s.sessionBridge != nil {
-		if id := s.sessionBridge.Resolve(r); id.LoggedIn {
-			return s.adoptPHPSession(w, r, id)
-		}
-	}
-
 	return Anonymous()
 }
 

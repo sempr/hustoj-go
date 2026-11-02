@@ -27,20 +27,18 @@ func doHomepage(t *testing.T, f *fakeQuerier, mutate func(*config.Config), sessi
 	}
 	srv := newTestServer(t, f, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = dir
 		if mutate != nil {
 			mutate(c)
 		}
 	})
-	srv.sessionBridge = NewSessionBridge(dir, testOJName)
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
+	seedGoSessionFromBits(t, srv, homepageSID, seedAdmin())
 	}
 
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	if session != "" {
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: homepageSID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: homepageSID})
 	}
 	rec := httptest.NewRecorder()
 	h(srv, rec, req)

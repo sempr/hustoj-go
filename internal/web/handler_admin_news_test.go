@@ -31,12 +31,12 @@ func doNews(t *testing.T, f *fakeQuerier, session, method, target string, form u
 	}
 	srv := newTestServer(t, f, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = dir
+		c.OJHome = dir
 	})
-	srv.sessionBridge = NewSessionBridge(dir, testOJName)
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
+	seedGoSessionFromBits(t, srv, newsSID, seedAdmin())
+		seedGoSessionFromBits(t, srv, newsSID, session)
 	}
 
 	var body io.Reader
@@ -48,7 +48,7 @@ func doNews(t *testing.T, f *fakeQuerier, session, method, target string, form u
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	}
 	if session != "" {
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 	}
 	rec := httptest.NewRecorder()
 	h(srv, rec, req)
@@ -213,11 +213,9 @@ func TestAdminNewsRoutesAreMounted(t *testing.T) {
 	f := &fakeQuerier{newsAdminList: []dbgen.ListNewsAdminRow{}}
 	srv := newTestServer(t, f, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = dir
 	})
-	srv.sessionBridge = NewSessionBridge(dir, testOJName)
 	srv.sessions = newTestSessionStore(t)
+	seedGoSessionFromBits(t, srv, newsSID, seedAdmin())
 	h := srv.handler()
 
 	for _, p := range []string{
@@ -226,7 +224,7 @@ func TestAdminNewsRoutesAreMounted(t *testing.T) {
 		"/admin/news_edit.php?id=1",
 	} {
 		req := httptest.NewRequest(http.MethodGet, p, nil)
-		req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: newsSID})
+		req.AddCookie(&http.Cookie{Name: "HJGOSESSID", Value: newsSID})
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {

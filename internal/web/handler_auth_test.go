@@ -104,7 +104,6 @@ func newAuthFixture(t *testing.T) *authFixture {
 		cfg:           cfg,
 		log:           testLogger(),
 		db:            db,
-		sessionBridge: NewSessionBridge(dir, ojName),
 		sessions:      newTestSessionStore(t),
 	}
 	return &authFixture{srv: srv, session: ojName, dir: dir}
@@ -1024,7 +1023,6 @@ func TestAuthWorksWithoutSessionBridge(t *testing.T) {
 		log:      testLogger(),
 		db:       newAuthDB(t),
 		sessions: newTestSessionStore(t),
-		// sessionBridge 故意留空
 	}
 
 	f := &authFixture{srv: srv, session: "吉尔吉斯倔驴大学OJ", dir: t.TempDir()}
@@ -1039,36 +1037,6 @@ func TestAuthWorksWithoutSessionBridge(t *testing.T) {
 	})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("无会话桥时登录 = %d, want 303; body=%s", rec.Code, rec.Body.String())
-	}
-}
-
-// 前缀不匹配时必须表现为"全员匿名"，这正是线上此前的故障。
-// 断言这个行为是为了让配置错误在测试里显形，而不是静默通过。
-func TestWrongOJNameMeansAnonymous(t *testing.T) {
-	dir := t.TempDir()
-	const sid = "wrongprefix1234567890ab"
-	const ojName = "吉尔吉斯倔驴大学OJ"
-
-	// 用正确的前缀写一份 PHP 会话，模拟线上真实文件。
-	seed := ojName + `_user_id|s:3:"kim";` + ojName + `_administrator|b:1;`
-	if err := os.WriteFile(filepath.Join(dir, "sess_"+sid), []byte(seed), 0600); err != nil {
-		t.Fatal(err)
-	}
-
-	// 配置成错误的前缀（$OJ_NAME 配错是这个故障的典型来源）。
-	wrong := NewSessionBridge(dir, "hustoj")
-	req := httptest.NewRequest(http.MethodGet, "/index.php", nil)
-	req.AddCookie(&http.Cookie{Name: phpSessionCookieName, Value: sid})
-
-	id := wrong.Resolve(req)
-	if id.LoggedIn {
-		t.Errorf("前缀不匹配却解析出登录态: %+v", id)
-	}
-
-	// 对照：前缀正确时必须能读出来，否则上面那条就成了"永远匿名"的假通过。
-	ok := NewSessionBridge(dir, ojName)
-	if got := ok.Resolve(req); !got.LoggedIn || got.UserID != "kim" {
-		t.Errorf("前缀正确时应能读出登录态: %+v", got)
 	}
 }
 

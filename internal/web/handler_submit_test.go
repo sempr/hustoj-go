@@ -71,7 +71,6 @@ func newSubmitFixture(t *testing.T) *submitFixture {
 		db:       db,
 		sessions: newTestSessionStore(t),
 	}
-	srv.sessionBridge = NewSessionBridge(dir, cfg.OJName)
 
 	resetSubmitState(t, db)
 	t.Cleanup(func() { resetSubmitState(t, db) })
