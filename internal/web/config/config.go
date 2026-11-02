@@ -184,15 +184,15 @@ type Config struct {
 	// 以下开关的 PHP 侧定义在 phpweb/include/db_info.inc.php。Go 刻意不解析
 	// 该文件（内含明文口令），所以两端各有一份，发布时必须同步。
 
-	// LangMask 对应 $OJ_LANGMASK：允许提交的语言位掩码。
-	// PHP：$langmask & (1 << $language) 命中即拒绝，即掩码里为 0 的语言不可用。
-	// 线上实测值见 db_info.inc.php:29。
-	LangMask int32 `toml:"lang_mask"`
+	// LangMask 是 Web 受理语言的隐藏掩码（位为 1 表示"禁止使用"）。
+	//
+	// 内部实现细节： masks derived from judge.conf 的 OJ_LANG_SET。
+	// 单一真相来源是 judge.conf 的 OJ_LANG_SET，不再在 web.toml 里单独配置。
+	LangMask int32
 
-	// LangSet 对应 $OJ_LANG_SET：Web 受理语言 id 列表（逗号分隔，如 "0,1,5,6"）。
-	// 设置后优先于 lang_mask，允许像 judge.conf 一样直接用列表指定，避免
-	// 维护位掩码。为空时回退到 lang_mask（向后兼容）。
-	LangSet string `toml:"lang_set"`
+	// LangSet 记录 judge.conf 的 OJ_LANG_SET（逗号分隔的语言 id 列表）。
+	// web.toml 不再暴露该字段；启动时由环境变量 OJ_LANG_SET 注入。
+	LangSet string
 
 	// SubmitCooldown 对应 $OJ_SUBMIT_COOLDOWN_TIME：两次提交的最小间隔（秒）。
 	// PHP 侧为 0 时会退化成"同一秒内第二次提交被静默丢弃并跳转到 status"，
@@ -395,7 +395,7 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.MenuNews, "HUSTOJ_WEB_MENU_NEWS")
 	setBool(&cfg.MathJax, "HUSTOJ_WEB_MATHJAX")
 	setStr(&cfg.Lang, "HUSTOJ_WEB_LANG")
-	setStr(&cfg.LangSet, "HUSTOJ_WEB_LANG_SET")
+	setStr(&cfg.LangSet, "OJ_LANG_SET")
 	setStr(&cfg.UnknownLanguage, "HUSTOJ_WEB_UNKNOWN_LANGUAGE")
 	setStr(&cfg.Admin, "HUSTOJ_WEB_OJ_ADMIN")
 	if v, ok := lookupEnv("OJ_HOME"); ok {
