@@ -5,6 +5,7 @@ package cmd
 
 import (
 	"fmt"
+	"runtime"
 
 	"github.com/spf13/cobra"
 )
@@ -20,7 +21,11 @@ Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Version: %s\nCommit: %s\nDate: %s\n", Version, Commit, Date)
+		goVersion := GoVersion
+		if goVersion == "" {
+			goVersion = runtime.Version()
+		}
+		fmt.Printf("Version: %s\nCommit: %s\nDate: %s\nGo: %s\n", Version, Commit, Date, goVersion)
 	},
 }
 

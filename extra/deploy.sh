@@ -22,7 +22,8 @@ echo "==> 编译二进制……"
 VERSION=$(git -C "$(dirname "$0")/.." describe --tags --always)
 COMMIT=$(git -C "$(dirname "$0")/.." rev-parse --short HEAD)
 DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-LDFLAGS="-X '$MODULE/cmd.Version=$VERSION' -X '$MODULE/cmd.Commit=$COMMIT' -X '$MODULE/cmd.Date=$DATE'"
+GO_VERSION=$(go env GOVERSION)
+LDFLAGS="-X '$MODULE/cmd.Version=$VERSION' -X '$MODULE/cmd.Commit=$COMMIT' -X '$MODULE/cmd.Date=$DATE' -X '$MODULE/cmd.GoVersion=$GO_VERSION'"
 
 cd "$(dirname "$0")/.."
 # tini-static 会被 go:embed 打进主二进制，部署时由 `hustoj install-tini` 落盘。

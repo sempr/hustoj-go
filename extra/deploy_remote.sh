@@ -74,7 +74,8 @@ info "远程架构 $REMOTE_ARCH → GOOS=linux GOARCH=$GOARCH"
 VERSION="$(git -C "$ROOT" describe --tags --always --dirty)"
 COMMIT="$(git -C "$ROOT" rev-parse --short HEAD)"
 DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-LDFLAGS="-X '$MODULE/cmd.Version=$VERSION' -X '$MODULE/cmd.Commit=$COMMIT' -X '$MODULE/cmd.Date=$DATE'"
+GO_VERSION="$(go env GOVERSION)"
+LDFLAGS="-X '$MODULE/cmd.Version=$VERSION' -X '$MODULE/cmd.Commit=$COMMIT' -X '$MODULE/cmd.Date=$DATE' -X '$MODULE/cmd.GoVersion=$GO_VERSION'"
 
 TMP_DIR="$(mktemp -d)"
 trap 'rm -rf "$TMP_DIR"' EXIT

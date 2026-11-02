@@ -1,7 +1,8 @@
 package cmd
 
 var (
-	Version = "dev"
-	Commit  = "none"
-	Date    = "unknown"
+	Version   = "dev"
+	Commit    = "none"
+	Date      = "unknown"
+	GoVersion = ""
 )

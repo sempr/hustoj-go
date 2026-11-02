@@ -4,10 +4,12 @@ VERSION := $(shell git describe --tags --always --dirty)
 DIRTY   := $(shell git diff --quiet || echo "-dirty")
 COMMIT  := $(shell git rev-parse --short HEAD)$(DIRTY)
 DATE    := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
+GOVERSION := $(shell go env GOVERSION)
 
 LDFLAGS := -X '$(MODULE)/cmd.Version=$(VERSION)' \
            -X '$(MODULE)/cmd.Commit=$(COMMIT)' \
-           -X '$(MODULE)/cmd.Date=$(DATE)'
+           -X '$(MODULE)/cmd.Date=$(DATE)' \
+           -X '$(MODULE)/cmd.GoVersion=$(GOVERSION)'
 
 PREFIX ?= /usr/bin
 SYSDIR ?= /etc/systemd/system

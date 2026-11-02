@@ -79,7 +79,7 @@ git -C "$ROOT" diff --quiet 2>/dev/null || DIRTY="-dirty"
 COMMIT="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo unknown)${DIRTY}"
 DATE="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
-LDFLAGS="-s -w -X '${MODULE}/cmd.Version=${VERSION}' -X '${MODULE}/cmd.Commit=${COMMIT}' -X '${MODULE}/cmd.Date=${DATE}'"
+LDFLAGS="-s -w -X '${MODULE}/cmd.Version=${VERSION}' -X '${MODULE}/cmd.Commit=${COMMIT}' -X '${MODULE}/cmd.Date=${DATE}' -X '${MODULE}/cmd.GoVersion=${GO_VERSION}'"
 
 info "版本: $VERSION  提交: $COMMIT  Go: $GO_VERSION"
 
