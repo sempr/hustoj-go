@@ -1,4 +1,10 @@
 FROM debian:13-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends gcc g++ rustc && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-recommends \
+    gcc g++ rustc \
+    python3 python3-pip \
+    perl php-cli \
+    mono-mcs mono-runtime \
+    ruby lua5.4 \
+ && rm -rf /var/lib/apt/lists/*
