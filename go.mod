@@ -10,6 +10,7 @@ require (
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/justinas/nosurf v1.2.0
 	github.com/pelletier/go-toml/v2 v2.2.4
+	github.com/pressly/goose/v3 v3.29.0
 	github.com/sevlyar/go-daemon v0.1.6
 	github.com/spf13/cobra v1.10.1
 	github.com/yuin/goldmark v1.8.6
@@ -28,7 +29,6 @@ require (
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/mfridman/interpolate v0.0.2 // indirect
-	github.com/pressly/goose/v3 v3.29.0 // indirect
 	github.com/sethvargo/go-retry v0.5.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
