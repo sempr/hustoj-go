@@ -1,0 +1,71 @@
+name: Base Rootfs Release (manual)
+
+# 手动构建并发布"多语言基础 rootfs"（extra/base/Dockerfile）。
+# 不触发主程序 release / create-release，只做 rootfs 包装与 Release 上传。
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release 版本号（不含 v 前缀）'
+        required: true
+        default: 'base-manual'
+      arch:
+        description: '目标架构'
+        required: true
+        type: choice
+        options: [amd64, arm64]
+        default: amd64
+
+jobs:
+  build-publish:
+    name: 构建并发布 Base Rootfs (${{ inputs.arch }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout 代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Docker
+        uses: docker/setup-buildx-action@v3
+
+      - name: 构建基础 Rootfs 镜像
+        run: |
+          cd extra
+          docker buildx build --platform linux/${{ inputs.arch }} \
+            --tag hustoj-base:${{ inputs.arch }} \
+            --file base/Dockerfile \
+            --load \
+            .
+
+      - name: 导出 rootfs tarball
+        run: |
+          OUT="rootfs-base-${{ inputs.arch }}.tar.gz"
+          cid="$(docker create hustoj-base:${{ inputs.arch }})"
+          docker export "$cid" | gzip > "$OUT"
+          docker rm "$cid" >/dev/null
+          sha256sum "$OUT" > "$OUT.sha256"
+          ls -lh "$OUT" "$OUT.sha256"
+
+      - name: 上传产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: rootfs-base-${{ inputs.arch }}
+          path: |
+            rootfs-base-${{ inputs.arch }}.tar.gz
+            rootfs-base-${{ inputs.arch }}.tar.gz.sha256
+          retention-days: 30
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: rootfs-base-${{ inputs.version }}
+          name: Base Rootfs ${{ inputs.version }} (${{ inputs.arch }})
+          body: |
+            多语言基础 Rootfs（extra/base/Dockerfile），解压即用。
+
+            包含：C/C++/Rust/Python/Perl/PHP/C#/Ruby/Lua/Java/Go/Pascal 等基础运行时。
+          files: |
+            rootfs-base-${{ inputs.arch }}.tar.gz
+            rootfs-base-${{ inputs.arch }}.tar.gz.sha256
+          draft: false
