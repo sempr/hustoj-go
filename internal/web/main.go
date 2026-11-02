@@ -68,7 +68,8 @@ func New(cfg *config.Config, log *slog.Logger) (*Server, error) {
 	}
 	var bridge *SessionBridge
 	if cfg.SessionBridge {
-		bridge = NewSessionBridge(cfg.SessionDir, cfg.OJName)
+		log.Warn("session_bridge compatibility mode is inert; Go web uses its own Redis sessions; remove session_bridge and session_dir from web.toml.")
+		bridge = nil
 	}
 	// 语言注册表来自 <OJHome>/etc/langs/all.toml，是展示名/后缀/可选语言
 	// 的唯一来源。缺失或格式错误直接启动失败：否则会静默退化成"没有任何

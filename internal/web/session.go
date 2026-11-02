@@ -96,9 +96,7 @@ func (s *Server) resolveIdentity(w http.ResponseWriter, r *http.Request) Identit
 			return s.identityFromGo(sess, sid)
 		}
 		if !errors.Is(err, errSessionNotFound) {
-			// Redis 故障时不能静默当匿名 —— 那会把所有人踢出登录。
-			// 但也不能 500：记日志后继续尝试 PHP 桥，至少老用户还能用。
-			s.log.Error("读取 Go 会话失败，降级到 PHP 会话桥", "err", err)
+			s.log.Error("读取 Go 会话失败", "err", err)
 		}
 	}
 
