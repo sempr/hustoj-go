@@ -7,6 +7,7 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y --no-install-reco
     perl php-cli \
     mono-mcs mono-runtime \
     ruby lua5.4 \
+    fp-compiler \
     wget ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
