@@ -44,6 +44,12 @@ type Config struct {
 	trustedProxyNets []*net.IPNet
 
 
+	// SessionDir 是 PHP session 文件目录，仅为兼容老 web.toml（运行态不再使用）。
+	SessionDir string `toml:"session_dir"`
+
+	// SessionBridge 仅为兼容老 web.toml（运行态已停用，Go web 独立 sessions）。
+	SessionBridge bool `toml:"session_bridge"`
+
 	// UploadDir 是编辑器上传文件的落盘目录（默认 <OJHome>/src/web/upload）。
 	//
 	// 该目录同时是 nginx 各域名的静态根，因此上传结果能被 oj / oj-go /
