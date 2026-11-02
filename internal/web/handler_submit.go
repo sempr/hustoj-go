@@ -167,7 +167,7 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 	view := submitPageView{
 		Token:     r,
-		Languages: s.allowedLanguages(s.cfg.LangMask),
+		Languages: s.allowedLanguages(s.globalLanguageMask()),
 		Ajax:      q.Get("ajax") != "",
 	}
 	view.DefaultLanguage = s.defaultSubmitLanguage(r.Context(), identity.UserID, view.Languages)
@@ -203,8 +203,50 @@ func (s *Server) handleSubmitPage(w http.ResponseWriter, r *http.Request) {
 	s.renderPage(w, r, http.StatusOK, "submitPage", "提交代码", view)
 }
 
-// allowedLanguages 列出掩码允许的语言。
+// globalLanguageMask 返回本 Web 实例受理语言的隐藏掩码。
 //
+// 优先使用 cfg.LangSet（逗号分隔的 id 列表，与 judge.conf 的
+// OJ_LANG_SET 同形式）；未配置时回退到 cfg.LangMask 的位掩码语义，
+// 保持与 PHP 侧 $OJ_LANGMASK 的兼容。位为 1 表示"禁止使用"。
+func (s *Server) globalLanguageMask() int32 {
+	if set := strings.TrimSpace(s.cfg.LangSet); set != "" {
+		return langSetToMask(set, languageCount())
+	}
+	return s.cfg.LangMask
+}
+
+// langSetToMask 把 "0,1,5,..." 形式的语言白名单转成隐藏掩码
+// （掩码里为 1 的语言禁止使用）。非法/越界项被忽略；最终没有任何
+// 可用语言时返回全掩码，避免静默放过所有语言。
+func langSetToMask(set string, count int) int32 {
+	allowed := make(map[int]bool)
+	for _, part := range strings.Split(set, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		n, err := strconv.Atoi(part)
+		if err != nil || n < 0 || (count > 0 && n >= count) {
+			continue
+		}
+		allowed[n] = true
+	}
+	if count <= 0 {
+		return 0
+	}
+	if len(allowed) == 0 {
+		// 没解析出任何合法 id：按"全部禁用"处理，比"静默全开"安全。
+		return int32((uint64(1) << uint(count)) - 1)
+	}
+	var mask int32
+	for i := 0; i < count; i++ {
+		if !allowed[i] {
+			mask |= 1 << uint(i)
+		}
+	}
+	return mask
+}
+
 // PHP 的掩码约定是"命中即拒绝"（$langmask & (1 << $language)），
 // 所以可用语言是掩码里为 0 的那些位。
 func (s *Server) allowedLanguages(mask int32) []submitLanguage {
@@ -314,7 +356,7 @@ func (s *Server) submitOnce(w http.ResponseWriter, r *http.Request, identity Ide
 		in.Language = 0
 	}
 
-	langmask := s.cfg.LangMask
+	langmask := s.globalLanguageMask()
 	var problemID int32
 	var defunct string
 

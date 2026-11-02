@@ -32,3 +32,8 @@ debug = false
 # 语言展示名、源文件后缀、语法高亮 brush、可选语言列表都不再写在代码里，
 # 而是统一来自 <OJHome>/etc/langs/all.toml。此值仅覆盖哨兵文案。
 unknown_language = "UnknownLanguage"
+
+# 可选：Web 受理语言 id 列表（逗号分隔，如 "0,1,5,6,26,27,28"）。
+# 设置后优先于 lang_mask，适合配合 judge.conf 的 OJ_LANG_SET 使用；留空时
+# 回退到 lang_mask。语言 id 必须与 etc/langs/all.toml 一致。
+# lang_set = "0,1,5,6,26,27,28"

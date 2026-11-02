@@ -264,7 +264,7 @@ func (s *Server) buildFormVM(editing bool, cid int32, title string, st, et sql.N
 		}
 	}
 	for i := 0; i < languageCount(); i++ {
-		if s.cfg.LangMask&(1<<uint(i)) != 0 {
+		if s.globalLanguageMask()&(1<<uint(i)) != 0 {
 			continue
 		}
 		vm.Langs = append(vm.Langs, contestLangVM{ID: i, Name: languageName(int32(i)), Selected: langmask&(1<<uint(i)) == 0})

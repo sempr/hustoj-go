@@ -189,6 +189,11 @@ type Config struct {
 	// 线上实测值见 db_info.inc.php:29。
 	LangMask int32 `toml:"lang_mask"`
 
+	// LangSet 对应 $OJ_LANG_SET：Web 受理语言 id 列表（逗号分隔，如 "0,1,5,6"）。
+	// 设置后优先于 lang_mask，允许像 judge.conf 一样直接用列表指定，避免
+	// 维护位掩码。为空时回退到 lang_mask（向后兼容）。
+	LangSet string `toml:"lang_set"`
+
 	// SubmitCooldown 对应 $OJ_SUBMIT_COOLDOWN_TIME：两次提交的最小间隔（秒）。
 	// PHP 侧为 0 时会退化成"同一秒内第二次提交被静默丢弃并跳转到 status"，
 	// 因此这里要求为正。
@@ -390,6 +395,7 @@ func applyEnv(cfg *Config) {
 	setBool(&cfg.MenuNews, "HUSTOJ_WEB_MENU_NEWS")
 	setBool(&cfg.MathJax, "HUSTOJ_WEB_MATHJAX")
 	setStr(&cfg.Lang, "HUSTOJ_WEB_LANG")
+	setStr(&cfg.LangSet, "HUSTOJ_WEB_LANG_SET")
 	setStr(&cfg.UnknownLanguage, "HUSTOJ_WEB_UNKNOWN_LANGUAGE")
 	setStr(&cfg.Admin, "HUSTOJ_WEB_OJ_ADMIN")
 	if v, ok := lookupEnv("OJ_HOME"); ok {
