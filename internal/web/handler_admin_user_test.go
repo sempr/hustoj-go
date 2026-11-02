@@ -198,8 +198,6 @@ func TestAdminUserRoutesAreMounted(t *testing.T) {
 	f := &fakeQuerier{privList: []dbgen.Privilege{}}
 	srv := newTestServer(t, f, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = dir
 	})
 	srv.sessions = newTestSessionStore(t)
 	seedGoSessionFromBits(t, srv, newsSID, seedAdmin())

@@ -22,7 +22,6 @@ func newPageDB(t *testing.T) *Server {
 		t.Skip("未设置 HUSTOJ_EQUIV_DSN，跳过需要真实库的页面测试")
 	}
 	f := newAuthFixture(t)
-	f.srv.cfg.SessionBridge = false
 	return f.srv
 }
 

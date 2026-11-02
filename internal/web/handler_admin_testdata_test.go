@@ -32,8 +32,6 @@ func newTestDataServer(t *testing.T, session string, spj string) (*Server, strin
 	home := t.TempDir()
 	srv := newTestServer(t, &fakeQuerier{spj: spj}, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = sessDir
 		c.OJHome = home
 	})
 	if session != "" {

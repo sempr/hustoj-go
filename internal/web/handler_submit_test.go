@@ -56,8 +56,6 @@ func newSubmitFixture(t *testing.T) *submitFixture {
 
 	cfg := testConfig()
 	cfg.OJHome = dir
-	cfg.SessionBridge = true
-	cfg.SessionDir = dir
 	cfg.OJName = "吉尔吉斯倔驴大学OJ"
 	cfg.SubmitCooldown = 0 // 默认关闭，逐个用例按需打开
 	cfg.VCodePendingThreshold = 0

@@ -88,8 +88,6 @@ func newAuthFixture(t *testing.T) *authFixture {
 	const ojName = "吉尔吉斯倔驴大学OJ"
 
 	cfg := testConfig()
-	cfg.SessionBridge = true
-	cfg.SessionDir = dir
 	cfg.OJName = ojName
 	cfg.Register = true
 	cfg.LoginMod = "hustoj"

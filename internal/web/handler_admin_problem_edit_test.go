@@ -26,8 +26,6 @@ func doProblem(t *testing.T, f *fakeQuerier, session, method, target string, for
 	}
 	srv := newTestServer(t, f, func(c *config.Config) {
 		c.OJName = testOJName
-		c.SessionBridge = true
-		c.SessionDir = dir
 		c.OJHome = ojhome
 	})
 	if session != "" {

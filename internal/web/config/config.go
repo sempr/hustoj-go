@@ -44,11 +44,6 @@ type Config struct {
 	trustedProxyNets []*net.IPNet
 
 
-	// SessionDir / SessionBridge 保留为兼容字段，仅被老 web.toml 读入；
-	// Go 版本登录态完全走 Go 会话，这两个值 runtime 不再使用。
-	SessionDir string `toml:"session_dir"`
-	SessionBridge bool `toml:"session_bridge"`
-
 	// UploadDir 是编辑器上传文件的落盘目录（默认 <OJHome>/src/web/upload）。
 	//
 	// 该目录同时是 nginx 各域名的静态根，因此上传结果能被 oj / oj-go /
