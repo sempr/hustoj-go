@@ -204,7 +204,7 @@ func TestContestStatisticsAggregates(t *testing.T) {
 			t.Errorf("表头缺少 %q", h)
 		}
 	}
-	if !strings.Contains(body, ">C</th>") || !strings.Contains(body, ">C&#43;&#43;</th>") {
+	if !strings.Contains(body, ">C</th>") || !strings.Contains(body, ">C&#43;&#43;14</th>") {
 		t.Errorf("语言列表头缺少 C 或 C++")
 	}
 	// 只应有这两个语言列：不该出现 Pascal。

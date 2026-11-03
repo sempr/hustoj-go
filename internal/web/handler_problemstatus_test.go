@@ -138,7 +138,7 @@ func TestProblemStatusLanguageNameOutOfRange(t *testing.T) {
 	if got := problemStatusLanguageName(999); got != "" {
 		t.Errorf("越界语言 = %q，期望空串", got)
 	}
-	if got := problemStatusLanguageName(1); got != "C++" {
-		t.Errorf("语言 1 = %q，期望 C++", got)
+	if got := problemStatusLanguageName(1); got != "C++14" {
+		t.Errorf("语言 1 = %q，期望 C++14", got)
 	}
 }

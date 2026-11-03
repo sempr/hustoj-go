@@ -862,7 +862,7 @@ func TestStatusFilterFormAllOptionIsMinusOne(t *testing.T) {
 // 曾经状态页这份手抄表整体串位：6 显示成 PHP（实际 Python），2/3 也对调。
 func TestLanguageNameMatchesPHP(t *testing.T) {
 	want := map[int32]string{
-		0: "C", 1: "C++", 2: "Pascal", 3: "Java", 5: "Bash", 6: "Python",
+		0: "C", 1: "C++14", 2: "Pascal", 3: "Java", 5: "Bash", 6: "Python",
 		7: "PHP", 8: "Perl", 9: "C#", 16: "JavaScript", 17: "Go", 25: "Rust",
 	}
 	for id, name := range want {

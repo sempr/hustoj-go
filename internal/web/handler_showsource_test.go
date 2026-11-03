@@ -267,7 +267,7 @@ func TestShowsourceMissingSolution(t *testing.T) {
 func TestSourceBrush(t *testing.T) {
 	tests := map[uint32]string{
 		0:  "c",
-		1:  "c++",
+		1:  "c++14",
 		2:  "delphi",
 		9:  "c#",
 		10: "c",

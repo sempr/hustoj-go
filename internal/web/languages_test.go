@@ -44,8 +44,8 @@ func TestLangTableDerivedFromRegistry(t *testing.T) {
 	}
 
 	// 已知语言：id 1 = C++ / cc。
-	if got := languageName(1); got != "C++" {
-		t.Errorf("languageName(1) = %q，期望 C++", got)
+	if got := languageName(1); got != "C++14" {
+		t.Errorf("languageName(1) = %q，期望 C++14", got)
 	}
 	if ext, ok := languageExtAt(1); !ok || ext != "cc" {
 		t.Errorf("languageExtAt(1) = %q, %v，期望 cc", ext, ok)
