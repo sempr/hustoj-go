@@ -12,6 +12,8 @@ import (
 	"encoding/hex"
 	"io/fs"
 	"net/http"
+	"path/filepath"
+	"strings"
 )
 
 //go:embed static
@@ -23,6 +25,26 @@ var assetFS embed.FS
 // 表现为"改了没生效"。把内容哈希拼进 URL，内容一变 URL 就变，缓存自然失效，
 // 因此无需手动刷新，也不必缩短缓存时间。
 // 字体不参与哈希：它们由 CSS 内的相对路径引用，版本跟 CSS 走。
+// minifiedAssetName 在存在 .min.<ext> 版本时，优先使用它；否则回退到原文件。
+//
+// 这样源文件仍可保持可读，服务端实际送出压缩后的版本，URL 路径保持不变
+// （/assets/hustoj.css 实际返回 hustoj.min.css）。
+func minifiedAssetName(name string) string {
+	ext := filepath.Ext(name)
+	if ext == "" {
+		return name
+	}
+	stem := strings.TrimSuffix(name, ext)
+	if strings.HasSuffix(stem, ".min") {
+		return name
+	}
+	minName := stem + ".min" + ext
+	if _, err := fs.Stat(assetFS, minName); err == nil {
+		return minName
+	}
+	return name
+}
+
 var assetVersion = func() string {
 	sum := sha256.New()
 	for _, name := range []string{
@@ -31,7 +53,7 @@ var assetVersion = func() string {
 		"static/highlight.min.js", "static/highlight-delphi.min.js",
 		"static/highlight-github.min.css", "static/highlight-github-dark.min.css",
 	} {
-		b, err := assetFS.ReadFile(name)
+		b, err := assetFS.ReadFile(minifiedAssetName(name))
 		if err != nil {
 			// 只有 embed 指令与目录不符时才会发生，属构建期错误。
 			panic("web: 读取静态资源失败: " + err.Error())
@@ -48,8 +70,30 @@ func (s *Server) registerAssetRoutes(mux *http.ServeMux) {
 		// 只有在 embed 指令与目录结构不匹配时才会发生，属于构建期错误。
 		panic("web: 静态资源目录缺失: " + err.Error())
 	}
-	handler := http.StripPrefix("/assets/", cacheControl(http.FileServer(http.FS(sub))))
-	mux.Handle("GET /assets/", handler)
+	// registerAssetRoutes：请求 /assets/hustoj.css 时，优先送出 hustoj.min.css
+	// 的压缩内容，URL 路径与缓存击穿哈希保持不变。
+	fileHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw := strings.TrimPrefix(r.URL.Path, "/assets/")
+		if raw == "" || strings.Contains(raw, "..") {
+			http.NotFound(w, r)
+			return
+		}
+		name := "static/" + raw
+		if _, err := fs.Stat(assetFS, name); err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		// 有 .min 版本就用它，避免 served 文件和哈希不一致。
+		minName := minifiedAssetName(name)
+		if minName != name {
+			u := *r.URL
+			u.Path = "/assets/" + strings.TrimPrefix(minName, "static/")
+			r.URL = &u
+		}
+		handler := http.StripPrefix("/assets/", cacheControl(http.FileServer(http.FS(sub))))
+		handler.ServeHTTP(w, r)
+	})
+	mux.Handle("GET /assets/", fileHandler)
 }
 
 // cacheControl 给静态资源加上缓存头（内容随二进制发布，一天足够）。
