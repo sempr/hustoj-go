@@ -334,6 +334,13 @@ server {
     listen [::]:80 default_server;
     server_name _;
 
+    # 静态/代理响应 gzip 压缩
+    gzip on;
+    gzip_vary on;
+    gzip_proxied any;
+    gzip_comp_level 6;
+    gzip_types text/plain text/css application/json application/javascript text/xml application/xml application/xml+rss text/javascript;
+
     client_max_body_size 64m;
     access_log /var/log/nginx/hustoj.access.log;
     error_log  /var/log/nginx/hustoj.error.log;
