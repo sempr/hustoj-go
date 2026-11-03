@@ -170,6 +170,13 @@ id = 23
 suffix = ".sb3"
 
 [[lang]]
+name = "CJ"
+display_name = "Cangjie"
+id = 24
+suffix = ".cj"
+brush = "python"
+
+[[lang]]
 name = "RUST"
 display_name = "Rust"
 id = 25
