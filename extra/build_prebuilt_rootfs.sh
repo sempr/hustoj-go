@@ -78,7 +78,7 @@ OVERRIDE_NODE_MAJOR=""
 
 # 特殊安装：Node.js/Go/Rust 从官方源安装最新稳定版
 declare -A SPECIAL_INSTALL=(
-    [16]="curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*"
+    [16]="apt-get update && apt-get install -y --no-install-recommends curl ca-certificates && rm -rf /var/lib/apt/lists/* && curl -fsSL https://deb.nodesource.com/setup_${NODE_MAJOR}.x | bash - && apt-get install -y --no-install-recommends nodejs && rm -rf /var/lib/apt/lists/*"
     [17]="ARCH=\$(dpkg --print-architecture) && case \$ARCH in amd64) GOARCH=amd64;; arm64) GOARCH=arm64;; esac && wget -q https://go.dev/dl/go${GO_VERSION}.linux-\${GOARCH}.tar.gz -O /tmp/go.tar.gz && tar -C /usr/local -xzf /tmp/go.tar.gz && rm /tmp/go.tar.gz && ln -sf /usr/local/go/bin/go /usr/bin/go && ln -sf /usr/local/go/bin/gofmt /usr/bin/gofmt"
     [25]="ARCH=\$(dpkg --print-architecture) && case \$ARCH in amd64) RUSTARCH=x86_64-unknown-linux-gnu;; arm64) RUSTARCH=aarch64-unknown-linux-gnu;; esac && wget -q https://static.rust-lang.org/dist/rust-${RUST_VERSION}-\${RUSTARCH}.tar.gz -O /tmp/rust.tar.gz && tar -xzf /tmp/rust.tar.gz -C /tmp && /tmp/rust-${RUST_VERSION}-\${RUSTARCH}/install.sh --prefix=/usr/local --without=rust-docs && rm -rf /tmp/rust* && ln -sf /usr/local/bin/rustc /usr/bin/rustc && ln -sf /usr/local/bin/cargo /usr/bin/cargo"
 )
