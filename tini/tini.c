@@ -275,6 +275,15 @@ int main(int argc, char *argv[], char *envp[]) {
         i++;
     }
 
+    /* tini is only meant to run as PID 1 of a dedicated PID namespace (the Go
+     * runner creates one with CLONE_NEWPID). Running it directly on the host is
+     * dangerous: its cleanup path calls kill(-1, SIGKILL), which would take
+     * down host processes. Refuse in that case. */
+    if (getpid() != 1) {
+        fprintf(stderr, "tini: refusing to run outside a PID namespace (pid=%d); use unshare --pid --fork --mount-proc\\n", (int)getpid());
+        return 78;
+    }
+
     if (i >= argc) {
         fprintf(stderr, "no program\n");
         return 1;
