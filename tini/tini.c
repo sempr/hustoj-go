@@ -12,6 +12,12 @@
 #include <pwd.h>
 #include <poll.h>
 #include <errno.h>
+#include <stddef.h>
+#include <string.h>
+#include <stdlib.h>
+#include <linux/seccomp.h>
+#include <linux/filter.h>
+#include <linux/audit.h>
 #include <sys/syscall.h>
 
 /* 构建信息：由 makefile 通过 -D 注入，用来确认「这一份 tini 是哪个版本、
@@ -70,6 +76,115 @@ static void setup_signals() {
     sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;  /* 只关心退出，不关心 stop/continue */
     sigemptyset(&sa.sa_mask);
     sigaction(SIGCHLD, &sa, NULL);
+}
+
+/* ===== seccomp: block obvious sandbox-escape syscalls =====
+ *
+ * Installed *after* drop_nobody()/PR_SET_NO_NEW_PRIVS and *before* execve.
+ * The filter is inherited across exec, so it applies to the untrusted user
+ * program. By default dangerous syscalls return EPERM; audit/kill modes can be
+ * selected through OJ_SECCOMP_MODE (audit|enforce|kill).
+ */
+static void install_seccomp(void) {
+    const char *mode = getenv("OJ_SECCOMP_MODE");
+    unsigned int blocked = SECCOMP_RET_ERRNO | EPERM;
+    if (mode && strcmp(mode, "audit") == 0) {
+        blocked = SECCOMP_RET_LOG;
+    } else if (mode && strcmp(mode, "kill") == 0) {
+        blocked = SECCOMP_RET_KILL_PROCESS;
+    }
+
+#if defined(__x86_64__)
+#define HUSTOJ_EXPECTED_ARCH AUDIT_ARCH_X86_64
+#elif defined(__aarch64__)
+#define HUSTOJ_EXPECTED_ARCH AUDIT_ARCH_AARCH64
+#else
+#define HUSTOJ_EXPECTED_ARCH 0
+#endif
+
+    struct sock_filter filter[] = {
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, HUSTOJ_EXPECTED_ARCH, 1, 0),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+
+#ifdef __NR_mount
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mount, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_umount2
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_umount2, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_pivot_root
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_pivot_root, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_chroot
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_chroot, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_unshare
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_unshare, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_setns
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_setns, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_ptrace
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_ptrace, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_bpf
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_bpf, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_reboot
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_reboot, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_kexec_load
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_kexec_load, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_kexec_file_load
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_kexec_file_load, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_init_module
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_init_module, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_finit_module
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_finit_module, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_delete_module
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_delete_module, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_open_by_handle_at
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_open_by_handle_at, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_name_to_handle_at
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_name_to_handle_at, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_userfaultfd
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_userfaultfd, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
+    };
+
+    struct sock_fprog prog = {
+        .len = (unsigned short)(sizeof(filter) / sizeof(filter[0])),
+        .filter = filter,
+    };
+    /* PR_SET_NO_NEW_PRIVS has already been set by drop_nobody(). */
+    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
 }
 
 /* ===== drop to nobody ===== */
@@ -186,6 +301,7 @@ int main(int argc, char *argv[], char *envp[]) {
     if (child == 0) {
         /* privilege drop must occur before exec */
         drop_nobody();
+        install_seccomp();
 
         /* ptrace compatibility point */
         /* ptrace(PTRACE_TRACEME, 0, 0, 0); */
