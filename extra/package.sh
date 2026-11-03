@@ -263,7 +263,8 @@ EOF
         | sort -z | xargs -0 sha256sum > SHA256SUMS )
 
     info "  打包 $name.tar.gz"
-    ( cd "$OUT_DIR" && tar -czf "$name.tar.gz" "$name" )
+    # 用 gzip -9 取得更好的压缩比（尤其embed进二进制的前端静态资源）。
+    ( cd "$OUT_DIR" && tar --use-compress-program='gzip -9' -cf "$name.tar.gz" "$name" )
     ( cd "$OUT_DIR" && sha256sum "$name.tar.gz" > "$name.tar.gz.sha256" )
     info "  -> $OUT_DIR/$name.tar.gz"
     # 清掉暂存目录：dist/ 只留交付物，且避免 Go 工具链把展开后的
