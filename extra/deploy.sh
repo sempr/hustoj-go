@@ -14,7 +14,7 @@ set -euo pipefail
 
 MODULE="github.com/sempr/hustoj-go"
 JUDGEHOME="/home/judge"
-BIN_DIR="/usr/bin"
+BIN_DIR="/usr/local/bin"
 WEB_BIN="$BIN_DIR/hustoj-go-web"
 DAEMON_BIN="$BIN_DIR/hustoj-go"
 

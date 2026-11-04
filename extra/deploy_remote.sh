@@ -32,7 +32,7 @@ PORT=22
 RESTART_JUDGE=0
 RUN_LANGINFO=1
 
-REMOTE_BIN="/usr/bin/hustoj"
+REMOTE_BIN="/usr/local/bin/hustoj"
 OJ_HOME="/srv/hustoj"
 SSH_OPTS=(-o ConnectTimeout=10)
 

@@ -51,7 +51,7 @@ set -euo pipefail
 
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-PREFIX=/usr/bin
+PREFIX=/usr/local/bin
 OJHOME=/home/judge
 WEB_USER=www-data
 TINI_DIR=/usr/local/bin
@@ -283,7 +283,7 @@ render_unit() { # <src> <dst> <web?>
     info "安装 unit $dst"
     backup "$dst"
     local tmp; tmp="$(mktemp)"
-    sed -e "s|/usr/bin/hustoj|$PREFIX/hustoj|g" \
+    sed -e "s|/usr/\(local/\)\?bin/hustoj|$PREFIX/hustoj|g" \
         -e "s|/home/judge|$OJHOME|g" \
         "$src" > "$tmp"
     if [ "$web" = "1" ]; then

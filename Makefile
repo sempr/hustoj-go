@@ -11,7 +11,7 @@ LDFLAGS := -X '$(MODULE)/cmd.Version=$(VERSION)' \
            -X '$(MODULE)/cmd.Date=$(DATE)' \
            -X '$(MODULE)/cmd.GoVersion=$(GOVERSION)'
 
-PREFIX ?= /usr/bin
+PREFIX ?= /usr/local/bin
 SYSDIR ?= /etc/systemd/system
 JUDGEHOME ?= /home/judge
 
