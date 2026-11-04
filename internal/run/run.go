@@ -22,7 +22,6 @@ import (
 )
 
 func RunMain(cfg *models.SandboxArgs) {
-	slog.Info("The ENV: ", "envs", os.Environ())
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
@@ -40,13 +39,28 @@ func RunMain(cfg *models.SandboxArgs) {
 	// --stdin/--stdout/--stderr 为沙箱内绝对路径（如 /code/xxx），
 	// 供交互评测等场景把输入/输出指向 rootfs 内的 FIFO；为空则用默认文件。
 	if cfg.Stdin != "" {
-		inputfile = path.Join(cfg.Rootfs, path.Clean(cfg.Stdin))
+		p, err := sandboxPath(cfg.Rootfs, cfg.Stdin)
+		if err != nil {
+			slog.Error("invalid stdin path", "path", cfg.Stdin, "err", err)
+			return
+		}
+		inputfile = p
 	}
 	if cfg.Stdout != "" {
-		outputfile = path.Join(cfg.Rootfs, path.Clean(cfg.Stdout))
+		p, err := sandboxPath(cfg.Rootfs, cfg.Stdout)
+		if err != nil {
+			slog.Error("invalid stdout path", "path", cfg.Stdout, "err", err)
+			return
+		}
+		outputfile = p
 	}
 	if cfg.Stderr != "" {
-		errorfile = path.Join(cfg.Rootfs, path.Clean(cfg.Stderr))
+		p, err := sandboxPath(cfg.Rootfs, cfg.Stderr)
+		if err != nil {
+			slog.Error("invalid stderr path", "path", cfg.Stderr, "err", err)
+			return
+		}
+		errorfile = p
 	}
 
 	pr, pw, err := os.Pipe()
@@ -58,17 +72,17 @@ func RunMain(cfg *models.SandboxArgs) {
 	// 先开输出/错误、后开输入：FIFO 场景下 os.Open(O_RDONLY) 会阻塞等待写端，
 	// 若输入在前会造成两侧 run 互相阻塞的循环死锁；output 用 os.Create(O_RDWR)
 	// 打开 FIFO 不阻塞，能先向对侧提供写端。普通文件场景顺序无关。
-	fo, err := os.Create(outputfile)
+	fo, err := createSandboxOutput(outputfile)
 	if err != nil {
 		panic(fmt.Errorf("create output file %s: %w", outputfile, err))
 	}
 	defer fo.Close()
-	fe, err := os.Create(errorfile)
+	fe, err := createSandboxOutput(errorfile)
 	if err != nil {
 		panic(fmt.Errorf("create error file %s: %w", errorfile, err))
 	}
 	defer fe.Close()
-	fi, err := os.Open(inputfile)
+	fi, err := openSandboxInput(inputfile)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// 编译等不需要 stdin 的阶段没有 data.in；退化为 /dev/null，
@@ -109,15 +123,12 @@ func RunMain(cfg *models.SandboxArgs) {
 		slog.Error("create dev dir failed", "err", err)
 		return
 	}
-	if _, err := os.Lstat(devNull); err != nil {
-		if err := unix.Mknod(devNull, unix.S_IFCHR|0o666, int(unix.Mkdev(1, 3))); err != nil {
-			slog.Error("mknod /dev/null failed", "err", err)
-			return
-		}
+	if err := ensureDevNull(devNull); err != nil {
+		slog.Error("ensure /dev/null failed", "path", devNull, "err", err)
+		return
 	}
 
-	cmd.Env = append(cmd.Env, "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin")
-	cmd.Env = append(cmd.Env, os.Environ()...)
+	cmd.Env = sandboxEnv()
 	cmd.SysProcAttr = &unix.SysProcAttr{
 		Cloneflags: unix.CLONE_NEWNS | unix.CLONE_NEWNET | unix.CLONE_NEWUTS | unix.CLONE_NEWIPC | unix.CLONE_NEWPID,
 		Setpgid:    true,
@@ -196,7 +207,10 @@ func RunMain(cfg *models.SandboxArgs) {
 	memLimitBytes := cfg.MemoryLimit*1024 + constants.MaxOutputSize
 	cg, err := shared.NewCgroup(cfg.SolutionId, mainPid, memLimitBytes, slog.Default())
 	if err != nil {
+		// fail-closed：没有 cgroup 就没有内存/进程数上限，不能继续跑。
+		// tini 此时还停在 SIGSTOP，先杀掉再返回，避免留下挂起的进程。
 		slog.Error("cg create failed", "err", err)
+		_ = unix.Kill(mainPid, unix.SIGKILL)
 		return
 	}
 	defer cg.Cleanup()
@@ -402,7 +416,7 @@ func buildOutput(ccerr error, tt time.Duration, memKB int, cfg *models.SandboxAr
 		out.UserStatus = constants.OJ_OL
 		return out
 	}
-	if info, err := os.Stat(path.Join(outerWorkdir, "data.usr")); err == nil && info.Size() > constants.MaxOutputSize {
+	if info, err := os.Lstat(path.Join(outerWorkdir, "data.usr")); err == nil && info.Mode().IsRegular() && info.Size() > constants.MaxOutputSize {
 		out.UserStatus = constants.OJ_OL
 		return out
 	}
@@ -438,13 +452,16 @@ func truncateBytes(s string, max int) string {
 }
 
 func readCombinedOutput(outerWorkdir string) string {
-	output, err := os.ReadFile(path.Join(outerWorkdir, "data.usr"))
+	// 结果最终只保留 1024 字节（buildOutput 会截断），这里直接限长读取，
+	// 避免大输出或 /dev/zero 之类的链接把判题器内存吃光。
+	const maxCombinedOutput = 1024
+	output, err := readBoundedRegularFile(path.Join(outerWorkdir, "data.usr"), maxCombinedOutput)
 	if err != nil {
 		slog.Warn("read data.usr failed", "err", err)
 	}
-	perr, err := os.ReadFile(path.Join(outerWorkdir, "data.err"))
+	perr, err := readBoundedRegularFile(path.Join(outerWorkdir, "data.err"), maxCombinedOutput)
 	if err != nil {
 		slog.Warn("read data.err failed", "err", err)
 	}
-	return string(output) + string(perr)
+	return output + perr
 }

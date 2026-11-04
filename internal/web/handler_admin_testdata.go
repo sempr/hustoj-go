@@ -37,6 +37,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/sempr/hustoj-go/pkg/namefile"
 )
 
 const (
@@ -223,6 +225,15 @@ func (s *Server) applyTestDataAction(r *http.Request, dir, action string) (msg, 
 		if _, err := os.Stat(newPath); err == nil {
 			return "", "目标已存在：" + newName
 		}
+		if namefile.IsNameFile(filepath.Base(newName)) {
+			data, err := os.ReadFile(oldPath)
+			if err != nil {
+				return "", "读取原文件失败：" + oldName
+			}
+			if err := validateNameFileUpload(filepath.Base(newName), data); err != nil {
+				return "", "不能重命名为 " + newName + "：" + err.Error()
+			}
+		}
 		if err := os.Rename(oldPath, newPath); err != nil {
 			return "", "重命名失败"
 		}
@@ -271,10 +282,31 @@ func (s *Server) testDataUpload(r *http.Request, dir string) (msg, errMsg string
 			skipped += len(sk)
 			continue
 		}
-		p, err := testDataPath(dir, filepath.Base(h.Filename))
+		base := filepath.Base(h.Filename)
+		p, err := testDataPath(dir, base)
 		if err != nil {
 			f.Close()
-			failed = append(failed, h.Filename)
+			failed = append(failed, h.Filename+"（"+err.Error()+"）")
+			continue
+		}
+		if namefile.IsNameFile(base) {
+			// input.name / output.name 的内容会被判题器当成 /code 下的
+			// 文件名：上传时就校验，别等 root 判题时才发现是路径穿越。
+			data, rerr := io.ReadAll(io.LimitReader(f, namefile.MaxNameContentSize+1))
+			f.Close()
+			if rerr != nil {
+				failed = append(failed, h.Filename)
+				continue
+			}
+			if verr := validateNameFileUpload(base, data); verr != nil {
+				failed = append(failed, h.Filename+"（"+verr.Error()+"）")
+				continue
+			}
+			if err := os.WriteFile(p, data, 0o644); err != nil {
+				failed = append(failed, h.Filename)
+				continue
+			}
+			saved++
 			continue
 		}
 		out, err := os.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
@@ -452,6 +484,9 @@ func (s *Server) testDataSave(r *http.Request, dir string) (msg, errMsg string) 
 	}
 	if !utf8.ValidString(content) {
 		return "", "内容不是合法的 UTF-8 文本"
+	}
+	if err := namefile.ValidateFileContent(name, content); err != nil {
+		return "", name + " 内容不合法：" + err.Error()
 	}
 	if err := writeFileAtomic(p, content); err != nil {
 		return "", "保存失败"
@@ -633,6 +668,18 @@ func numberingSummary(nums []int64) string {
 
 // testDataPath 把单个文件名限定在 dir 内：只接受纯文件名，拒绝路径分隔符、
 // 上跳、NUL 与空串，并在拼接后再做一次前缀校验。
+// validateNameFileUpload 校验 input.name / output.name 的内容。
+// 非控制文件直接通过（普通数据文件的字节内容不受限制）。
+func validateNameFileUpload(name string, content []byte) error {
+	if !namefile.IsNameFile(name) {
+		return nil
+	}
+	if len(content) > namefile.MaxNameContentSize {
+		return fmt.Errorf("内容超过 %d 字节", namefile.MaxNameContentSize)
+	}
+	return namefile.ValidateFileContent(name, string(content))
+}
+
 func testDataPath(dir, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
@@ -718,6 +765,30 @@ func extractZipInto(dir string, data []byte) (int, []string, error) {
 		rc, err := f.Open()
 		if err != nil {
 			skipped = append(skipped, f.Name)
+			continue
+		}
+		base := filepath.Base(dst)
+		if namefile.IsNameFile(base) {
+			// 解压包里的 input.name / output.name 同样不能带路径。
+			data, rerr := io.ReadAll(io.LimitReader(rc, namefile.MaxNameContentSize+1))
+			rc.Close()
+			if rerr != nil {
+				skipped = append(skipped, f.Name)
+				continue
+			}
+			if verr := validateNameFileUpload(base, data); verr != nil {
+				skipped = append(skipped, f.Name+"（"+verr.Error()+"）")
+				continue
+			}
+			if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+				skipped = append(skipped, f.Name)
+				continue
+			}
+			if err := os.WriteFile(dst, data, 0o644); err != nil {
+				skipped = append(skipped, f.Name)
+				continue
+			}
+			written++
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
@@ -810,7 +881,7 @@ func humanSize(n int64) string {
 // isTextLikeName 决定"查看"链接是否显示：只看扩展名，内容仍按上限截断。
 func isTextLikeName(name string) bool {
 	switch strings.ToLower(filepath.Ext(name)) {
-	case ".in", ".out", ".ans", ".txt", ".ini", ".json", ".md", ".c", ".cc", ".cpp", ".py", ".java", ".sh":
+	case ".in", ".out", ".ans", ".name", ".txt", ".ini", ".json", ".md", ".c", ".cc", ".cpp", ".py", ".java", ".sh":
 		return true
 	}
 	return false

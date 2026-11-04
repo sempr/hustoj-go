@@ -9,16 +9,22 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-// This is the Linux-specific implementation of setResourceLimits.
-func setResourceLimits(cmd *exec.Cmd, cfg *DaemonConfig) error {
+// configureChildProcess 设置只能在 Start 之前写入的进程属性。
+func configureChildProcess(cmd *exec.Cmd) {
 	// Pdeathsig ensures the child process is killed if the parent (judged) dies.
 	cmd.SysProcAttr = &unix.SysProcAttr{
 		Pdeathsig: unix.SIGKILL,
 	}
+}
 
-	// Wrapper function to simplify setting a resource limit.
+// applyResourceLimits 只对已经启动的 client 子进程（及其后代）设置 rlimit。
+//
+// 旧实现直接调用 unix.Setrlimit，改的是 daemon 自己的限制：RLIMIT_CPU=800
+// 会在长期运行后把 daemon 打死，RLIMIT_AS 等也限制到了错误的进程。这里用
+// prlimit 精确作用到子进程；client 随后 fork 的 run/tini/用户程序继承这些值。
+func applyResourceLimits(pid int, cfg *DaemonConfig) error {
 	setRlimit := func(resource int, cur, max uint64) error {
-		return unix.Setrlimit(resource, &unix.Rlimit{Cur: cur, Max: max})
+		return unix.Prlimit(pid, resource, &unix.Rlimit{Cur: cur, Max: max}, nil)
 	}
 
 	var err error

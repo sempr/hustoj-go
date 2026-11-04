@@ -548,3 +548,78 @@ func TestTestDataPostNeedsCSRF(t *testing.T) {
 		t.Errorf("CSRF 拦截后不应发生删除: %v", err)
 	}
 }
+
+// ── input.name / output.name 上传即校验 ──────────────────────────────
+
+func TestTestDataUploadRejectsInvalidNameFile(t *testing.T) {
+	srv, home := newTestDataServer(t, seedAdmin(), "")
+	dir := dataDir(home, 1001)
+
+	rec := doTestDataUpload(t, srv, 1001, map[string][]byte{
+		"input.name":  []byte("../../etc/cron.d/pwn\n"),
+		"output.name": []byte("data.out\n"),
+	}, true)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("状态码 = %d, 期望 303", rec.Code)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "input.name")); err == nil {
+		t.Errorf("非法 input.name 不应落盘")
+	}
+	data, err := os.ReadFile(filepath.Join(dir, "output.name"))
+	if err != nil || string(data) != "data.out\n" {
+		t.Errorf("合法 output.name 未落盘: %v %q", err, data)
+	}
+	if loc := rec.Header().Get("Location"); !strings.Contains(loc, "err=") && !strings.Contains(rec.Body.String(), "input.name") {
+		t.Logf("提示信息: %s %s", loc, rec.Body.String())
+	}
+}
+
+func TestTestDataZipRejectsInvalidNameFile(t *testing.T) {
+	srv, home := newTestDataServer(t, seedAdmin(), "")
+	blob := makeZip(t, map[string]string{
+		"1.in":       "1 2\n",
+		"input.name": "../../etc/passwd",
+	})
+	rec := doTestDataUpload(t, srv, 1001, map[string][]byte{"data.zip": blob}, true)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("状态码 = %d, 期望 303", rec.Code)
+	}
+	dir := dataDir(home, 1001)
+	if _, err := os.Stat(filepath.Join(dir, "1.in")); err != nil {
+		t.Errorf("合法条目应被写入: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "input.name")); err == nil {
+		t.Errorf("zip 里的非法 input.name 不应落盘")
+	}
+}
+
+func TestTestDataSaveValidatesNameFile(t *testing.T) {
+	srv, home := newTestDataServer(t, seedAdmin(), "")
+	dir := seedDataDir(t, home, 1001, map[string]string{"input.name": "data.in\n"})
+
+	doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"save"}, "name": {"input.name"}, "content": {"../../etc/passwd"}}, true)
+	if data, _ := os.ReadFile(filepath.Join(dir, "input.name")); string(data) != "data.in\n" {
+		t.Errorf("非法内容被保存: %q", data)
+	}
+
+	doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"save"}, "name": {"input.name"}, "content": {"my.in\n"}}, true)
+	if data, _ := os.ReadFile(filepath.Join(dir, "input.name")); string(data) != "my.in\n" {
+		t.Errorf("合法内容未保存: %q", data)
+	}
+}
+
+func TestTestDataRenameValidatesNameFile(t *testing.T) {
+	srv, home := newTestDataServer(t, seedAdmin(), "")
+	dir := seedDataDir(t, home, 1001, map[string]string{"evil.txt": "../../etc/passwd"})
+
+	doTestData(srv, http.MethodPost, "/admin/test_data.php?pid=1001",
+		url.Values{"action": {"rename"}, "old": {"evil.txt"}, "new": {"input.name"}}, true)
+	if _, err := os.Stat(filepath.Join(dir, "input.name")); err == nil {
+		t.Errorf("非法内容不应被重命名为 input.name")
+	}
+	if _, err := os.Stat(filepath.Join(dir, "evil.txt")); err != nil {
+		t.Errorf("拒绝重命名后原文件应保留: %v", err)
+	}
+}

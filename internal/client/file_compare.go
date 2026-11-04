@@ -18,18 +18,20 @@ const (
 )
 
 func compareFiles(file1Path, file2Path string) (int, error) {
-	// 先检查文件大小，快速排除明显不同的情况
-	info1, err := os.Stat(file1Path)
+	// 先检查文件大小，快速排除明显不同的情况。
+	// 两个路径都可能来自 Web 可写的数据目录或沙箱输出，必须按普通文件打开，
+	// 不能跟随符号链接（否则 root 会读到宿主机文件）。
+	size1, err := regularFileSize(file1Path)
 	if err != nil {
 		return 2, fmt.Errorf("failed to stat file1: %w", err)
 	}
-	info2, err := os.Stat(file2Path)
+	size2, err := regularFileSize(file2Path)
 	if err != nil {
 		return 2, fmt.Errorf("failed to stat file2: %w", err)
 	}
 
 	// 检查文件大小是否超过限制
-	if info1.Size() > MaxFileSize || info2.Size() > MaxFileSize {
+	if size1 > MaxFileSize || size2 > MaxFileSize {
 		return 2, fmt.Errorf("file size exceeds limit (%dMB)", MaxFileSize/(1024*1024))
 	}
 
@@ -135,13 +137,13 @@ func (ls *lineScanner) nextLine() (string, bool, error) {
 
 // compareFilesRule0 的新实现，使用 lineScanner
 func compareFilesRule0(file1Path, file2Path string) (bool, error) {
-	f1, err := os.Open(file1Path)
+	f1, err := openRegularNoFollow(file1Path)
 	if err != nil {
 		return false, err
 	}
 	defer f1.Close()
 
-	f2, err := os.Open(file2Path)
+	f2, err := openRegularNoFollow(file2Path)
 	if err != nil {
 		return false, err
 	}
@@ -191,13 +193,13 @@ func filterVisibleChars(s string) string {
 
 // compareFilesByStream 通过流式读取比较两个文件的内容
 func compareFilesByStream(file1Path, file2Path string, filterFunc func(string) string) (bool, error) {
-	f1, err := os.Open(file1Path)
+	f1, err := openRegularNoFollow(file1Path)
 	if err != nil {
 		return false, err
 	}
 	defer f1.Close()
 
-	f2, err := os.Open(file2Path)
+	f2, err := openRegularNoFollow(file2Path)
 	if err != nil {
 		return false, err
 	}

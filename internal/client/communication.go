@@ -11,6 +11,7 @@ import (
 	"github.com/sempr/hustoj-go/pkg/config"
 	"github.com/sempr/hustoj-go/pkg/constants"
 	"github.com/sempr/hustoj-go/pkg/models"
+	"golang.org/x/sys/unix"
 )
 
 // 通讯题（ICPC problem-package-format 的 custom multi-pass，spj=4）：
@@ -180,7 +181,7 @@ func (jc *JudgeClient) runCommunicationCase(ctx *TestContext, dataFile []string)
 				result = constants.OJ_RE
 				break
 			}
-		} else if err := os.WriteFile(ansDst, nil, 0o644); err != nil {
+		} else if err := createEmptyWithMode(ansDst, 0o644); err != nil {
 			jc.appendCommMessage(ctx, "communication %s: create empty answer failed on pass %d: %v", caseName, pass, err)
 			result = constants.OJ_RE
 			break
@@ -227,7 +228,7 @@ func (jc *JudgeClient) runCommunicationCase(ctx *TestContext, dataFile []string)
 			break
 		}
 
-		if _, err := os.Stat(filepath.Join(codeDir, "nextpass.in")); err != nil {
+		if _, err := os.Lstat(filepath.Join(codeDir, "nextpass.in")); err != nil {
 			break // 本轮通过且校验器不再出题，本组数据通过
 		}
 		if pass == maxPasses {
@@ -278,10 +279,7 @@ func (jc *JudgeClient) runCommSandbox(cfg RunConfig, cmdline, stdin, stdout, std
 // os.Create 跟随后会写到宿主机的对应路径上。
 func (jc *JudgeClient) installCommFile(src, dst string, mode os.FileMode) error {
 	os.Remove(dst)
-	if err := jc.copyFile(src, dst); err != nil {
-		return err
-	}
-	return os.Chmod(dst, mode)
+	return copyFileWithMode(src, dst, mode)
 }
 
 // appendValidatorFeedback 把校验器留下的说明与日志附到题目的 runtimeinfo。
@@ -302,17 +300,19 @@ func (jc *JudgeClient) appendCommMessage(ctx *TestContext, format string, args .
 
 // readRegularFile 只读取普通文件：/code 里的内容是选手可写的，
 // 跟随符号链接会把宿主机上的文件读出来。
+//
+// 用 O_NOFOLLOW 打开后再 fstat 校验，避免 Lstat 与 Open 之间的 TOCTOU。
 func readRegularFile(path string, limit int64) string {
-	info, err := os.Lstat(path)
-	if err != nil || !info.Mode().IsRegular() {
-		return ""
-	}
-	f, err := os.Open(path)
+	f, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW|unix.O_NONBLOCK, 0)
 	if err != nil {
 		return ""
 	}
 	defer f.Close()
 
+	info, err := f.Stat()
+	if err != nil || !info.Mode().IsRegular() {
+		return ""
+	}
 	data, err := io.ReadAll(io.LimitReader(f, limit))
 	if err != nil {
 		return ""

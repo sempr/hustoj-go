@@ -36,11 +36,13 @@ func (jc *JudgeClient) prepareInteractor(rootfs, dataDir string) (*InteractorInf
 
 	codeRootfs := filepath.Join(rootfs, "code")
 	dest := filepath.Join(codeRootfs, "spj")
-	if err := jc.copyFile(spjSrc, dest); err != nil {
-		return nil, fmt.Errorf("failed to copy interactor into sandbox: %w", err)
+	// 编译阶段 /code 对选手可写，可能留下 spj -> 宿主机路径 的链接；
+	// 先删除再用 O_NOFOLLOW 创建，绝不能顺着链接 chmod/copy。
+	if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to remove stale interactor: %w", err)
 	}
-	if err := os.Chmod(dest, 0o755); err != nil {
-		return nil, fmt.Errorf("failed to chmod interactor: %w", err)
+	if err := copyFileWithMode(spjSrc, dest, 0o755); err != nil {
+		return nil, fmt.Errorf("failed to copy interactor into sandbox: %w", err)
 	}
 
 	const (
@@ -50,7 +52,12 @@ func (jc *JudgeClient) prepareInteractor(rootfs, dataDir string) (*InteractorInf
 	p2i := path.Join("/code", p2iName)
 	i2p := path.Join("/code", i2pName)
 	for _, fifo := range []string{filepath.Join(codeRootfs, p2iName), filepath.Join(codeRootfs, i2pName)} {
-		if err := unix.Mkfifo(fifo, 0o666); err != nil && !os.IsExist(err) {
+		// 同上：先清掉编译阶段可能留下的同名符号链接，避免 Mkfifo 命中 EEXIST
+		// 后 os.Chmod 顺着链接改到宿主机文件。
+		if err := os.Remove(fifo); err != nil && !os.IsNotExist(err) {
+			return nil, fmt.Errorf("failed to remove stale FIFO %s: %w", fifo, err)
+		}
+		if err := unix.Mkfifo(fifo, 0o666); err != nil {
 			return nil, fmt.Errorf("failed to create FIFO %s: %w", fifo, err)
 		}
 		if err := os.Chmod(fifo, 0o666); err != nil {
@@ -148,10 +155,14 @@ func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 		} else {
 			dataInName := "data.in"
 			if config.InName != "" {
-				dataInName = config.InName
+				dataInName = sanitizeTestDataName(config.InName)
+				if dataInName == "" {
+					slog.Error("交互题 input.name 非法", "value", config.InName)
+					return constants.OJ_SE, 0, 0
+				}
 			}
 			dataInPath = filepath.Join("/code", dataInName)
-			if err := jc.copyFile(config.InFile, filepath.Join(config.Rootdir, "code", dataInName)); err != nil {
+			if err := copyFileWithMode(config.InFile, filepath.Join(config.Rootdir, "code", dataInName), 0); err != nil {
 				slog.Error("Failed to copy input data for interactive judge", "error", err)
 				return constants.OJ_SE, 0, 0
 			}

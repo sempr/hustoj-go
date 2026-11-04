@@ -7,8 +7,11 @@ import (
 	"os/exec"
 )
 
-// This is the non-Linux implementation. It's a no-op.
-func setResourceLimits(cmd *exec.Cmd, cfg *DaemonConfig) error {
+// configureChildProcess 在非 Linux 平台上没有额外属性要设置。
+func configureChildProcess(cmd *exec.Cmd) {}
+
+// applyResourceLimits 在非 Linux 平台上不做限制。
+func applyResourceLimits(pid int, cfg *DaemonConfig) error {
 	slog.Warn("Resource limits (rlimit) are not supported on this OS. Running without restrictions.")
 	return nil
 }

@@ -112,43 +112,26 @@ func (jc *JudgeClient) Close() error {
 }
 
 func (jc *JudgeClient) copyFile(src, dst string) error {
-	sourceFile, err := os.Open(src)
-	if err != nil {
-		return fmt.Errorf("failed to open source file: %w", err)
-	}
-	defer sourceFile.Close()
-
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
-		return fmt.Errorf("failed to create destination directory: %w", err)
-	}
-
-	destinationFile, err := os.Create(dst)
-	if err != nil {
-		return fmt.Errorf("failed to create destination file: %w", err)
-	}
-	defer destinationFile.Close()
-
-	if _, err := destinationFile.ReadFrom(sourceFile); err != nil {
-		return fmt.Errorf("failed to copy file contents: %w", err)
-	}
-
-	return nil
+	return copyFileWithMode(src, dst, 0)
 }
 
 func (jc *JudgeClient) findInputName(dataDir string) string {
 	inNameFile := filepath.Join(dataDir, "input.name")
-	data, err := os.ReadFile(inNameFile)
-	if err != nil {
-		return ""
+	// 数据目录对 Web 用户可写，不能跟随 input.name 符号链接去读宿主机文件。
+	raw := strings.TrimSpace(readRegularFile(inNameFile, 4096))
+	name := sanitizeTestDataName(raw)
+	if raw != "" && name == "" {
+		slog.Warn("忽略非法的 input.name（只允许单个文件名）", "data_dir", dataDir, "value", raw)
 	}
-	return strings.TrimSpace(string(data))
+	return name
 }
 
 func (jc *JudgeClient) findOutputName(dataDir string) string {
 	outNameFile := filepath.Join(dataDir, "output.name")
-	data, err := os.ReadFile(outNameFile)
-	if err != nil {
-		return ""
+	raw := strings.TrimSpace(readRegularFile(outNameFile, 4096))
+	name := sanitizeTestDataName(raw)
+	if raw != "" && name == "" {
+		slog.Warn("忽略非法的 output.name（只允许单个文件名）", "data_dir", dataDir, "value", raw)
 	}
-	return strings.TrimSpace(string(data))
+	return name
 }

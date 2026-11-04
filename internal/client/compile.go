@@ -14,8 +14,14 @@ import (
 )
 
 func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.LangConfig) *models.SandboxOutput {
-	os.Chmod(filepath.Join(rootfs, "code"), 0o777)
-	defer os.Chmod(filepath.Join(rootfs, "code"), 0o755)
+	codeDir := filepath.Join(rootfs, "code")
+	os.Chmod(codeDir, 0o777)
+	defer func() {
+		// 编译阶段 /code 对选手可写，结束先恢复权限，再清掉选手可能留下的
+		// 符号链接/FIFO/设备节点，避免后续 root 按路径打开时被引到宿主机。
+		os.Chmod(codeDir, 0o755)
+		sanitizeCompileTree(codeDir)
+	}()
 	selfName, _ := os.Executable()
 	cmd := exec.Command(
 		selfName,

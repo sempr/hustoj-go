@@ -25,22 +25,40 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 	stdinName := "/code/data.in"
 	stdoutName := "/code/data.usr"
 
-	if config.InName != "" {
-		inPath := filepath.Join(config.Workdir, config.InName)
-		jc.copyFile(config.InFile, inPath)
-		os.Chmod(inPath, 0o666)
-		stdinName = ""
-	} else {
-		jc.copyFile(config.InFile, filepath.Join(config.Workdir, "data.in"))
+	inName := sanitizeTestDataName(config.InName)
+	outName := sanitizeTestDataName(config.OutName)
+	if config.InName != "" && inName == "" {
+		slog.Error("非法的 input.name，拒绝评测", "value", config.InName)
+		return constants.OJ_SE, 0, 0
+	}
+	if config.OutName != "" && outName == "" {
+		slog.Error("非法的 output.name，拒绝评测", "value", config.OutName)
+		return constants.OJ_SE, 0, 0
 	}
 
-	if config.OutName != "" {
+	if inName != "" {
+		inPath := filepath.Join(config.Workdir, inName)
+		if err := copyFileWithMode(config.InFile, inPath, 0o666); err != nil {
+			slog.Error("复制输入文件失败", "path", inPath, "err", err)
+			return constants.OJ_SE, 0, 0
+		}
+		stdinName = ""
+	} else {
+		if err := jc.copyFile(config.InFile, filepath.Join(config.Workdir, "data.in")); err != nil {
+			slog.Error("复制输入文件失败", "err", err)
+			return constants.OJ_SE, 0, 0
+		}
+	}
+
+	if outName != "" {
 		// File-I/O 模式（freopen 固定文件名读写）：
 		// 编译后 /code 目录被恢复为 0755，nobody 用户无法自行创建输出文件，
 		// 故预创建输出文件并以 0666 放开写权限，供程序 freopen("..."， "w") 直接写。
-		outPath := filepath.Join(config.Workdir, config.OutName)
-		os.Create(outPath)
-		os.Chmod(outPath, 0o666)
+		outPath := filepath.Join(config.Workdir, outName)
+		if err := createEmptyWithMode(outPath, 0o666); err != nil {
+			slog.Error("创建输出文件失败", "path", outPath, "err", err)
+			return constants.OJ_SE, 0, 0
+		}
 		stdoutName = ""
 	}
 
@@ -170,7 +188,10 @@ func verdictFromExit(userStatus, exitStatus int) int {
 
 func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 	sysDataFile := filepath.Join(config.Rootdir, "code/sysdata.out")
-	jc.copyFile(config.OutFile, sysDataFile)
+	if err := jc.copyFile(config.OutFile, sysDataFile); err != nil {
+		slog.Error("复制标准答案失败", "path", sysDataFile, "err", err)
+		return constants.OJ_SE, 0, 0
+	}
 	defer os.Remove(sysDataFile)
 
 	spjName := "spj"
@@ -189,8 +210,10 @@ func (jc *JudgeClient) handleSpecialJudge(config RunConfig) (int, int, int) {
 	destSpjFile := filepath.Join(config.Rootdir, "code", spjName)
 	srcSpjFile := filepath.Join(filepath.Dir(config.OutFile), spjName)
 
-	jc.copyFile(srcSpjFile, destSpjFile)
-	os.Chmod(destSpjFile, 0o755)
+	if err := copyFileWithMode(srcSpjFile, destSpjFile, 0o755); err != nil {
+		slog.Error("复制 SPJ 程序失败", "path", destSpjFile, "err", err)
+		return constants.OJ_SE, 0, 0
+	}
 	defer os.ReadDir(destSpjFile)
 
 	// 与用户程序、交互器保持一致：以语言 rootfs 为根、cwd=/code 运行，判题

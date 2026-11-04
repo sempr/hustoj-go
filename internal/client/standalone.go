@@ -268,7 +268,8 @@ func (jc *JudgeClient) runCustomInput(input string) (*StandaloneResult, error) {
 	res, timeUsed, memUsed := jc.runAndCompare(rc)
 
 	// 程序 stdout 被写到 rootfs 内 /code/data.usr（见 runAndCompare 的 stdoutName）。
-	out, _ := os.ReadFile(filepath.Join(workDir, "code", "data.usr"))
+	// 用 readRegularFile：如果 data.usr 被换成指向宿主机的符号链接，返回空而不是读它。
+	out := readRegularFile(filepath.Join(workDir, "code", "data.usr"), int64(constants.MaxOutputSize))
 	result.FinalResult = res
 	result.TimeMs = timeUsed
 	result.MemoryKB = memUsed

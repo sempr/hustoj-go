@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <pwd.h>
+#include <grp.h>
+#include <sched.h>
 #include <poll.h>
 #include <errno.h>
 #include <stddef.h>
@@ -102,11 +104,40 @@ static void install_seccomp(void) {
 #define HUSTOJ_EXPECTED_ARCH 0
 #endif
 
+    const unsigned int clone_ns_flags =
+        CLONE_NEWNS | CLONE_NEWCGROUP | CLONE_NEWUTS | CLONE_NEWIPC |
+        CLONE_NEWUSER | CLONE_NEWPID | CLONE_NEWNET;
+
     struct sock_filter filter[] = {
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, arch)),
         BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, HUSTOJ_EXPECTED_ARCH, 1, 0),
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
         BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+
+#if defined(__x86_64__)
+        /* x32 ABI 的 syscall 号带 0x40000000 位，直接查表会绕过下面的规则。 */
+        BPF_JUMP(BPF_JMP | BPF_JGE | BPF_K, 0x40000000, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_KILL_PROCESS),
+#endif
+
+#ifdef __NR_clone
+        /* clone 本身必须放行（线程/fork 都靠它），但带 CLONE_NEW* 的
+         * clone 等价于 unshare，必须拒绝；否则可以在 no_new_privs 下
+         * 新建 user namespace，拿到局部 CAP_SYS_ADMIN。 */
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_clone, 0, 4),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, args[0])),
+        BPF_STMT(BPF_ALU | BPF_AND | BPF_K, clone_ns_flags),
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, 0, 1, 0),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+        BPF_STMT(BPF_LD | BPF_W | BPF_ABS, offsetof(struct seccomp_data, nr)),
+#endif
+
+#ifdef __NR_clone3
+        /* clone3 的参数在指针里，BPF 看不到 flags；返回 ENOSYS 让 glibc
+         * 回退到 clone（线程创建仍可用），同时挡住直接调 clone3 建命名空间。 */
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_clone3, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ERRNO | ENOSYS),
+#endif
 
 #ifdef __NR_mount
         BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mount, 0, 1),
@@ -176,6 +207,78 @@ static void install_seccomp(void) {
         BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_userfaultfd, 0, 1),
         BPF_STMT(BPF_RET | BPF_K, blocked),
 #endif
+#ifdef __NR_open_tree
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_open_tree, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_move_mount
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_move_mount, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_fsopen
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_fsopen, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_fsconfig
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_fsconfig, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_fsmount
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_fsmount, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_fspick
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_fspick, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_mount_setattr
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_mount_setattr, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_io_uring_setup
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_io_uring_setup, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_io_uring_enter
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_io_uring_enter, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_io_uring_register
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_io_uring_register, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_keyctl
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_keyctl, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_add_key
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_add_key, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_request_key
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_request_key, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_perf_event_open
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_perf_event_open, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_pidfd_getfd
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_pidfd_getfd, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_process_vm_readv
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_process_vm_readv, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_process_vm_writev
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_process_vm_writev, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
+#ifdef __NR_kcmp
+        BPF_JUMP(BPF_JMP | BPF_JEQ | BPF_K, __NR_kcmp, 0, 1),
+        BPF_STMT(BPF_RET | BPF_K, blocked),
+#endif
         BPF_STMT(BPF_RET | BPF_K, SECCOMP_RET_ALLOW),
     };
 
@@ -184,16 +287,49 @@ static void install_seccomp(void) {
         .filter = filter,
     };
     /* PR_SET_NO_NEW_PRIVS has already been set by drop_nobody(). */
-    prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog);
+    if (prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog) != 0) {
+        perror("PR_SET_SECCOMP");
+        _exit(126);
+    }
 }
 
 /* ===== drop to nobody ===== */
 static void drop_nobody(void) {
-    /* drop to UID/GID 65534 (nobody) */
-    if (nobody_uid>0) setgid(nobody_uid);
-    if (nobody_gid>0) setuid(nobody_gid);
+    /* 先清补充组，再改 gid/uid；顺序反了会留下 root 的补充组。
+     * 任何一步失败都必须退出，不能带着 root 身份继续 exec。 */
+    if (nobody_gid > 0) {
+        if (setgroups(0, NULL) != 0) {
+            perror("setgroups");
+            _exit(126);
+        }
+        if (setresgid(nobody_gid, nobody_gid, nobody_gid) != 0) {
+            perror("setresgid");
+            _exit(126);
+        }
+    }
+    if (nobody_uid > 0) {
+        if (setresuid(nobody_uid, nobody_uid, nobody_uid) != 0) {
+            perror("setresuid");
+            _exit(126);
+        }
+    }
     /* prevent privilege regain */
-    prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0);
+    if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
+        perror("PR_SET_NO_NEW_PRIVS");
+        _exit(126);
+    }
+}
+
+/* 子进程 exec 前关闭从 PID 1 继承的辅助 fd。
+ *
+ * 尤其是 ctl_fd：如果留给选手程序，它可以抢先 read() 掉父进程发来的
+ * SIGTERM/SIGKILL 控制命令，使超时清理失效，把判题卡死。 */
+static void close_inherited_fds(int stdin_fd, int stdout_fd, int stderr_fd) {
+    int fds[] = {ctl_fd, stdin_fd, stdout_fd, stderr_fd,
+                 sigchld_pipe[0], sigchld_pipe[1]};
+    for (size_t i = 0; i < sizeof(fds) / sizeof(fds[0]); i++) {
+        if (fds[i] > 2) close(fds[i]);
+    }
 }
 
 /* ===== pivot_root ===== */
@@ -310,6 +446,7 @@ int main(int argc, char *argv[], char *envp[]) {
     if (child == 0) {
         /* privilege drop must occur before exec */
         drop_nobody();
+        close_inherited_fds(stdin_fd, stdout_fd, stderr_fd);
         install_seccomp();
 
         /* ptrace compatibility point */
