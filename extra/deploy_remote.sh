@@ -125,7 +125,7 @@ sudo install -m 0755 "$TMP_BIN" "$BIN"
 rm -f "$TMP_BIN"
 "$BIN" version
 
-# 落盘内置的 tini（md5 一致时自动跳过），省掉单独分发 /usr/local/bin/tini。
+# 落盘内置的 tini（md5 一致时自动跳过），省掉单独分发 /usr/local/bin/hustoj-tini。
 if ! sudo "$BIN" install-tini; then
     echo "警告: install-tini 失败（可能是未内嵌 tini 的跨架构构建）" >&2
 fi

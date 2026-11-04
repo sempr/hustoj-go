@@ -13,7 +13,7 @@
 # 选项：
 #   --out DIR         输出目录（默认 <repo>/dist）
 #   --version STR     覆盖版本号（默认取 git describe）
-#   --no-tini         不打包 tini（判题会缺 /usr/local/bin/tini）
+#   --no-tini         不打包 tini（判题会缺 /usr/local/bin/hustoj-tini）
 #   --no-fetch-tini   交叉编译 tini 失败时不从 GitHub 下载官方静态二进制
 #   --no-demo         不打包示例题库（demo/）
 #   -h, --help
@@ -120,7 +120,7 @@ make_tini() { # <goarch> <out>
     if [ "$FETCH_TINI" -eq 1 ] && fetch_tini "$1" "$2"; then
         return 0
     fi
-    warn "$1: 无法编译或获取 tini；包内将不含 tini（判题需要 /usr/local/bin/tini）"
+    warn "$1: 无法编译或获取 tini；包内将不含 tini（判题需要 /usr/local/bin/hustoj-tini）"
 }
 
 # 收集语言 rootfs 构建输入（Dockerfile + 脚本 + lang.toml 模板）。

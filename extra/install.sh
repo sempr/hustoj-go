@@ -173,9 +173,9 @@ install_file() { # <src> <dst> <mode>
 # ── 二进制 / tini ────────────────────────────────────────────────────
 install_file "$SRC_DIR/bin/hustoj" "$PREFIX/hustoj" 0755
 if [ -f "$SRC_DIR/bin/tini" ]; then
-    install_file "$SRC_DIR/bin/tini" "$TINI_DIR/tini" 0755
+    install_file "$SRC_DIR/bin/tini" "$TINI_DIR/hustoj-tini" 0755
 else
-    warn "包内没有 tini，判题沙箱需要 $TINI_DIR/tini（可稍后单独安装）"
+    warn "包内没有 tini，判题沙箱需要 $TINI_DIR/hustoj-tini（可稍后单独安装）"
 fi
 
 # ── 目录 ─────────────────────────────────────────────────────────────

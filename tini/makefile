@@ -34,7 +34,7 @@ clean:
 	rm -f tini tini-static
 
 install: static
-	cp tini-static /usr/local/bin/tini
+	cp tini-static /usr/local/bin/hustoj-tini
 
 check:
 	@./tini-static --version

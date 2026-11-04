@@ -11,12 +11,12 @@ import (
 
 // installTiniCmd 把编译时嵌进本二进制的 tini 落到部署机上。
 //
-// 判题沙箱依赖 /usr/local/bin/tini，以前要单独分发这个文件；现在随主二进制
+// 判题沙箱依赖 /usr/local/bin/hustoj-tini，以前要单独分发这个文件；现在随主二进制
 // 一起发，部署时跑一次本命令即可，md5 一致时自动跳过。
 var installTiniCmd = &cobra.Command{
 	Use:   "install-tini",
-	Short: "把内置的 tini 落盘到部署机（校验 md5）",
-	Long: `把编译时嵌进本二进制的 tini 静态程序写到 --path（默认 /usr/local/bin/tini）。
+	Short: "把内置的 hustoj-tini 落盘到部署机（校验 md5）",
+	Long: `把编译时嵌进本二进制的 tini 静态程序写到 --path（默认 /usr/local/bin/hustoj-tini）。
 
 目标文件已存在且 md5 一致时跳过，--force 强制重写。落盘后会回读校验，
 并打印 md5，便于与构建机上的 tini-static 对照。`,
@@ -45,6 +45,6 @@ var installTiniCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(installTiniCmd)
-	installTiniCmd.Flags().String("path", "/usr/local/bin/tini", "tini 落盘路径")
+	installTiniCmd.Flags().String("path", "/usr/local/bin/hustoj-tini", "tini 落盘路径")
 	installTiniCmd.Flags().Bool("force", false, "即使 md5 一致也重写")
 }

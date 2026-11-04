@@ -114,7 +114,7 @@ func RunMain(cfg *models.SandboxArgs) {
 	cmds = append(cmds, cmdline...)
 
 	cmd := exec.Command(
-		"/usr/local/bin/tini",
+		"/usr/local/bin/hustoj-tini",
 		cmds...,
 	)
 	cmd.ExtraFiles = append(cmd.ExtraFiles, pr, fi, fo, fe)

@@ -33,7 +33,7 @@ dist/hustoj-go-<version>-linux-amd64.tar.gz.sha256
 ```
 hustoj-go-<version>-linux-<arch>/
 ├── bin/hustoj                 # 唯一主二进制（web/daemon/client/judge/run/version）
-├── bin/tini                   # 判题沙箱用（安装到 /usr/local/bin/tini）
+├── bin/tini                   # 判题沙箱用（安装到 /usr/local/bin/hustoj-tini）
 ├── systemd/hustoj-web.service
 ├── systemd/judged-go.service
 ├── etc/langs/all.toml         # 语言注册表（全局）
