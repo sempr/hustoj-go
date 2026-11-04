@@ -309,7 +309,7 @@ const pageContentTmpls = `
 {{if or .IsAdmin .IsUserAdder}}<a href="/admin/user_add.php">添加用户</a><a href="/admin/user_import.php">导入用户</a>{{end}}
 {{if or .IsAdmin .IsPasswordSetter}}<a href="/admin/changepass.php">修改密码</a>{{end}}
 {{if .IsAdmin}}<a href="/admin/privilege_list.php">权限</a>{{end}}
-{{if .IsAdmin}}<a href="/admin/news_list.php">新闻</a>{{end}}
+{{if .IsAdmin}}<a href="/admin/news_list.php">新闻列表</a><a href="/admin/news_add_page.php">添加新闻</a>{{end}}
 {{if .IsAdmin}}<a href="/admin/rejudge.php">重新判题</a><a href="/admin/solution_statistics.php">解题统计</a>{{end}}
 {{if .IsAdmin}}<a href="/admin/ranklist_export.php">导出榜单</a>{{end}}
 {{if .IsAdmin}}<a href="/online.php">在线用户</a>{{end}}
