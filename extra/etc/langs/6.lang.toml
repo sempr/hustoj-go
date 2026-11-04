@@ -6,6 +6,6 @@ workdir = "/code"
 
 [cmd]
 compile = "/bin/true"
-run  = "/usr/local/bin/python /code/Main.py"
-ver = "/usr/local/bin/python -V"
-env = ["PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]
+run  = "/usr/bin/python3 /code/Main.py"
+ver = "/usr/bin/python3 -V"
+env = ["PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"]

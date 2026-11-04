@@ -139,8 +139,8 @@ func TestManagerRegistryAccessors(t *testing.T) {
 		}
 	}
 
-	if name, ok := m.DisplayName(1); !ok || name != "C++" {
-		t.Errorf("DisplayName(1) = %q, %v；期望 C++", name, ok)
+	if name, ok := m.DisplayName(1); !ok || name != "C++14" {
+		t.Errorf("DisplayName(1) = %q, %v；期望 C++14", name, ok)
 	}
 	if ext, ok := m.Extension(1); !ok || ext != "cc" {
 		t.Errorf("Extension(1) = %q, %v；期望 cc（suffix 去点）", ext, ok)
@@ -150,8 +150,8 @@ func TestManagerRegistryAccessors(t *testing.T) {
 		t.Errorf("Brush(2) = %q, %v；期望 delphi", brush, ok)
 	}
 	// 未配置时回退到 display_name 小写。
-	if brush, ok := m.Brush(1); !ok || brush != "c++" {
-		t.Errorf("Brush(1) = %q, %v；期望 c++（回退小写）", brush, ok)
+	if brush, ok := m.Brush(1); !ok || brush != "c++14" {
+		t.Errorf("Brush(1) = %q, %v；期望 c++14（回退小写）", brush, ok)
 	}
 
 	// source_header：Python(6) 配了 coding 头，C(0) 没有。
