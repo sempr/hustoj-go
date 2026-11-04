@@ -18,6 +18,8 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/sempr/hustoj-go/pkg/dbgen"
@@ -199,6 +201,19 @@ func (s *Server) handleAdminNewsAddPage(w http.ResponseWriter, r *http.Request) 
 	}
 
 	vm := adminNewsAddVM{Token: r}
+	// 从 admin/problem_list.php 的勾选生成题单（PHP 的新闻 plist 机制）。
+	if r.Method == http.MethodPost {
+		_ = r.ParseForm()
+		ids := parseProblemIDs(r.Form["pid"], r.FormValue("hlist"))
+		if len(ids) > 0 {
+			parts := make([]string, 0, len(ids))
+			for _, id := range ids {
+				parts = append(parts, strconv.Itoa(int(id)))
+			}
+			name := r.FormValue("keyword")
+			vm.Content = "[plist=" + strings.Join(parts, ",") + "]" + name + "[/plist]"
+		}
+	}
 	// ?cid= 时载入原公告，标题回填 "<原标题>-Copy"（news_add_page.php）。
 	if raw := r.URL.Query().Get("cid"); raw != "" {
 		row, err := s.queries().GetNewsAdmin(ctx, int32(parseInt(raw)))

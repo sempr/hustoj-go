@@ -13,6 +13,7 @@ import (
 	"errors"
 	"html/template"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -190,6 +191,11 @@ type userInfoView struct {
 	ResultStats []resultStatSlice
 	ACProblems  []userProblemChip
 	BadProblems []userProblemChip
+
+	// 系统题单：从 news 表内容里的 [plist=...] 块解析而来
+	// （对应 phpweb/userinfo.php 的"系统题单"区）。
+	SystemProblemLists []systemProblemListVM
+
 	SubChart    []subChartPoint
 	MaxSubCount int64
 
@@ -197,6 +203,10 @@ type userInfoView struct {
 	LoginLog []dbgen.UserLoginLogRow
 	IsAdmin  bool
 }
+
+// systemPlistRe 匹配 news 内容里的 [plist=题号列表]题单名[/plist] 块
+// （对应 phpweb/userinfo.php 的 extractPlistBlocks / extractPlistData）。
+var systemPlistRe = regexp.MustCompile(`(?s)\[plist=([^\]]*)\](.*?)\[/plist\]`)
 
 // handleUserInfo 是 userinfo.php 的 Go 实现。
 //
@@ -451,7 +461,56 @@ func (s *Server) buildUserInfo(ctx context.Context, q dbgen.FullQuerier, u dbgen
 		}
 	}
 
+	// ── 系统题单（userinfo.php 的"系统题单"区）──
+	// 来源是 content 含 [plist=...] 的未停用公告：先抽块，再按题号取标题，
+	// 色块颜色按被查看用户是否 AC 决定（phpweb/userinfo.php 的 $ac 差集）。
+	newsRows, err := q.ListNewsWithPlist(ctx)
+	if err != nil {
+		s.log.Error("查询系统题单失败", "err", err, "user", userID)
+	} else {
+		for _, content := range newsRows {
+			for _, m := range systemPlistRe.FindAllStringSubmatch(content, -1) {
+				problemIDs := make(map[int32]bool)
+				list := systemProblemListVM{Name: strings.TrimSpace(m[2])}
+				for _, raw := range strings.Split(m[1], ",") {
+					pid := int32(parseInt(strings.TrimSpace(raw)))
+					if pid <= 0 || problemIDs[pid] {
+						continue
+					}
+					problemIDs[pid] = true
+					title := ""
+					if p, err := q.GetProblemByID(ctx, pid); err == nil {
+						title = p.Title
+					}
+					list.Problems = append(list.Problems, userInfoProblemListItem{
+						ProblemID: pid,
+						Title:     title,
+						Passed:    acSet[pid],
+					})
+				}
+				if len(list.Problems) > 0 {
+					v.SystemProblemLists = append(v.SystemProblemLists, list)
+				}
+			}
+		}
+	}
+
 	return v, nil
+}
+
+// ── 系统题单（userinfo.php 的"系统题单"区）────────────────────
+
+// userInfoProblemListItem 是系统题单里的一道题。
+type userInfoProblemListItem struct {
+	ProblemID int32
+	Title     string
+	Passed    bool
+}
+
+// systemProblemListVM 一个系统题单条目。
+type systemProblemListVM struct {
+	Name     string
+	Problems []userInfoProblemListItem
 }
 
 // gravatarURL 生成头像地址，对应模板 userinfo.php:37-44。

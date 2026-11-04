@@ -184,6 +184,7 @@ type fakeQuerier struct {
 	// 后台公告管理（admin/news_*.php）
 	newsCount       int64
 	newsAdminList   []dbgen.ListNewsAdminRow
+	newsWithPlist   []string
 	newsAdminSearch []dbgen.SearchNewsAdminRow
 	newsAdminGet    dbgen.GetNewsAdminRow
 	newsAdminGetErr error
@@ -1543,6 +1544,10 @@ func (f *fakeQuerier) CountNewsAdmin(context.Context) (int64, error) {
 func (f *fakeQuerier) ListNewsAdmin(_ context.Context, _ dbgen.ListNewsAdminParams) ([]dbgen.ListNewsAdminRow, error) {
 	f.note("ListNewsAdmin")
 	return f.newsAdminList, f.fail()
+}
+func (f *fakeQuerier) ListNewsWithPlist(_ context.Context) ([]string, error) {
+	f.note("ListNewsWithPlist")
+	return f.newsWithPlist, f.fail()
 }
 func (f *fakeQuerier) SearchNewsAdmin(_ context.Context, _ dbgen.SearchNewsAdminParams) ([]dbgen.SearchNewsAdminRow, error) {
 	f.note("SearchNewsAdmin")

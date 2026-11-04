@@ -140,6 +140,35 @@ func (q *Queries) ListNewsAdmin(ctx context.Context, arg ListNewsAdminParams) ([
 	return items, nil
 }
 
+const listNewsWithPlist = `-- name: ListNewsWithPlist :many
+SELECT content FROM news WHERE defunct='N' AND content LIKE '%[plist=%'
+`
+
+// 个人档案页（userinfo.php）的"系统题单"来源：仅取未停用的、内容含
+// [plist=...] 块的公告，Go 侧解析出题单名与题号列表。
+func (q *Queries) ListNewsWithPlist(ctx context.Context) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, listNewsWithPlist)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var content string
+		if err := rows.Scan(&content); err != nil {
+			return nil, err
+		}
+		items = append(items, content)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const searchNewsAdmin = `-- name: SearchNewsAdmin :many
 SELECT news_id, user_id, title, time, defunct, importance, menu
 FROM news

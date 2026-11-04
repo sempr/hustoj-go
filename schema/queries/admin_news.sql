@@ -38,3 +38,8 @@ UPDATE news SET title=?, time=now(), content=?, user_id=?, menu=? WHERE news_id=
 
 -- name: SetNewsDefunct :exec
 UPDATE news SET defunct=? WHERE news_id=?;
+
+-- name: ListNewsWithPlist :many
+-- 个人档案页（userinfo.php）的"系统题单"来源：仅取未停用的、内容含
+-- [plist=...] 块的公告，Go 侧解析出题单名与题号列表。
+SELECT content FROM news WHERE defunct='N' AND content LIKE '%[plist=%';

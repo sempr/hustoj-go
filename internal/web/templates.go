@@ -1013,6 +1013,21 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 </div>
 </div></div>
 
+{{if .SystemProblemLists}}
+<div class="row"><div class="column">
+<h4 class="ui top attached block header">系统题单</h4>
+<div class="ui bottom attached segment">
+{{range .SystemProblemLists}}
+<h5 class="ui header">{{.Name}}</h5>
+<div class="ui labels">
+{{range .Problems}}<a class="ui {{if .Passed}}green{{else}}red{{end}} basic label" href="problem.php?id={{.ProblemID}}" title="{{.Title}}">{{.ProblemID}}</a>
+{{end}}
+</div>
+{{end}}
+</div>
+</div></div>
+{{end}}
+
 <div class="row"><div class="column">
 <h4 class="ui top attached block header">提交统计</h4>
 <div class="ui bottom attached segment">
@@ -2058,6 +2073,7 @@ userid3 password3">{{.UList}}</textarea>
 <button type="submit" class="form-control">搜索</button>
 </form>
 </center>
+<form action="/admin/news_add_page.php" method="post">
 <center>
 <table width="100%" border="1" style="text-align:center;">
 <thead>
@@ -2069,7 +2085,7 @@ userid3 password3">{{.UList}}</textarea>
 <tbody>
 {{range .Rows}}
 <tr>
-<td>{{.ProblemID}}</td>
+<td>{{.ProblemID}} <input type="checkbox" name="pid[]" value="{{.ProblemID}}"></td>
 <td><a href="/problem.php?id={{.ProblemID}}">{{.Title}}</a>{{if .HasRemote}}&nbsp;<a href="{{.RemoteHref}}" target="_blank">{{.RemoteLabel}}</a>{{end}}</td>
 <td>{{.Accepted}}</td>
 <td>{{.InDate}}</td>
@@ -2085,6 +2101,11 @@ userid3 password3">{{.UList}}</textarea>
 </tbody>
 </table>
 </center>
+<div style="margin:10px auto;width:80%;">
+<label>题单名：<input type="text" name="keyword" class="form-control" style="display:inline-block;width:60%;"></label>
+<button type="submit" class="btn btn-primary">创建题单</button>
+</div>
+</form>
 {{if .ShowPagination}}
 <div style="display:inline;"><nav class="center"><ul class="pagination pagination-sm">
 <li class="page-item"><a href="/admin/problem_list.php?page=1">&lt;&lt;</a></li>

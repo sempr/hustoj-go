@@ -368,6 +368,9 @@ type Querier interface {
 	ListContestsAdmin(ctx context.Context, arg ListContestsAdminParams) ([]ListContestsAdminRow, error)
 	ListFutureContests(ctx context.Context) ([]ListFutureContestsRow, error)
 	ListNewsAdmin(ctx context.Context, arg ListNewsAdminParams) ([]ListNewsAdminRow, error)
+	// 个人档案页（userinfo.php）的"系统题单"来源：仅取未停用的、内容含
+	// [plist=...] 块的公告，Go 侧解析出题单名与题号列表。
+	ListNewsWithPlist(ctx context.Context) ([]string, error)
 	ListPrivileges(ctx context.Context, arg ListPrivilegesParams) ([]Privilege, error)
 	// ── 题目所属比赛（题库列表的"比赛"列）────────────────────────────────
 	//
