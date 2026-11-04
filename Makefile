@@ -23,7 +23,7 @@ GOOSE := goose -dir $(MIGRATION_DIR) mysql "$(DB_DSN)"
 
 build:
 	go mod tidy && $(MAKE) -C tini static && \
-		go build -tags embed_tini -trimpath -ldflags "$(LDFLAGS)" .
+		go build -tags embed_tini -trimpath -ldflags "$(LDFLAGS)" -o hustoj .
 
 # 离线部署包：交叉编译 amd64/arm64，目标机只需 bash。
 dist:
