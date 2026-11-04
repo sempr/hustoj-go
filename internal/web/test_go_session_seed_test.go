@@ -10,7 +10,7 @@ import (
 const testOJName = "吉尔吉斯倔驴大学OJ"
 
 var (
-	reGoUser = regexp.MustCompile(`_user_id\|s:\d+:"([^"]*)"`)
+	reGoUser  = regexp.MustCompile(`_user_id\|s:\d+:"([^"]*)"`)
 	reGoAdmin = regexp.MustCompile(`_administrator\|b:1`)
 	reGoSB    = regexp.MustCompile(`_source_browser\|b:1`)
 	reGoPE    = regexp.MustCompile(`_problem_editor\|b:1`)

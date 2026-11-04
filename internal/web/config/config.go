@@ -43,7 +43,6 @@ type Config struct {
 	// 在 validate() 里填好，避免每次请求都重新解析。
 	trustedProxyNets []*net.IPNet
 
-
 	// SessionDir 是 PHP session 文件目录，仅为兼容老 web.toml（运行态不再使用）。
 	SessionDir string `toml:"session_dir"`
 

@@ -52,7 +52,7 @@ func ParseName(content string) (string, error) {
 		return "", nil
 	}
 	if name == "." || name == ".." {
-		return "", errors.New("不能是 . 或 ..")
+		return "", errors.New("不能是点或双点")
 	}
 	if strings.ContainsAny(name, "/\\\x00") {
 		return "", errors.New("只能是单个文件名，不能包含路径分隔符")

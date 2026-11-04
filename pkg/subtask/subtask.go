@@ -47,11 +47,6 @@ func ExtractScoreFromFilename(filename string) float64 {
 	return DefaultPoints
 }
 
-// ParseInt 安全地解析字符串为整数（替代原有的 ToInt 函数）
-func ParseInt(s string) (int, error) {
-	return strconv.Atoi(s)
-}
-
 // GetSubtaskPrefix 获取子任务前缀（第一个点号前的部分）
 // 例如："1_1.in" -> "1_1", "test.in" -> "test"
 func GetSubtaskPrefix(filename string) string {
@@ -231,24 +226,6 @@ func Judge(results []TestResult, oiMode bool) SubtaskScore {
 		return CalculateOIScore(results)
 	}
 	return CalculateNormalScore(results)
-}
-
-// TestResultSlice 用于排序的切片类型
-type TestResultSlice []TestResult
-
-func (p TestResultSlice) Len() int           { return len(p) }
-func (p TestResultSlice) Less(i, j int) bool { return p[i].Filename < p[j].Filename }
-func (p TestResultSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
-
-// SortResults 按文件名排序测试结果
-func SortResults(results []TestResult) []TestResult {
-	if len(results) == 0 {
-		return []TestResult{}
-	}
-	sorted := make([]TestResult, len(results))
-	copy(sorted, results)
-	sort.Sort(TestResultSlice(sorted))
-	return sorted
 }
 
 // GetResultName 返回评测结果的字符串表示

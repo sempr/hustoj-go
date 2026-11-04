@@ -508,11 +508,11 @@ func TestParseStatusFilterDistinguishesAbsentFromZero(t *testing.T) {
 		{"/status.php?language=3", 3, -1, true, false},
 		{"/status.php?jresult=4", -1, 4, false, true},
 		{"/status.php?jresult=-1", -1, -1, false, false},
-		{"/status.php?language=26", 26, -1, true, false},   // Pascal
-		{"/status.php?language=27", 27, -1, true, false},   // C++11
-		{"/status.php?language=28", 28, -1, true, false},   // C++17
-		{"/status.php?language=29", 29, -1, true, false},   // C++20
-		{"/status.php?language=30", -1, -1, false, false},  // 越界
+		{"/status.php?language=26", 26, -1, true, false},  // Pascal
+		{"/status.php?language=27", 27, -1, true, false},  // C++11
+		{"/status.php?language=28", 28, -1, true, false},  // C++17
+		{"/status.php?language=29", 29, -1, true, false},  // C++20
+		{"/status.php?language=30", -1, -1, false, false}, // 越界
 		// 空串必须表示"不过滤"，不能当成 0。
 		//
 		// PHP 的 intval("")==0 会把 ?language= 当成"筛语言 0（C）"，

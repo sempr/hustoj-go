@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/pelletier/go-toml/v2"
@@ -216,32 +215,10 @@ func (m *Manager) Installed() []LangBasic {
 	return out
 }
 
-// IsInstalled 判断某语言是否已安装（存在 <id>.lang.toml）。
-func (m *Manager) IsInstalled(langID int) bool { return m.hasLangConfig(langID) }
-
 func (m *Manager) hasLangConfig(langID int) bool {
 	path := filepath.Join(m.homeDir, "etc", "langs", fmt.Sprintf("%d.lang.toml", langID))
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-// GetAllLanguages returns all available languages
-func (m *Manager) GetAllLanguages() map[int]LangBasic {
-	result := make(map[int]LangBasic, len(m.langMap))
-	for k, v := range m.langMap {
-		result[k] = v
-	}
-	return result
-}
-
-// SortedIDs 返回升序的语言 id 列表，供需要稳定性时使用。
-func (m *Manager) SortedIDs() []int {
-	ids := make([]int, 0, len(m.langMap))
-	for id := range m.langMap {
-		ids = append(ids, id)
-	}
-	sort.Ints(ids)
-	return ids
 }
 
 // GetLanguageConfig returns complete language configuration

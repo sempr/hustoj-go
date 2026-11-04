@@ -12,7 +12,6 @@ require (
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/justinas/nosurf v1.2.0
 	github.com/pelletier/go-toml/v2 v2.4.3
-	github.com/pressly/goose/v3 v3.29.0
 	github.com/sevlyar/go-daemon v0.1.7
 	github.com/spf13/cobra v1.10.2
 	github.com/yuin/goldmark v1.8.7
@@ -30,11 +29,9 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/kardianos/osext v0.0.0-20190222173326-2bc1f35cddc0 // indirect
 	github.com/leodido/go-urn v1.5.0 // indirect
-	github.com/mfridman/interpolate v0.0.2 // indirect
-	github.com/sethvargo/go-retry v0.5.0 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
+	github.com/stretchr/testify v1.12.1 // indirect
 	github.com/yuin/gopher-lua v1.1.1 // indirect
-	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
-	golang.org/x/sync v0.24.0 // indirect
+	golang.org/x/net v0.61.0 // indirect
 )

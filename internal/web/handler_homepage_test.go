@@ -33,7 +33,7 @@ func doHomepage(t *testing.T, f *fakeQuerier, mutate func(*config.Config), sessi
 	})
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
-	seedGoSessionFromBits(t, srv, homepageSID, seedAdmin())
+		seedGoSessionFromBits(t, srv, homepageSID, seedAdmin())
 	}
 
 	req := httptest.NewRequest(http.MethodGet, target, nil)

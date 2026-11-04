@@ -209,17 +209,6 @@ func readMemoryStatValue(path, key string) (int64, error) {
 	return 0, fmt.Errorf("memory.stat 里没有 %s 这一项", key)
 }
 
-func (c *Cgroup) ReadMemory() {
-	statFile := filepath.Join(c.path, "memory.peak")
-	bt, err := os.ReadFile(statFile)
-	if err == nil {
-		v, _ := strconv.Atoi(strings.Trim(string(bt), "\n\t "))
-		slog.Debug("memory", "bt", v)
-	} else {
-		slog.Error("memory error", "error", err)
-	}
-}
-
 // ---------------------------------------------------------------------------
 // CPU 检查器
 // ---------------------------------------------------------------------------

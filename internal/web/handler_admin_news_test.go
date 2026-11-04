@@ -35,7 +35,7 @@ func doNews(t *testing.T, f *fakeQuerier, session, method, target string, form u
 	})
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
-	seedGoSessionFromBits(t, srv, newsSID, seedAdmin())
+		seedGoSessionFromBits(t, srv, newsSID, seedAdmin())
 		seedGoSessionFromBits(t, srv, newsSID, session)
 	}
 

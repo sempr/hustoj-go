@@ -23,44 +23,6 @@ import (
 
 // ── 比赛列表查询（contest.php 无 cid）───────────────────────────────────
 
-// ContestListItem 单条比赛列表项。
-type ContestListItem struct {
-	CID         int32
-	Title       string
-	StartTime   time.Time
-	EndTime     time.Time
-	Defunct     string
-	Private     int8
-	ContestType int16
-	Description string
-}
-
-// ListContests 返回比赛列表（对应 contest.php 无 cid 分支）。
-func ListContests(ctx context.Context, q dbgen.FullQuerier, now time.Time) ([]ContestListItem, error) {
-	// PHP: SELECT * FROM contest WHERE defunct='N' ORDER BY contest_id DESC
-	rows, err := q.ListContests(ctx)
-	if err != nil {
-		return nil, err
-	}
-	var items []ContestListItem
-	for _, r := range rows {
-		if r.Defunct != "N" {
-			continue // 只显示未关闭的比赛
-		}
-		items = append(items, ContestListItem{
-			CID:         r.ContestID,
-			Title:       r.Title.String,
-			StartTime:   r.StartTime.Time,
-			EndTime:     r.EndTime.Time,
-			Defunct:     r.Defunct,
-			Private:     r.Private,
-			ContestType: r.ContestType.Int16,
-			Description: r.Description.String,
-		})
-	}
-	return items, nil
-}
-
 // ── 比赛题目列表（contest.php?cid=X）────────────────────────────────────
 
 // ContestProblemItem 比赛里的单道题。
@@ -112,54 +74,6 @@ func GetContestProblems(ctx context.Context, q dbgen.FullQuerier, cid sql.NullIn
 }
 
 // ── 排名查询（contestrank.php / contestrank-oi.php）──────────────────────
-
-// RankRow 单行排名数据。
-type RankRow struct {
-	Rank     int
-	UserID   string
-	Nick     string
-	Solved   int
-	Penalty  int
-	Problems []RankProblem // 每道题的提交情况
-}
-
-// RankProblem 单题的排名表现。
-type RankProblem struct {
-	Num      int32
-	Solved   bool
-	Attempts int
-	Time     int // 通过时间(分钟)
-}
-
-// GetContestRankACM ACM 模式排名（contestrank.php）。
-func GetContestRankACM(ctx context.Context, q dbgen.FullQuerier, cid int32) ([]RankRow, error) {
-	// 复杂查询：按用户聚合 solution，计算 solved/penalty
-	// 简化版：先返回空，后续补全
-	return nil, nil
-}
-
-// GetContestRankOI OI 模式排名（contestrank-oi.php）。
-func GetContestRankOI(ctx context.Context, q dbgen.FullQuerier, cid int32) ([]RankRow, error) {
-	return nil, nil
-}
-
-// ── 统计查询（conteststatistics.php）───────────────────────────────────
-
-// StatRow 统计单行。
-type StatRow struct {
-	Num       int32
-	Title     string
-	TotalSub  int
-	ACCount   int
-	ACUsers   int
-	FirstAC   string
-	FirstUser string
-}
-
-// GetContestStatistics 比赛统计（conteststatistics.php）。
-func GetContestStatistics(ctx context.Context, q dbgen.FullQuerier, cid int32) ([]StatRow, error) {
-	return nil, nil
-}
 
 // ── 比赛列表页渲染（contest.php 无 cid）────────────────────────────────
 

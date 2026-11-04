@@ -26,7 +26,7 @@ func doP2(t *testing.T, target string, h func(*Server, http.ResponseWriter, *htt
 	})
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
-	seedGoSessionFromBits(t, srv, p2SID, seedAdmin())
+		seedGoSessionFromBits(t, srv, p2SID, seedAdmin())
 	}
 	req := httptest.NewRequest(http.MethodGet, target, nil)
 	if session != "" {

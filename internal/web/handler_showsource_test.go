@@ -39,7 +39,7 @@ func showsourceRequest(t *testing.T, f *fakeQuerier, mutate func(*config.Config)
 	})
 	if session != "" {
 		srv.sessions = newTestSessionStore(t)
-	seedGoSessionFromBits(t, srv, showsourceSID, seedAdmin())
+		seedGoSessionFromBits(t, srv, showsourceSID, seedAdmin())
 		seedGoSessionFromBits(t, srv, showsourceSID, session)
 	}
 

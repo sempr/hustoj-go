@@ -99,10 +99,10 @@ func newAuthFixture(t *testing.T) *authFixture {
 	t.Cleanup(func() { resetAuthState(t, db) })
 
 	srv := &Server{
-		cfg:           cfg,
-		log:           testLogger(),
-		db:            db,
-		sessions:      newTestSessionStore(t),
+		cfg:      cfg,
+		log:      testLogger(),
+		db:       db,
+		sessions: newTestSessionStore(t),
 	}
 	return &authFixture{srv: srv, session: ojName, dir: dir}
 }
