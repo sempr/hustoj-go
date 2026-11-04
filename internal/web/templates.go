@@ -251,6 +251,7 @@ const pageContentTmpls = `
 <nav class="site-nav" aria-label="主导航">
 <a href="/problemset.php"{{if navActive .Path "/problemset.php"}} class="current" aria-current="page"{{end}}>题目</a>
 <a href="/category.php"{{if navActive .Path "/category.php"}} class="current" aria-current="page"{{end}}>来源</a>
+<a href="/problem_lists.php"{{if navActive .Path "/problem_lists.php"}} class="current" aria-current="page"{{end}}>题单</a>
 <a href="/contest.php{{if .LoggedIn}}?my{{end}}"{{if navActive .Path "/contest.php"}} class="current" aria-current="page"{{end}}>竞赛</a>
 <a href="/status.php"{{if navActive .Path "/status.php"}} class="current" aria-current="page"{{end}}>状态</a>
 <a href="/ranklist.php"{{if navActive .Path "/ranklist.php"}} class="current" aria-current="page"{{end}}>排名</a>
@@ -1092,6 +1093,25 @@ Problem <span class="blue"><b>{{add .Num 65 | printf "%c"}}</b></span> of Contes
 
 </div>
 </div>
+</div>
+{{end}}
+
+{{define "problemListsPage"}}
+<div class="ui container">
+<h2 class="ui header">系统题单</h2>
+{{if .Lists}}
+{{range .Lists}}
+<div class="ui segment">
+<h3 class="ui header">{{.Name}}</h3>
+<div class="ui labels">
+{{range .Problems}}<a class="ui {{if .Passed}}green{{else}}red{{end}} basic label" href="problem.php?id={{.ProblemID}}" title="{{.Title}}">{{.ProblemID}}</a>
+{{end}}
+</div>
+</div>
+{{end}}
+{{else}}
+<div class="ui placeholder segment">暂无系统题单</div>
+{{end}}
 </div>
 {{end}}
 

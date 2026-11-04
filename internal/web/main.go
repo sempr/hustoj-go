@@ -157,6 +157,7 @@ func (s *Server) handler() http.Handler {
 
 	// 业务路由：用户档案页。
 	s.registerUserInfoRoutes(mux)
+	s.registerProblemListsRoutes(mux)
 
 	// 业务路由：全局排名页。
 	s.registerRanklistRoutes(mux)
