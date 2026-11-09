@@ -9,9 +9,11 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"syscall"
 
 	"github.com/sempr/hustoj-go/internal/client"
+	"github.com/sempr/hustoj-go/internal/rootless"
 	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/spf13/cobra"
 	"golang.org/x/sys/unix"
@@ -35,6 +37,13 @@ Example:
   cat Main.cpp | hustoj judge --source=- --lang 1 --data ./data \
       --time 1000 --memory 262144 --spj 1`,
 	Run: func(cmd *cobra.Command, args []string) {
+		// 普通用户没有挂载/cgroup/切 uid 的权限：先切到 hustoj-spawn，
+		// 由它创建 userns 后再继续执行本命令。
+		if err := rootless.MaybeReexec("judge", judgeTask.OJHome); err != nil {
+			slog.Error("Failed to enter rootless mode", "error", err)
+			os.Exit(1)
+		}
+
 		// 评测过程中大量日志（本进程 slog 及沙箱子进程输出）默认写入 stdout，
 		// 先把 stdout 重定向到 stderr，保持 stdout 只输出最终的 JSON 结果。
 		restoreStdout, err := redirectStdoutToStderr()
@@ -51,7 +60,9 @@ Example:
 			judgeTask.OJHome = "/home/judge"
 		}
 		if judgeTask.WorkBase == "" {
-			judgeTask.WorkBase = "/tmp"
+			// 不再默认 /tmp：/tmp 常是 nosuid/noexec，且与 daemon 的
+			// <ojhome>/run 不一致。rootless 下必须落在判题用户可写的位置。
+			judgeTask.WorkBase = filepath.Join(judgeTask.OJHome, "run")
 		}
 
 		judgeClient, err := client.NewStandaloneClient(&judgeTask)
@@ -128,5 +139,5 @@ func init() {
 	judgeCmd.Flags().IntVar(&judgeTask.MemLimitKB, "memory", 262144, "memory limit in KB")
 	judgeCmd.Flags().IntVar(&judgeTask.Spj, "spj", 0, "problem type: 0=normal, 1=special judge, 2=raw text, 3=interactive, 4=communication (multi-pass)")
 	judgeCmd.Flags().StringVar(&judgeTask.OJHome, "ojhome", "/home/judge", "judge home for etc/langs configs")
-	judgeCmd.Flags().StringVar(&judgeTask.WorkBase, "workbase", "/tmp", "base directory for overlay mount workdir")
+	judgeCmd.Flags().StringVar(&judgeTask.WorkBase, "workbase", "", "base directory for overlay mount workdir (default <ojhome>/run)")
 }

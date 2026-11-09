@@ -1,8 +1,8 @@
-# judge 数据库连接配置（systemd EnvironmentFile 注入）。
+# judge 数据库连接配置（judged-go / hustoj-web 直接读取）。
 #
 # 安装位置：/home/judge/etc/judge.conf
-# 权限建议：root:root 0600（内容含 DB 凭据，systemd 以 PID 1 读取后降权执行，
-# 因此无需为 www-data 放宽权限）。
+# 权限建议：root:judge 0640。判题守护进程以 judge 用户运行，需要读该文件；
+# 由于内容含数据库凭据，不要放宽到 0644，也不要让 judge 拥有 etc 目录。
 #
 # Web 服务（hustoj web）与判题守护进程（hustoj daemon）都从这里取数据库凭据。
 # 首次部署时把它复制成 judge.conf 并填入真实值，不要提交进版本库。
@@ -12,12 +12,34 @@ OJ_PORT_NUMBER=3306
 OJ_USER_NAME=hustoj
 OJ_PASSWORD=change-me
 OJ_DB_NAME=hustoj
-# 判题受理语言 id（逗号分隔）。安装语言运行时的 install_langs.sh 会按实际
-# 安装的 <id>.lang.toml 自动重写这一行；这里给默认的 C/C++/Python。
-OJ_LANG_SET=0,1,6
+# 判题受理语言 id（逗号分隔），同时决定提交页可见的语言。
+# 只列已经安装的语言（<OJHome>/etc/langs/<id>.lang.toml 存在）；
+# install_langs.sh 会按目标目录里实际存在的配置重新生成本行，所以单独装
+# 某个语言不会把其它已装语言删掉，也不会把未安装的语言列进来。
+OJ_LANG_SET=0,1,2,3,5,6,7,8,9,16,17,25,26,27,28,29
+
+# 并发判题数量，默认 3。按机器 CPU/内存与单题资源占用调整；
+# 小机器建议先设为 1，确认稳定后再逐步调大。
+OJ_MAX_RUNNING=1
 
 # 通讯题（spj=4）每组数据允许的最大运行轮数，默认 10。
 # 只用于挡住写错而无限出题的校验器：正常题目由校验器自己决定何时结束
 # （不再写 nextpass.in）。题目确实需要更多轮（例如二分 10^9 约需 30 轮）
 # 时调大即可，写小了会让正确程序在第 N 轮被判 WA。
 OJ_COMMUNICATION_MAX_PASSES=10
+
+# ── rootless 判题（可选）───────────────────────────────────────────────
+# 运行模式：
+#   auto  普通用户自动经 hustoj-spawn 进入 user namespace；root 直接运行
+#   on    即使 root 也经 hustoj-spawn（用于验证 rootless 路径）
+#   off   直接运行，只允许 root
+# 命令行 --rootless=auto|on|off 优先级最高；环境变量 OJ_ROOTLESS 次之。
+#OJ_ROOTLESS=auto
+
+# 委派给判题用户的 cgroup v2 父目录。由 `hustoj cgroup-setup` 或
+# hustoj-cgroup.service 创建并 chown；留空时自动探测 <cgroup2>/hustoj。
+#OJ_CGROUP_ROOT=/sys/fs/cgroup/hustoj
+
+# hustoj-spawn 路径。留空时依次查找 /usr/local/libexec/hustoj-spawn 与
+# hustoj 可执行文件同目录；安装脚本默认放在 /usr/local/libexec。
+#OJ_SPAWN_PATH=/usr/local/libexec/hustoj-spawn

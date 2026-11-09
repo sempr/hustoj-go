@@ -87,9 +87,7 @@ func (jc *JudgeClient) runAndCompare(config RunConfig) (int, int, int) {
 
 	selfName, _ := os.Executable()
 	cmd := exec.Command(selfName, runArgs...)
-	if len(langConfig.Cmd.Env) > 0 {
-		cmd.Env = append(cmd.Env, langConfig.Cmd.Env...)
-	}
+	cmd.Env = append(os.Environ(), langConfig.Cmd.Env...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stdout

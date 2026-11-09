@@ -74,6 +74,7 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 	defer file.Close()
 
 	seenLangSet := false
+	seenMaxRunning := false
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -91,7 +92,17 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 		if key == "OJ_LANG_SET" {
 			seenLangSet = true
 		}
-		assignDaemonConfigValue(cfg, key, value)
+		// OJ_MAX_RUNNING 是新键名；OJ_RUNNING 仅作旧配置兼容，
+		// 两者同时出现时以 OJ_MAX_RUNNING 为准。
+		if key == "OJ_MAX_RUNNING" {
+			seenMaxRunning = true
+		}
+		if key == "OJ_RUNNING" && seenMaxRunning {
+			continue
+		}
+		if err := assignDaemonConfigValue(cfg, key, value); err != nil {
+			return nil, fmt.Errorf("%s 中 %w", path, err)
+		}
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -103,10 +114,14 @@ func LoadDaemonConfig(path string) (*DaemonConfig, error) {
 	return cfg, nil
 }
 
-func assignDaemonConfigValue(cfg *DaemonConfig, key, value string) {
+func assignDaemonConfigValue(cfg *DaemonConfig, key, value string) error {
 	switch key {
-	case "OJ_RUNNING":
-		cfg.MaxRunning, _ = strconv.Atoi(value)
+	case "OJ_MAX_RUNNING", "OJ_RUNNING":
+		n, err := strconv.Atoi(value)
+		if err != nil || n < 1 {
+			return fmt.Errorf("%s=%q 必须是正整数（并发判题数至少为 1）", key, value)
+		}
+		cfg.MaxRunning = n
 	case "OJ_SLEEP_TIME":
 		cfg.SleepTime, _ = strconv.Atoi(value)
 	case "OJ_TOTAL":
@@ -155,4 +170,5 @@ func assignDaemonConfigValue(cfg *DaemonConfig, key, value string) {
 	case "OJ_TURBO_MODE":
 		cfg.TurboMode, _ = strconv.Atoi(value)
 	}
+	return nil
 }

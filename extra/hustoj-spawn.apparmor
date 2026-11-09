@@ -1,0 +1,19 @@
+# AppArmor 配置：允许 hustoj-spawn 创建非特权 user namespace。
+#
+# Ubuntu 23.10+ / 部分发行版把 kernel.apparmor_restrict_unprivileged_userns
+# 设为 1，默认拒绝没有 AppArmor 配置的普通进程执行 CLONE_NEWUSER。带 file
+# caps 的二进制也不例外（这不是权限问题，而是 LSM 策略）。
+#
+# 安装脚本会把 profile 名称行里的路径替换成实际安装位置并加载：
+#   apparmor_parser -r /etc/apparmor.d/hustoj-spawn
+#
+# flags=(unconfined) 表示除 userns 外的其余访问不受限制；不要改成普通
+# 受限 profile，否则需要额外放行 clone/mount/ptrace/capability 等一整套
+# 判题所需操作。
+abi <abi/4.0>,
+include <tunables/global>
+
+profile hustoj-spawn /usr/local/libexec/hustoj-spawn flags=(unconfined) {
+  userns,
+  include if exists <local/hustoj-spawn>
+}

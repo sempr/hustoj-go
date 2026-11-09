@@ -125,9 +125,13 @@ func (jc *JudgeClient) RunStandalone() (*StandaloneResult, error) {
 	}
 
 	// 执行测试用例
-	ctx, err := jc.prepareTestContext(solution, problem, workDir, spjProgram)
+	ctx, err := jc.prepareTestContext(solution, problem, workDir, spjProgram, langConfig)
 	if err != nil {
 		return nil, err
+	}
+	// 交互评测的 interactor 有一套独立的 rootfs，先于选手 workdir 清理。
+	if ctx.RunConfig.Interactive != nil && ctx.RunConfig.Interactive.Cleanup != nil {
+		defer ctx.RunConfig.Interactive.Cleanup()
 	}
 
 	if err := jc.notifyPhase(constants.OJ_RI); err != nil {

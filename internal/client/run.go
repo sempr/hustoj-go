@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/sempr/hustoj-go/pkg/constants"
+	"github.com/sempr/hustoj-go/pkg/language"
 	"github.com/sempr/hustoj-go/pkg/models"
 	"github.com/sempr/hustoj-go/pkg/repository"
 	"github.com/sempr/hustoj-go/pkg/subtask"
@@ -144,7 +145,7 @@ type ExecutionStats struct {
 	TotalTime  int
 }
 
-func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem *repository.Problem, rootfs string, spjProgram int) (*TestContext, error) {
+func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem *repository.Problem, rootfs string, spjProgram int, langConfig *language.LangConfig) (*TestContext, error) {
 	dataDir := jc.problemDataDir(problem)
 
 	dataFiles, err := jc.findDataFiles(dataDir)
@@ -177,9 +178,9 @@ func (jc *JudgeClient) prepareTestContext(solution *repository.Solution, problem
 		SpjProgram:  spjProgram,
 	}
 
-	// 交互评测：准备 interactor 二进制与 FIFO 通道。
+	// 交互评测：为 interactor 准备独立的 rootfs 与 spj 二进制。
 	if problem.SPJ == constants.OJ_SPJ_MODE_INTERACTIVE {
-		info, err := jc.prepareInteractor(rootfs, dataDir)
+		info, err := jc.prepareInteractor(rootfs, dataDir, langConfig)
 		if err != nil {
 			return nil, fmt.Errorf("failed to prepare interactor: %w", err)
 		}

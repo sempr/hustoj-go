@@ -290,3 +290,34 @@ sudo ./uninstall.sh --dry-run  # 只预览，不动手
 
 `--ojhome` / `--prefix` / `--tini-dir` / `--systemd-dir` 均要求**绝对路径**
 （脚本会用 sed 改写 unit，路径不能含 `|` 或换行）。
+
+## 九、rootless 判题
+
+从本版本起，判题服务以 `judge` 用户运行；真正的特权操作由带 file
+capabilities 的 `hustoj-spawn`（`/usr/local/libexec/hustoj-spawn`）完成，
+借助 Linux user namespace 建立 `/dev`、`/code` 的挂载命名空间。
+
+安装脚本会自动：
+- 创建 `judge` 用户并把 `/home/judge/run`、`/home/judge/log` chown 给它；
+- 安装并 `setcap cap_dac_override,cap_setuid,cap_setgid+ep` 于 spawner；
+- 安装 `/etc/apparmor.d/hustoj-spawn`（Ubuntu 23.10+ 默认限制 unprivileged
+  userns，需要这个 profile）；
+- 安装并启用 `hustoj-cgroup.service`，把 `/sys/fs/cgroup/hustoj` 委派给 judge；
+- 设置 `judge.conf` 权限为 `root:judge 0640`。
+
+安装后如需手动刷新委派（例如重启或升级）：
+
+```
+sudo ./install.sh --skip-systemd --no-web --no-judge   # 只重新落地 spawner/apparmor
+# 或
+sudo /usr/local/bin/hustoj cgroup-setup --cgroup-root /sys/fs/cgroup/hustoj \
+  --user judge --group judge
+```
+
+常见故障：
+- `operation not permitted` mount tmpfs / 设备节点创建失败：确认 spawner 已
+  `setcap` 且 `/etc/apparmor.d/hustoj-spawn` 已加载
+  (`sudo apparmor_parser -r /etc/apparmor.d/hustoj-spawn`)。
+- `把 spawner 移入 cgroup 失败` / `EBUSY`: 重新执行 cgroup-setup 或
+  停止 judged-go.service 后重试。
+- 普通用户想直接 root 运行：`hustoj judge --rootless=off ...`（仅 root）。

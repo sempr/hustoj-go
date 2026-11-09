@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/sempr/hustoj-go/pkg/constants"
 	"github.com/sempr/hustoj-go/pkg/repository"
 )
 
@@ -17,6 +18,9 @@ const prefetchMultiplier = 80
 type JobFetcher interface {
 	GetJobs(maxJobs int) ([]int, error)
 	CheckOut(solutionID int, result int) (bool, error)
+	// MarkSystemError 在 client 进程异常结束、没有回写终态时兜底把
+	// 仍处于 result<4 的提交标记为 OJ_SE，避免永久停在"编译中"。
+	MarkSystemError(solutionID int, message string) (bool, error)
 	Close() error
 }
 
@@ -105,6 +109,34 @@ func (f *MySQLFetcher) CheckOut(solutionID int, result int) (bool, error) {
 	return rowsAffected > 0, err
 }
 
+// MarkSystemError 兜底把挂起的提交改成系统错误。
+//
+// 正常情况下 client 自己会写终态，这里的 UPDATE 会影响 0 行；只有 client
+// 在写出结果前崩溃/被杀死（包括启动失败）时才真正生效。
+func (f *MySQLFetcher) MarkSystemError(solutionID int, message string) (bool, error) {
+	res, err := f.db.Exec(
+		"UPDATE solution SET result=?, judger=?, judgetime=NOW() WHERE solution_id=? AND result<4",
+		constants.OJ_SE, "go_judger", solutionID,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		return false, nil
+	}
+	if _, err := f.db.Exec("DELETE FROM compileinfo WHERE solution_id=?", solutionID); err != nil {
+		return true, err
+	}
+	if _, err := f.db.Exec("INSERT INTO compileinfo VALUES(?, ?)", solutionID, message); err != nil {
+		return true, err
+	}
+	return true, nil
+}
+
 func (f *MySQLFetcher) Close() error {
 	return f.db.Close()
 }
@@ -147,6 +179,11 @@ func (f *RedisFetcher) GetJobs(maxJobs int) ([]int, error) {
 func (f *RedisFetcher) CheckOut(solutionID int, result int) (bool, error) {
 	// RPop is atomic, so no explicit checkout is needed.
 	return true, nil
+}
+
+// MarkSystemError 对 Redis 队列没有可回写的结果表，交由上层处理。
+func (f *RedisFetcher) MarkSystemError(solutionID int, message string) (bool, error) {
+	return false, nil
 }
 
 func (f *RedisFetcher) Close() error {

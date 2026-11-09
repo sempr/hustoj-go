@@ -6,89 +6,75 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"path"
 	"path/filepath"
 	"sync"
 
 	"github.com/sempr/hustoj-go/pkg/constants"
+	"github.com/sempr/hustoj-go/pkg/language"
 	"github.com/sempr/hustoj-go/pkg/models"
-	"golang.org/x/sys/unix"
 )
 
-// InteractorInfo 描述一次交互评测（spj=3）的 interactor 程序与 FIFO 通道。
-// 复用原有 client 使用 run 命令的模式：把 interactor 二进制与数据拷进 rootfs，
-// 用两个 FIFO 充当玩家与 interactor 之间的双向管道，两个 run 各自把 FIFO
-// 当作 stdin/stdout（--stdin/--stdout 为沙箱内绝对路径）。
+// InteractorInfo 描述一次交互评测（spj=3）的 interactor。
+//
+// 选手和 interactor 各自运行在自己的 rootfs overlay 里（共享只读 lower，
+// 但 upper/tmpfs 独立），所以选手看不到 spj 和 data.in。两者的 stdin/stdout
+// 由 client 创建的两条匿名管道连接，fd 通过 ExtraFiles 传给 run，不需要在
+// 文件系统里创建 FIFO。
 type InteractorInfo struct {
-	Cmdline  string // interactor 在沙箱内的执行命令，如 "/code/spj /code/data.in"
-	P2IFifo  string // 玩家 stdout -> interactor stdin 的 FIFO（rootfs 内路径）
-	I2PFifo  string // interactor stdout -> 玩家 stdin 的 FIFO（rootfs 内路径）
-	Verifier bool   // 保留：verdict 以 interactor 退出码为准
+	Cmdline     string // interactor 在沙箱内的执行命令，如 "/code/spj /code/data.in"
+	ActorRootfs string // interactor 独立的 rootfs
+	SpjErrPath  string // interactor stderr 文件（在 ActorRootfs 内）
+	Cleanup     func()
 }
 
-// prepareInteractor 校验数据目录里的预编译 interactor（spj）并拷入 rootfs，
-// 同时创建玩家/交互器之间的两个 FIFO。
-func (jc *JudgeClient) prepareInteractor(rootfs, dataDir string) (*InteractorInfo, error) {
+// prepareInteractor 校验数据目录里的预编译 interactor（spj），为它准备一套
+// 独立的 overlay，并把 spj 拷进去。交互管道在每次会话时由 client 用
+// os.Pipe() 创建，不落文件。
+func (jc *JudgeClient) prepareInteractor(rootfs, dataDir string, langConfig *language.LangConfig) (*InteractorInfo, error) {
 	spjSrc := filepath.Join(dataDir, "spj")
 	if _, err := os.Stat(spjSrc); err != nil {
 		return nil, fmt.Errorf("interactive judge requires a precompiled spj binary in data dir (%s): %w", spjSrc, err)
 	}
 
-	codeRootfs := filepath.Join(rootfs, "code")
+	actorRootfs, err := jc.mountOverlay(filepath.Join(filepath.Dir(rootfs), "actor"), langConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup interactor rootfs: %w", err)
+	}
+	cleanup := func() { jc.cleanupWorkEnvironment(actorRootfs) }
+
+	codeRootfs := filepath.Join(actorRootfs, "code")
 	dest := filepath.Join(codeRootfs, "spj")
-	// 编译阶段 /code 对选手可写，可能留下 spj -> 宿主机路径 的链接；
-	// 先删除再用 O_NOFOLLOW 创建，绝不能顺着链接 chmod/copy。
+	// 先删除再用 O_NOFOLLOW 创建，避免顺着残留链接 chmod/copy。
 	if err := os.Remove(dest); err != nil && !os.IsNotExist(err) {
+		cleanup()
 		return nil, fmt.Errorf("failed to remove stale interactor: %w", err)
 	}
 	if err := copyFileWithMode(spjSrc, dest, 0o755); err != nil {
+		cleanup()
 		return nil, fmt.Errorf("failed to copy interactor into sandbox: %w", err)
 	}
 
-	const (
-		p2iName = "pipe_po" // player out -> interactor in
-		i2pName = "pipe_op" // interactor out -> player in
-	)
-	p2i := path.Join("/code", p2iName)
-	i2p := path.Join("/code", i2pName)
-	for _, fifo := range []string{filepath.Join(codeRootfs, p2iName), filepath.Join(codeRootfs, i2pName)} {
-		// 同上：先清掉编译阶段可能留下的同名符号链接，避免 Mkfifo 命中 EEXIST
-		// 后 os.Chmod 顺着链接改到宿主机文件。
-		if err := os.Remove(fifo); err != nil && !os.IsNotExist(err) {
-			return nil, fmt.Errorf("failed to remove stale FIFO %s: %w", fifo, err)
-		}
-		if err := unix.Mkfifo(fifo, 0o666); err != nil {
-			return nil, fmt.Errorf("failed to create FIFO %s: %w", fifo, err)
-		}
-		if err := os.Chmod(fifo, 0o666); err != nil {
-			return nil, fmt.Errorf("failed to chmod FIFO %s: %w", fifo, err)
-		}
-	}
-
 	return &InteractorInfo{
-		Cmdline: "/code/spj",
-		P2IFifo: p2i,
-		I2PFifo: i2p,
+		Cmdline:     "/code/spj",
+		ActorRootfs: actorRootfs,
+		SpjErrPath:  filepath.Join(codeRootfs, "spj.err"),
+		Cleanup:     cleanup,
 	}, nil
 }
 
-// buildRunArgs 组装一次 run 子命令参数（沿用 runAndCompare 的方式）。
-// fileIn/fileOut 为沙箱内绝对路径，空字符串表示不传递对应 flag（沿用默认文件）。
-func (jc *JudgeClient) buildInteractiveRunArgs(config RunConfig, cmdline, fileIn, fileOut, fileErr string) []string {
+// buildInteractiveRunArgs 组装一次交互评测的 run 子命令参数。
+// stdin/stdout 走 --inherit-io（fd 4/5 由 spawnSandboxRun 传入匿名管道）；
+// fileErr 非空时指定 stderr 文件（沙箱内绝对路径）。
+func (jc *JudgeClient) buildInteractiveRunArgs(rootfs string, config RunConfig, cmdline, fileErr string) []string {
 	runArgs := []string{
 		"run",
-		fmt.Sprintf("--rootfs=%s", config.Rootdir),
+		fmt.Sprintf("--rootfs=%s", rootfs),
 		fmt.Sprintf("--cmd=%s", cmdline),
 		fmt.Sprintf("--time=%d", config.Timelimit),
 		fmt.Sprintf("--memory=%d", sandboxMemoryKB(config.MemoryLimit)),
 		fmt.Sprintf("--sid=%d", jc.solutionID),
 		"--cwd=/code",
-	}
-	if fileIn != "" {
-		runArgs = append(runArgs, fmt.Sprintf("--stdin=%s", fileIn))
-	}
-	if fileOut != "" {
-		runArgs = append(runArgs, fmt.Sprintf("--stdout=%s", fileOut))
+		"--inherit-io",
 	}
 	if fileErr != "" {
 		runArgs = append(runArgs, fmt.Sprintf("--stderr=%s", fileErr))
@@ -97,12 +83,12 @@ func (jc *JudgeClient) buildInteractiveRunArgs(config RunConfig, cmdline, fileIn
 }
 
 // spawnSandboxRun 以 ExtraFiles[0] 作为结果 JSON 通道启动一次 run 子进程。
-func (jc *JudgeClient) spawnSandboxRun(args, env []string) (*exec.Cmd, *os.File, error) {
+// extraFiles 依次成为 run 的 fd 4、5、6...（交互评测传两个匿名管道）。
+// extraFiles 的所有权仍归调用方，启动后由调用方关闭。
+func (jc *JudgeClient) spawnSandboxRun(args, env []string, extraFiles ...*os.File) (*exec.Cmd, *os.File, error) {
 	selfName, _ := os.Executable()
 	cmd := exec.Command(selfName, args...)
-	if len(env) > 0 {
-		cmd.Env = append(cmd.Env, env...)
-	}
+	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
@@ -111,6 +97,7 @@ func (jc *JudgeClient) spawnSandboxRun(args, env []string) (*exec.Cmd, *os.File,
 		return nil, nil, fmt.Errorf("failed to create result pipe: %w", err)
 	}
 	cmd.ExtraFiles = append(cmd.ExtraFiles, w)
+	cmd.ExtraFiles = append(cmd.ExtraFiles, extraFiles...)
 	if err := cmd.Start(); err != nil {
 		w.Close()
 		r.Close()
@@ -136,8 +123,8 @@ func readRunOutput(cmd *exec.Cmd, r *os.File) models.SandboxOutput {
 }
 
 // runInteractiveCase 执行一次交互评测会话（一个 .in 用例）：
-// 玩家程序（config.Lang 的 Main）与 interactor 通过两个 FIFO 双向通信，
-// interactor 通过退出码给出 verdict（0=AC，非 0=WA；先于退出码，任何一侧
+// 玩家程序（config.Lang 的 Main）与 interactor 通过两条匿名管道双向通信，
+// interactor 通过退出码给出 verdict（0=AC，非 0=WA；超过退出码，任何一侧
 // 的沙箱超限/崩溃状态优先作为最终结果）。
 func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 	info := config.Interactive
@@ -146,7 +133,8 @@ func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 		return constants.OJ_SE, 0, 0
 	}
 
-	// 用例数据拷入 rootfs，作为 interactor 的 argv（如 /code/data.in）。
+	// 用例数据拷进 interactor 的 rootfs，作为它的 argv（如 /code/data.in）。
+	// 选手 rootfs 里没有这份数据。
 	// 无 .in 的合成用例（交互模式单会话）不拷贝；interactor 对缺失 argv 文件需自行容错。
 	dataInPath := ""
 	if config.InFile != "" {
@@ -162,7 +150,7 @@ func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 				}
 			}
 			dataInPath = filepath.Join("/code", dataInName)
-			if err := copyFileWithMode(config.InFile, filepath.Join(config.Rootdir, "code", dataInName), 0); err != nil {
+			if err := copyFileWithMode(config.InFile, filepath.Join(info.ActorRootfs, "code", dataInName), 0); err != nil {
 				slog.Error("Failed to copy input data for interactive judge", "error", err)
 				return constants.OJ_SE, 0, 0
 			}
@@ -181,22 +169,47 @@ func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 		interCmdline = info.Cmdline + " " + dataInPath
 	}
 
-	playerArgs := jc.buildInteractiveRunArgs(config, langConfig.Cmd.Run, info.I2PFifo, info.P2IFifo, "")
-	interArgs := jc.buildInteractiveRunArgs(config, interCmdline, info.P2IFifo, info.I2PFifo, "/code/spj.err")
-
-	// 先起 interactor 再起玩家：FIFO 由 run 进程的 os.Create(O_RDWR) 提供对侧写端，
-	// 起两个 run 子进程后它们会自动配对，不会互锁。
-	interCmd, interR, err := jc.spawnSandboxRun(interArgs, nil)
+	// 两条匿名管道：p2i 选手 stdout -> interactor stdin；i2p 反之。
+	p2iR, p2iW, err := os.Pipe()
 	if err != nil {
+		slog.Error("Failed to create player->interactor pipe", "error", err)
+		return constants.OJ_SE, 0, 0
+	}
+	i2pR, i2pW, err := os.Pipe()
+	if err != nil {
+		p2iR.Close()
+		p2iW.Close()
+		slog.Error("Failed to create interactor->player pipe", "error", err)
+		return constants.OJ_SE, 0, 0
+	}
+	closePipes := func() {
+		p2iR.Close()
+		p2iW.Close()
+		i2pR.Close()
+		i2pW.Close()
+	}
+
+	// 选手与 interactor 使用各自独立的 rootfs；stdin/stdout 用匿名管道 fd。
+	playerArgs := jc.buildInteractiveRunArgs(config.Rootdir, config, langConfig.Cmd.Run, "")
+	interArgs := jc.buildInteractiveRunArgs(info.ActorRootfs, config, interCmdline, "/code/spj.err")
+
+	interCmd, interR, err := jc.spawnSandboxRun(interArgs, nil, p2iR, i2pW)
+	if err != nil {
+		closePipes()
 		slog.Error("Failed to start interactor sandbox", "error", err)
 		return constants.OJ_SE, 0, 0
 	}
-	playerCmd, playerR, err := jc.spawnSandboxRun(playerArgs, langConfig.Cmd.Env)
+	playerCmd, playerR, err := jc.spawnSandboxRun(playerArgs, langConfig.Cmd.Env, i2pR, p2iW)
 	if err != nil {
+		closePipes()
 		_ = interCmd.Process.Kill()
+		interR.Close()
 		slog.Error("Failed to start player sandbox", "error", err)
 		return constants.OJ_SE, 0, 0
 	}
+	// 子进程已各自继承了需要的 fd，父进程必须关掉全部管道端，
+	// 否则读端永远等不到 EOF，交互会挂住。
+	closePipes()
 
 	var playerOut, interOut models.SandboxOutput
 	var wg sync.WaitGroup
@@ -211,10 +224,14 @@ func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 	}()
 	wg.Wait()
 
+	// 选手侧和普通评测一样，非零退出/被信号杀死应判 RE；交互器侧退出码
+	// 才是 verdict（0=AC，非 0=WA）。不区分两者会把 pivot_root 失败之类
+	// 的沙箱故障误判成选手 WA。
+	playerResult := verdictFromExit(playerOut.UserStatus, playerOut.ExitStatus)
 	result := constants.OJ_AC
 	switch {
-	case playerOut.UserStatus != constants.OJ_AC:
-		result = playerOut.UserStatus
+	case playerResult != constants.OJ_AC:
+		result = playerResult
 	case interOut.UserStatus != constants.OJ_AC:
 		result = interOut.UserStatus
 	case interOut.ExitStatus == 0:
@@ -233,6 +250,19 @@ func (jc *JudgeClient) runInteractiveCase(config RunConfig) (int, int, int) {
 	}
 
 	slog.Info("Interactive judge case", "final_result", result, "player_status", playerOut.UserStatus, "interactor_status", interOut.UserStatus)
+	if result != constants.OJ_AC {
+		// 交互器用退出码给出 verdict，原因写在 /code/spj.err（--stderr 指向它，
+		// 不在默认的 data.err 里）。这里把两侧输出带出来，否则偶发 WA 只有
+		// "答案错误"四个字，没法定位。
+		spjErr := string(readRegularFile(info.SpjErrPath, 1024))
+		slog.Warn("Interactive judge case failed",
+			"final_result", result,
+			"player_status", playerOut.UserStatus, "player_exit", playerOut.ExitStatus,
+			"player_output", playerOut.CombinedOutput,
+			"interactor_status", interOut.UserStatus, "interactor_exit", interOut.ExitStatus,
+			"interactor_output", interOut.CombinedOutput,
+			"interactor_stderr", spjErr)
+	}
 	return result, timeUsed, memUsed
 }
 

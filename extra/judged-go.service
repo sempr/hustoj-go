@@ -1,9 +1,12 @@
 [Unit]
 Description=Judged Go Service
-After=network.target
+After=network.target hustoj-cgroup.service
+Wants=hustoj-cgroup.service
 
 [Service]
 Type=simple
+# 判题守护进程以 judge 普通用户运行；真正的特权操作由带 file caps 的
+# /usr/local/libexec/hustoj-spawn 完成（见 hustoj-spawn.apparmor）。
 # 评审守护进程也写 judgetime=now()、并按 DATETIME 读取时间，因此需要与
 # Web 相同的进程时区；具体值由部署配置决定，代码里不写死。
 # 说明见 hustoj-web.service 里的 Environment=TZ= 注释。
@@ -11,12 +14,68 @@ Environment=TZ=Asia/Shanghai
 # 日志级别由 LOG_LEVEL 控制（缺省 DEBUG）。systemd 下进程保持前台运行、
 # 不自我 daemonize（内部按 INVOCATION_ID 判断），因此无需 --debug。
 Environment=LOG_LEVEL=INFO
-ExecStart=/usr/local/bin/hustoj daemon --ojhome /home/judge
+# rootless 沙箱（run）保留 OJ_* 之外的环境；这里显式把多语言运行时需要的变量
+# 送进环境，避免学校题库里 Go/Java/Mono 等编译阶段因 /proc 缺少失败。
+Environment=GOROOT=/usr/local/go
+Environment=GOCACHE=/tmp/go-cache
+Environment=TMPDIR=/tmp
+Environment=GOTMPDIR=/tmp
+Environment=HOME=/tmp
+Environment=JAVA_HOME=/usr/lib/jvm/java-21-openjdk-amd64
+Environment=LD_LIBRARY_PATH=/usr/lib/jvm/java-21-openjdk-amd64/lib
+Environment=ONLINE_JUDGE=1
+ExecStart=/usr/local/bin/hustoj daemon --ojhome /srv/hustoj
 Restart=on-failure
 RestartSec=5s
-User=root
+User=judge
+Group=judge
 StandardOutput=journal
 StandardError=journal
+UMask=0022
+
+# ── rootless 判题必需项（不能收紧）────────────────────────────────────
+# 1) spawner 靠 file caps 获得 cap_setuid/cap_setgid/cap_dac_override。
+#    若启用 NoNewPrivileges，exec 时会忽略 file caps，userns 无法建立。
+NoNewPrivileges=no
+# 2) 上面的三项 capability 必须留在 bounding set 里，否则 file caps 同样
+#    拿不到；其余 capability 一律裁掉。rootless 判题时具体的沙箱进程虽然
+#    需要 CAP_SYS_ADMIN（mount proc/overlay），但它只在 user namespace 里
+#    生效，因此这里必须放进去；宿主机上 judge 用户仍无实际 SYS_ADMIN。
+CapabilityBoundingSet=CAP_SETUID CAP_SETGID CAP_DAC_OVERRIDE CAP_SYS_ADMIN
+AmbientCapabilities=CAP_SYS_ADMIN
+CapabilityInheritableSet=CAP_SYS_ADMIN
+# 3) spawner 要写委派目录下的 cgroup.procs/subtree_control（/sys/fs/cgroup）。
+#    ProtectControlGroups / ProtectKernelTunables 会把 cgroupfs 挂成只读，
+#    因此禁止开启。
+ProtectControlGroups=no
+ProtectKernelTunables=no
+# 在 user namespace 里挂载 proc/overlay 需要 CAP_SYS_ADMIN；允许它随 exec
+# 继承下去（ambient），否则 dag 里的 tini 只能作为 judge 用户得到部分 cap。
+
+# ── 其余加固 ──────────────────────────────────────────────────────────
+ProtectSystem=no
+ProtectHome=read-only
+# daemon 需要写 pid/日志与每个任务的 overlay 工作目录；配置目录只读。
+ReadWritePaths=-/srv/hustoj/run -/srv/hustoj/log
+# ── 不要启用的 seccomp 类加固 ─────────────────────────────────────────
+# 这些选项会让 systemd 给整个服务装一个 seccomp 过滤器，并被
+# hustoj-spawn / hustoj-tini / 沙箱内的编译器和运行时继承。
+# 实测 ProtectHostname=yes、ProtectKernelLogs=yes 会连 mount(2) 一起拒绝，
+# tini 因此无法在自己的 PID namespace 里挂 /proc，Mono（C#）直接报
+# "Mono requires /proc to be mounted."；其余项也会限制选手程序需要的系统调用。
+# 沙箱边界由 user/mount/pid namespace + 降权到 nobody + tini 自己的 seccomp
+# 提供，不需要在 daemon 上再叠一层会泄漏进沙箱的过滤器。
+#SystemCallArchitectures=native
+#ProtectKernelLogs=yes
+#ProtectHostname=yes
+#ProtectClock=yes
+#RestrictRealtime=yes
+#RestrictSUIDSGID=yes
+#LockPersonality=yes
+LimitNOFILE=65536
+# 说明：不要启用 MemoryDenyWriteExecute（编译器/JIT 需要可写可执行内存）、
+# PrivateUsers（会让 userns 嵌套失效）、ProcSubset/ProtectProc（run 依赖
+# ptrace 与 /proc 观察被跟踪进程）。
 
 [Install]
 WantedBy=multi-user.target

@@ -10,6 +10,7 @@
 #
 # 选项：
 #   --prefix DIR       二进制目录（默认 /usr/bin）
+#   --libexec-dir DIR  hustoj-spawn 安装目录（默认 /usr/local/libexec）
 #   --ojhome DIR       运行数据根目录（默认 /home/judge）
 #   --tini-dir DIR     tini 目录（默认 /usr/local/bin）
 #   --systemd-dir DIR  systemd unit 目录（默认 /etc/systemd/system）
@@ -19,7 +20,8 @@
 #   -h, --help
 set -euo pipefail
 
-PREFIX=/usr/bin
+PREFIX=/usr/local/bin
+LIBEXECDIR=/usr/local/libexec
 OJHOME=/home/judge
 TINI_DIR=/usr/local/bin
 SYSDIR=/etc/systemd/system
@@ -42,6 +44,7 @@ usage() { sed -n '2,/^set /p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set /d'; }
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix)       PREFIX="$2"; shift 2 ;;
+        --libexec-dir)  LIBEXECDIR="$2"; shift 2 ;;
         --ojhome)       OJHOME="$2"; shift 2 ;;
         --tini-dir)     TINI_DIR="$2"; shift 2 ;;
         --systemd-dir)  SYSDIR="$2"; shift 2 ;;
@@ -54,7 +57,7 @@ while [ $# -gt 0 ]; do
 done
 
 # 与 install.sh 一致：路径必须是绝对路径。
-for v in "$PREFIX" "$OJHOME" "$SYSDIR" "$TINI_DIR"; do
+for v in "$PREFIX" "$LIBEXECDIR" "$OJHOME" "$SYSDIR" "$TINI_DIR"; do
     case "$v" in
         /*) ;;
         *) die "路径必须是绝对路径: $v" ;;
@@ -83,16 +86,25 @@ if [ "$DRY" -ne 1 ] && command -v systemctl >/dev/null 2>&1; then
     info "停止并禁用服务"
     run systemctl disable --now hustoj-web.service 2>/dev/null || true
     run systemctl disable --now judged-go.service 2>/dev/null || true
+    run systemctl disable --now hustoj-cgroup.service 2>/dev/null || true
 fi
 
 info "移除 systemd unit"
-run rm -f "$SYSDIR/hustoj-web.service" "$SYSDIR/judged-go.service"
+run rm -f "$SYSDIR/hustoj-web.service" "$SYSDIR/judged-go.service" "$SYSDIR/hustoj-cgroup.service"
 if [ "$DRY" -ne 1 ] && command -v systemctl >/dev/null 2>&1; then
     systemctl daemon-reload || true
 fi
 
+info "移除 AppArmor profile（如曾安装）"
+if [ -f /etc/apparmor.d/hustoj-spawn ]; then
+    run apparmor_parser -R /etc/apparmor.d/hustoj-spawn 2>/dev/null || true
+    run rm -f /etc/apparmor.d/hustoj-spawn
+fi
+
 info "移除二进制"
-run rm -f "$PREFIX/hustoj" "$TINI_DIR/tini"
+run rm -f "$PREFIX/hustoj" "$PREFIX/hustoj-spawn" "$LIBEXECDIR/hustoj-spawn" "$TINI_DIR/hustoj-tini"
+# 也清理可能存在的旧 soft link / binary filename
+run rm -f "$TINI_DIR/tini"
 
 if [ "$PURGE" -eq 1 ]; then
     info "清除配置文件（--purge）"

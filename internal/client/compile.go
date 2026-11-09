@@ -28,15 +28,15 @@ func (jc *JudgeClient) compile(langID int, rootfs string, langConfig *language.L
 		"run",
 		fmt.Sprintf("--rootfs=%s", rootfs),
 		fmt.Sprintf("--cmd=%s", langConfig.Cmd.Compile),
-		fmt.Sprintf("--time=%d", 3000),
+		fmt.Sprintf("--time=%d", 10000),
 		fmt.Sprintf("--memory=%d", 256<<10),
 		fmt.Sprintf("--sid=%d", jc.solutionID),
 		"--cwd=/code",
 	)
 
-	if len(langConfig.Cmd.Env) > 0 {
-		cmd.Env = append(cmd.Env, langConfig.Cmd.Env...)
-	}
+	// 必须带上父进程环境：OJ_CGROUP_ROOT 由 spawner 指向本次运行所属的
+	// 委派 cgroup，run 子进程要靠它创建 per-run cgroup。
+	cmd.Env = append(os.Environ(), langConfig.Cmd.Env...)
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

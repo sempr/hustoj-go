@@ -192,7 +192,7 @@ if [ "$DO_APT" -eq 1 ]; then
     info "安装系统依赖（MariaDB / Redis / Docker / nginx）"
     apt-get update -qq
     apt-get install -y -qq mariadb-server mariadb-client redis-server docker.io \
-        nginx curl ca-certificates openssl >/dev/null
+        nginx curl ca-certificates openssl libcap2-bin apparmor >/dev/null
 fi
 
 info "启用系统服务"
@@ -213,8 +213,9 @@ fi
 
 info "创建运行用户与目录"
 id judge >/dev/null 2>&1 || useradd --system --home-dir "$OJHOME" --shell /usr/sbin/nologin judge
-mkdir -p "$OJHOME/src/web" "$OJHOME/data" "$OJHOME/etc/langs" "$OJHOME/run" "$OJHOME/var/rootfs"
+mkdir -p "$OJHOME/src/web" "$OJHOME/data" "$OJHOME/etc/langs" "$OJHOME/run" "$OJHOME/log" "$OJHOME/var/rootfs"
 chown -R judge:judge "$OJHOME/src" "$OJHOME/data" 2>/dev/null || true
+chown judge:judge "$OJHOME/run" "$OJHOME/log" "$OJHOME/var/rootfs" 2>/dev/null || true
 
 # ── 随机口令 ─────────────────────────────────────────────────────────
 rand_hex() { openssl rand -hex 16; }

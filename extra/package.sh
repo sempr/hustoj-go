@@ -206,10 +206,39 @@ make_package() { # <goos> <goarch>
     ( cd "$ROOT" && CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" \
         go build -trimpath -ldflags "$LDFLAGS" -o "$dir/bin/hustoj" . )
 
+    info "  编译 bin/hustoj-spawn（C，静态）"
+    build_spawn() {
+        local arch="$1" out="$2" cross=""
+        case "$arch" in
+            amd64) cross=x86_64-linux-gnu-gcc ;;
+            arm64) cross=aarch64-linux-gnu-gcc ;;
+            386)   cross=i686-linux-gnu-gcc ;;
+        esac
+        if [ "$arch" = "$HOST_GOARCH" ] && command -v gcc >/dev/null 2>&1; then
+            gcc --static -O2 -o "$out" "$ROOT/cmd/spawn/main.c"
+            return 0
+        fi
+        if [ -n "$cross" ] && command -v "$cross" >/dev/null 2>&1; then
+            "$cross" --static -O2 -o "$out" "$ROOT/cmd/spawn/main.c"
+            return 0
+        fi
+        return 1
+    }
+    if ! build_spawn "$goarch" "$dir/bin/hustoj-spawn"; then
+        die "无法编译 hustoj-spawn（$goarch），请安装交叉 gcc"
+    fi
+    # mknodnull
+    if [ "$goarch" = "$HOST_GOARCH" ] && command -v gcc >/dev/null 2>&1; then
+        gcc --static -O2 -o "$dir/bin/hustoj-mknodnull" "$ROOT/cmd/mknodnull/main.c" 2>/dev/null || gcc -O2 -o "$dir/bin/hustoj-mknodnull" "$ROOT/cmd/mknodnull/main.c"
+    else
+        cc --static -O2 -o "$dir/bin/hustoj-mknodnull" "$ROOT/cmd/mknodnull/main.c" 2>/dev/null || cc -O2 -o "$dir/bin/hustoj-mknodnull" "$ROOT/cmd/mknodnull/main.c"
+    fi
+
     make_tini "$goarch" "$dir/bin/tini"
 
     info "  收集 unit / 配置 / 脚本"
-    cp "$SCRIPT_DIR/hustoj-web.service" "$SCRIPT_DIR/judged-go.service" "$dir/systemd/"
+    cp "$SCRIPT_DIR/hustoj-web.service" "$SCRIPT_DIR/judged-go.service" \
+       "$SCRIPT_DIR/hustoj-cgroup.service" "$SCRIPT_DIR/hustoj-spawn.apparmor" "$dir/systemd/"
     cp "$SCRIPT_DIR/web.toml.example" "$dir/etc/web.toml.example"
     cp "$SCRIPT_DIR/judge.conf.example" "$dir/etc/judge.conf.example"
     cp "$SCRIPT_DIR/etc/langs/all.toml" "$dir/etc/langs/all.toml"

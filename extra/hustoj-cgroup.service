@@ -1,0 +1,24 @@
+[Unit]
+Description=Prepare cgroup v2 delegation for HUSTOJ rootless judging
+# cgroup2 可能由 systemd 自己挂载；等根文件系统就绪后再执行。
+After=systemd-remount-fs.service
+Before=judged-go.service
+ConditionPathExists=/sys/fs/cgroup/cgroup.controllers
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+# 创建 <cgroup2>/hustoj、启用 cpu/memory/pids 控制器并递归 chown 给 judge。
+# 该命令幂等，每次安装/升级/重启都可以重复执行。
+ExecStart=/usr/local/bin/hustoj cgroup-setup --cgroup-root /sys/fs/cgroup/hustoj --user judge --group judge
+# 只保留 cgroup-setup 需要的 capability（chown 目录）。
+CapabilityBoundingSet=CAP_CHOWN CAP_DAC_OVERRIDE CAP_FOWNER
+NoNewPrivileges=yes
+# 不能启用 ProtectKernelTunables/ProtectControlGroups/ProtectSystem=strict：
+# 它们会把 /sys/fs/cgroup 挂成只读，导致 subtree_control/cgroup.procs 写入失败。
+ProtectKernelTunables=no
+ProtectControlGroups=no
+UMask=0022
+
+[Install]
+WantedBy=multi-user.target

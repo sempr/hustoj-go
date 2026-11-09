@@ -21,6 +21,7 @@
 #include <linux/filter.h>
 #include <linux/audit.h>
 #include <sys/syscall.h>
+#include <sys/signalfd.h>
 
 /* 构建信息：由 makefile 通过 -D 注入，用来确认「这一份 tini 是哪个版本、
  * 用哪份 tini.c 编出来的」——嵌入式部署时最怕打进过期的旧构建。 */
@@ -36,27 +37,21 @@ static int ctl_fd = -1;
 static int nobody_uid = 65534;
 static int nobody_gid = 65534;
 
-/* SIGCHLD 自唤醒管道：写端在信号处理函数里写，读端进 poll 集合。
+/* SIGCHLD 用 signalfd 投递给主循环。
  *
- * 原来主循环是 poll(ctl_fd, 1000) 后才 waitpid：子进程退出不会唤醒 poll，
- * 只能等满 1 秒超时。判题时每个测试点因此固定多花约 1 秒（20 个点就是 20 秒），
- * 而程序本身常常只跑几毫秒。 */
-static int sigchld_pipe[2] = {-1, -1};
+ * 不再使用"信号处理函数写自唤醒管道"的写法：那种方式要么在读端阻塞排空时
+ * 卡死（SIGCHLD 恰好在进入 poll 前到达），要么必须小心地把两端都设成
+ * 非阻塞，容易再次踩坑。signalfd 把 SIGCHLD 变成可 poll 的 fd：
+ *   - 信号被阻塞后由内核排队，poll 一定能看到，不存在信号/poll 竞态；
+ *   - 读端本身是非阻塞的，排空到 EAGAIN 即止。
+ */
+static int sigchld_fd = -1;
+static sigset_t sigchld_mask;
 
 /* ===== kill namespace ===== */
 static void kill_ns(int sig) {
     kill(-1, SIGKILL);
     _exit(128 + sig);
-}
-
-/* ===== SIGCHLD: 唤醒主循环 ===== */
-static void on_sigchld(int sig) {
-    (void)sig;
-    int saved = errno;   /* 信号处理里必须保住 errno */
-    char c = 1;
-    ssize_t n = write(sigchld_pipe[1], &c, 1);
-    (void)n;             /* 管道满时丢弃即可，主循环只是需要被唤醒 */
-    errno = saved;
 }
 
 /* ===== signals ===== */
@@ -65,19 +60,17 @@ static void setup_signals() {
     signal(SIGTERM, kill_ns);
     signal(SIGHUP, kill_ns);
 
-    if (pipe2(sigchld_pipe, O_CLOEXEC) < 0) {
-        perror("pipe2");
+    /* SIGCHLD 必须阻塞后才能交给 signalfd；子进程 exec 前会解除阻塞。 */
+    sigemptyset(&sigchld_mask);
+    sigaddset(&sigchld_mask, SIGCHLD);
+    if (sigprocmask(SIG_BLOCK, &sigchld_mask, NULL) != 0) {
+        perror("sigprocmask");
         return;      /* 退化回带超时的 poll，行为仍然正确，只是慢 */
     }
-    /* 写端非阻塞，避免信号处理里阻塞 */
-    fcntl(sigchld_pipe[1], F_SETFL, fcntl(sigchld_pipe[1], F_GETFL) | O_NONBLOCK);
-
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = on_sigchld;
-    sa.sa_flags = SA_RESTART | SA_NOCLDSTOP;  /* 只关心退出，不关心 stop/continue */
-    sigemptyset(&sa.sa_mask);
-    sigaction(SIGCHLD, &sa, NULL);
+    sigchld_fd = signalfd(-1, &sigchld_mask, SFD_NONBLOCK | SFD_CLOEXEC);
+    if (sigchld_fd < 0) {
+        perror("signalfd");
+    }
 }
 
 /* ===== seccomp: block obvious sandbox-escape syscalls =====
@@ -325,8 +318,7 @@ static void drop_nobody(void) {
  * 尤其是 ctl_fd：如果留给选手程序，它可以抢先 read() 掉父进程发来的
  * SIGTERM/SIGKILL 控制命令，使超时清理失效，把判题卡死。 */
 static void close_inherited_fds(int stdin_fd, int stdout_fd, int stderr_fd) {
-    int fds[] = {ctl_fd, stdin_fd, stdout_fd, stderr_fd,
-                 sigchld_pipe[0], sigchld_pipe[1]};
+    int fds[] = {ctl_fd, stdin_fd, stdout_fd, stderr_fd, sigchld_fd};
     for (size_t i = 0; i < sizeof(fds) / sizeof(fds[0]); i++) {
         if (fds[i] > 2) close(fds[i]);
     }
@@ -342,28 +334,42 @@ static void setup_rootfs(const char *rootfs) {
         exit(1);
     }
 
-    /* pivot_root(".", ".old") */
-    if (mkdir(".old", 0755) != 0 && errno != EEXIST) {
-        perror("mkdir .old");
+    /* pivot_root(".", put_old)
+     *
+     * 交互题会同时启动选手和交互器两个 run，它们共享同一个 rootfs。
+     * 固定名字的 ".old" 会被两个 tini 互相踩：一方 pivot_root 后把 ".old"
+     * rmdir 掉，另一方的 pivot_root 就返回 ENOENT（表现为偶发 WA/RE）。
+     * 用 mkdtemp 生成每个 tini 独有的 put_old 目录，避免共享路径竞争。 */
+    char olddir[] = ".old.XXXXXX";
+    if (mkdtemp(olddir) == NULL) {
+        perror("mkdtemp .old");
         exit(1);
     }
 
-    if (syscall(SYS_pivot_root, ".", ".old") < 0) {
+    if (syscall(SYS_pivot_root, ".", olddir) < 0) {
         perror("pivot_root");
         exit(1);
     }
 
     chdir("/");
 
-    /* must be inside mount namespace */
-    if (mount("proc", "/proc", "proc", 0, NULL) < 0){
-	perror("mount proc");
-	exit(1);
+    /* Mount a fresh procfs for *this* PID namespace.
+     *
+     * tini is PID 1 of the sandbox PID namespace and has CAP_SYS_ADMIN in the
+     * sandbox user namespace, so mounting procfs here is allowed even though
+     * the environment is rootless.  Doing it here (rather than bind-mounting
+     * the host /proc from a privileged helper) also means the sandbox only
+     * sees its own PIDs, and it gives runtimes such as Mono the /proc they
+     * require.  The seccomp filter is installed later, in the forked child,
+     * so tini itself can still call mount(). */
+    mkdir("/proc", 0555);
+    if (mount("proc", "/proc", "proc", MS_NOSUID | MS_NOEXEC | MS_NODEV, NULL) != 0) {
+        perror("mount proc");
     }
 
 
-    umount2("/.old", MNT_DETACH);
-    rmdir("/.old");
+    umount2(olddir, MNT_DETACH);
+    rmdir(olddir);
 }
 
 /* ===== control ===== */
@@ -444,6 +450,8 @@ int main(int argc, char *argv[], char *envp[]) {
     child = fork();
 
     if (child == 0) {
+        /* SIGCHLD 在父进程里为 signalfd 而阻塞；选手程序需要正常的默认行为。 */
+        sigprocmask(SIG_UNBLOCK, &sigchld_mask, NULL);
         /* privilege drop must occur before exec */
         drop_nobody();
         close_inherited_fds(stdin_fd, stdout_fd, stderr_fd);
@@ -459,31 +467,35 @@ int main(int argc, char *argv[], char *envp[]) {
     /* ===== PID1 loop ===== */
     for (;;) {
         struct pollfd pfds[2] = {
-            { .fd = ctl_fd,                .events = POLLIN },
-            { .fd = sigchld_pipe[0],       .events = POLLIN },
+            { .fd = ctl_fd,       .events = POLLIN },
+            { .fd = sigchld_fd,   .events = POLLIN },
         };
 
-        /* 无限等待：控制命令或子进程退出（SIGCHLD 自唤醒）都会立刻返回。
+        /* 无限等待：控制命令或子进程退出（signalfd 可读）都会立刻返回。
          * fd 为 -1 的项会被 poll 忽略，所以两路缺一也能工作。
          * 两个 fd 都不可用时退回带超时的轮询，避免永久阻塞。 */
-        int timeout = (ctl_fd >= 0 || sigchld_pipe[0] >= 0) ? -1 : 1000;
+        int timeout = (ctl_fd >= 0 || sigchld_fd >= 0) ? -1 : 1000;
         int r = poll(pfds, 2, timeout);
 
         if (r > 0 && (pfds[0].revents & POLLIN)) {
             handle_control();
         }
         if (r > 0 && (pfds[1].revents & POLLIN)) {
-            /* 清空唤醒字节，否则 poll 会一直返回 */
-            char buf[64];
-            while (read(sigchld_pipe[0], buf, sizeof(buf)) > 0) { }
+            /* signalfd 是非阻塞的，排空到 EAGAIN 即止。 */
+            struct signalfd_siginfo si;
+            while (read(sigchld_fd, &si, sizeof(si)) == (ssize_t)sizeof(si)) { }
         }
 
-        int st;
-        pid_t p = waitpid(-1, &st, WNOHANG);
-
-        if (p == child) {
-            kill(-1, SIGKILL);
-            _exit(WIFEXITED(st) ? WEXITSTATUS(st) : 128);
+        /* 一次 waitpid 只回收一个子进程；孤儿进程会 reparent 到 PID 1，
+         * 可能有多个同时退出，必须循环回收到没有可回收的为止。 */
+        for (;;) {
+            int st;
+            pid_t p = waitpid(-1, &st, WNOHANG);
+            if (p <= 0) break;
+            if (p == child) {
+                kill(-1, SIGKILL);
+                _exit(WIFEXITED(st) ? WEXITSTATUS(st) : 128);
+            }
         }
     }
 

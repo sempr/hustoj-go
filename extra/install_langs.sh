@@ -304,15 +304,28 @@ done
 # 安装 all.toml
 cp -f "$SRC_DIR/etc/langs/all.toml" "$OJHOME/etc/langs/" 2>/dev/null || true
 
-# 更新 judge.conf
+# 更新 judge.conf：只列"已经安装"的语言（存在 <id>.lang.toml）。
+#
+# 旧实现只用本次 installed 列表覆盖整行，单独执行
+# `install_langs.sh --lang 17` 会把其余已装语言从提交页/判题白名单里删掉，
+# 这就是"很多语言丢了"的来源。这里改为扫描目标目录里实际存在的配置，
+# 既不丢已装语言，也不会把未安装的语言写进去。
 if [ "${#installed[@]}" -gt 0 ] && [ -f "$OJHOME/etc/judge.conf" ]; then
-    lang_ids=$(printf '%s\n' "${installed[@]}" | sort -n | paste -sd, -)
-    tmp="$(mktemp)"
-    grep -v '^OJ_LANG_SET=' "$OJHOME/etc/judge.conf" > "$tmp" || true
-    printf 'OJ_LANG_SET=%s\n' "$lang_ids" >> "$tmp"
-    install -m 0600 "$tmp" "$OJHOME/etc/judge.conf"
-    rm -f "$tmp"
-    info "已更新 $OJHOME/etc/judge.conf 的 OJ_LANG_SET=$lang_ids"
+    lang_ids=$(for f in "$OJHOME"/etc/langs/*.lang.toml; do
+        [ -f "$f" ] || continue
+        id=$(basename "$f" .lang.toml)
+        [[ "$id" =~ ^[0-9]+$ ]] && echo "$id"
+    done | sort -n -u | paste -sd, -)
+    if [ -n "$lang_ids" ]; then
+        tmp="$(mktemp)"
+        grep -v '^OJ_LANG_SET=' "$OJHOME/etc/judge.conf" > "$tmp" || true
+        printf 'OJ_LANG_SET=%s\n' "$lang_ids" >> "$tmp"
+        # 用重定向写回而不是 install：保留原文件的属主与权限。daemon 以
+        # judge/hustoj 用户读取该文件，改成 root:root 0600 会让它读不到配置。
+        cat "$tmp" > "$OJHOME/etc/judge.conf"
+        rm -f "$tmp"
+        info "已更新 $OJHOME/etc/judge.conf 的 OJ_LANG_SET=$lang_ids"
+    fi
 fi
 
 # 刷新语言信息缓存

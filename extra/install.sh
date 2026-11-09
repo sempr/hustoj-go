@@ -11,8 +11,11 @@
 #   sudo ./install.sh [选项]
 #
 # 选项：
-#   --prefix DIR      二进制安装目录（默认 /usr/bin）
+#   --prefix DIR      二进制安装目录（默认 /usr/local/bin）
+#   --libexec-dir DIR hustoj-spawn 安装目录（默认 /usr/local/libexec）
 #   --ojhome DIR      运行数据根目录（默认 /home/judge）
+#   --judge-user USER 判题用户/组（默认 judge，daemon 与 client 以此身份运行）
+#   --cgroup-root DIR 委派给判题用户的 cgroup v2 父目录（默认 /sys/fs/cgroup/hustoj）
 #   --web-user USER   Web 服务降权用户（默认 www-data）
 #   --tini-dir DIR    tini 安装目录（默认 /usr/local/bin，判题沙箱固定找这里）
 #   --systemd-dir DIR systemd unit 安装目录（默认 /etc/systemd/system）
@@ -52,7 +55,10 @@ set -euo pipefail
 SRC_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 PREFIX=/usr/local/bin
+LIBEXECDIR=/usr/local/libexec
 OJHOME=/home/judge
+JUDGE_USER=judge
+CGROUP_ROOT=/sys/fs/cgroup/hustoj
 WEB_USER=www-data
 TINI_DIR=/usr/local/bin
 SYSDIR=/etc/systemd/system
@@ -96,7 +102,10 @@ usage() { sed -n '2,/^set /p' "$0" | sed -e 's/^# \{0,1\}//' -e '/^set /d'; }
 while [ $# -gt 0 ]; do
     case "$1" in
         --prefix)       PREFIX="$2"; shift 2 ;;
+        --libexec-dir)  LIBEXECDIR="$2"; shift 2 ;;
         --ojhome)       OJHOME="$2"; shift 2 ;;
+        --judge-user)   JUDGE_USER="$2"; shift 2 ;;
+        --cgroup-root)  CGROUP_ROOT="$2"; shift 2 ;;
         --web-user)     WEB_USER="$2"; shift 2 ;;
         --tini-dir)     TINI_DIR="$2"; shift 2 ;;
         --systemd-dir)  SYSDIR="$2"; shift 2 ;;
@@ -128,7 +137,7 @@ while [ $# -gt 0 ]; do
 done
 
 # 路径必须是绝对路径；sed 替换用 | 作分隔符，路径里不能有它或换行。
-for v in "$PREFIX" "$OJHOME" "$SYSDIR" "$TINI_DIR"; do
+for v in "$PREFIX" "$LIBEXECDIR" "$OJHOME" "$SYSDIR" "$TINI_DIR" "$CGROUP_ROOT"; do
     case "$v" in
         /*) ;;
         *) die "路径必须是绝对路径: $v" ;;
@@ -143,8 +152,11 @@ if [ "$DRY" -ne 1 ] && [ "$(id -u)" -ne 0 ]; then
 fi
 
 [ -f "$SRC_DIR/bin/hustoj" ] || die "包不完整：缺少 $SRC_DIR/bin/hustoj"
+[ -f "$SRC_DIR/bin/hustoj-spawn" ] || die "包不完整：缺少 $SRC_DIR/bin/hustoj-spawn"
 [ -f "$SRC_DIR/systemd/hustoj-web.service" ] || die "包不完整：缺少 systemd/hustoj-web.service"
 [ -f "$SRC_DIR/systemd/judged-go.service" ] || die "包不完整：缺少 systemd/judged-go.service"
+[ -f "$SRC_DIR/systemd/hustoj-cgroup.service" ] || die "包不完整：缺少 systemd/hustoj-cgroup.service"
+[ -f "$SRC_DIR/systemd/hustoj-spawn.apparmor" ] || die "包不完整：缺少 systemd/hustoj-spawn.apparmor"
 
 # ── 校验包完整性 ─────────────────────────────────────────────────────
 if command -v sha256sum >/dev/null 2>&1 && [ -f "$SRC_DIR/SHA256SUMS" ]; then
@@ -170,8 +182,38 @@ install_file() { # <src> <dst> <mode>
     run install -D -m "$3" "$1" "$2"
 }
 
+# ── 判题用户 ─────────────────────────────────────────────────────────
+if [ "$DO_JUDGE" -eq 1 ]; then
+    if ! id "$JUDGE_USER" >/dev/null 2>&1; then
+        if [ "$DRY" -eq 1 ]; then
+            printf '  [dry-run] useradd --system --home-dir %s --shell /usr/sbin/nologin %s\n' "$OJHOME" "$JUDGE_USER"
+        elif command -v useradd >/dev/null 2>&1; then
+            run useradd --system --home-dir "$OJHOME" --shell /usr/sbin/nologin "$JUDGE_USER"
+        else
+            die "判题用户 $JUDGE_USER 不存在，且系统没有 useradd；请先手动创建"
+        fi
+    fi
+fi
+
 # ── 二进制 / tini ────────────────────────────────────────────────────
 install_file "$SRC_DIR/bin/hustoj" "$PREFIX/hustoj" 0755
+install_file "$SRC_DIR/bin/hustoj-spawn" "$LIBEXECDIR/hustoj-spawn" 0755
+install_file "$SRC_DIR/bin/hustoj-mknodnull" "$LIBEXECDIR/hustoj-mknodnull" 4755
+if [ "$LIBEXECDIR" != "$PREFIX" ]; then
+    # 自动探测路径之一是与 hustoj 同目录；自定义 libexec 时留一个软链接，
+    # 这样 unit 不需要把 OJ_SPAWN_PATH 写进环境（judge.conf 仍可覆盖）。
+    info "链接 $PREFIX/hustoj-spawn -> $LIBEXECDIR/hustoj-spawn"
+    run ln -sfn "$LIBEXECDIR/hustoj-spawn" "$PREFIX/hustoj-spawn"
+fi
+if [ "$DRY" -eq 1 ]; then
+    printf '  [dry-run] setcap cap_dac_override,cap_setuid,cap_setgid+ep %s/hustoj-spawn\n' "$LIBEXECDIR"
+elif command -v setcap >/dev/null 2>&1; then
+    setcap cap_dac_override,cap_setuid,cap_setgid+ep "$LIBEXECDIR/hustoj-spawn"
+    info "已设置 file capabilities: $LIBEXECDIR/hustoj-spawn"
+else
+    warn "缺少 setcap（libcap2-bin）；rootless 判题将无法工作。请安装 libcap2-bin 后执行："
+    warn "  setcap cap_dac_override,cap_setuid,cap_setgid+ep $LIBEXECDIR/hustoj-spawn"
+fi
 if [ -f "$SRC_DIR/bin/tini" ]; then
     install_file "$SRC_DIR/bin/tini" "$TINI_DIR/hustoj-tini" 0755
 else
@@ -179,10 +221,13 @@ else
 fi
 
 # ── 目录 ─────────────────────────────────────────────────────────────
-info "创建运行目录：$OJHOME/{etc/langs,data,run,var/rootfs}"
-run mkdir -p "$OJHOME/etc/langs" "$OJHOME/data" "$OJHOME/run" "$OJHOME/var/rootfs"
-if id judge >/dev/null 2>&1 && [ "$DRY" -ne 1 ]; then
-    chown judge:judge "$OJHOME/etc" "$OJHOME/data" "$OJHOME/run" "$OJHOME/var" 2>/dev/null || true
+info "创建运行目录：$OJHOME/{etc/langs,data,run,log,var/rootfs}"
+run mkdir -p "$OJHOME/etc/langs" "$OJHOME/data" "$OJHOME/run" "$OJHOME/log" "$OJHOME/var/rootfs"
+if [ "$DO_JUDGE" -eq 1 ] && id "$JUDGE_USER" >/dev/null 2>&1 && [ "$DRY" -ne 1 ]; then
+    # daemon 以 $JUDGE_USER 运行：pid/日志/overlay 工作目录必须由它可写；
+    # etc 保持 root 所有（judge.conf 只通过 root:$JUDGE_USER 0640 读取，
+    # 避免判题进程能替换自己的配置）。
+    chown "$JUDGE_USER:$JUDGE_USER" "$OJHOME/data" "$OJHOME/run" "$OJHOME/log" "$OJHOME/var" 2>/dev/null || true
 fi
 
 # ── 语言注册表（仅 all.toml；host 相关的 *.lang.toml 由 install_langs.sh 生成）
@@ -192,7 +237,7 @@ fi
 
 # ── 运行配置（默认不覆盖已有）────────────────────────────────────────
 info "写入运行配置"
-for pair in "web.toml:web.toml.example:0640" "judge.conf:judge.conf.example:0600"; do
+for pair in "web.toml:web.toml.example:0640" "judge.conf:judge.conf.example:0640"; do
     dst="${pair%%:*}"; rest="${pair#*:}"; src="${rest%%:*}"; mode="${rest##*:}"
     target="$OJHOME/etc/$dst"
     if [ -e "$target" ] && [ "$FORCE" -ne 1 ]; then
@@ -210,6 +255,28 @@ for pair in "web.toml:web.toml.example:0640" "judge.conf:judge.conf.example:0600
         info "  -> $target"
     fi
 done
+
+# 守护进程现在以判题用户运行，需要能读 judge.conf；它含 DB 凭据，不能
+# 放宽到 0644。老版本安装留下的是 root:root 0600，这里一并纠正。
+if [ "$DO_JUDGE" -eq 1 ] && [ -f "$OJHOME/etc/judge.conf" ] && id "$JUDGE_USER" >/dev/null 2>&1; then
+    run chown "root:$JUDGE_USER" "$OJHOME/etc/judge.conf"
+    run chmod 0640 "$OJHOME/etc/judge.conf"
+fi
+
+# 自定义 cgroup 根目录必须持久化：daemon/client 只从环境或 judge.conf 读取，
+# 而 unit 不写 OJ_CGROUP_ROOT（环境变量会压过 judge.conf，破坏可配置性）。
+if [ "$DO_JUDGE" -eq 1 ] && [ "$CGROUP_ROOT" != "/sys/fs/cgroup/hustoj" ] \
+   && [ -f "$OJHOME/etc/judge.conf" ]; then
+    if ! grep -q '^[[:space:]]*OJ_CGROUP_ROOT=' "$OJHOME/etc/judge.conf"; then
+        info "向 judge.conf 追加 OJ_CGROUP_ROOT=$CGROUP_ROOT"
+        if [ "$DRY" -eq 1 ]; then
+            printf '  [dry-run] echo OJ_CGROUP_ROOT=%s >> %s/etc/judge.conf\n' "$CGROUP_ROOT" "$OJHOME"
+        else
+            printf '\n# 由安装脚本写入：rootless 判题的委派 cgroup 根目录。\nOJ_CGROUP_ROOT=%s\n' \
+                "$CGROUP_ROOT" >> "$OJHOME/etc/judge.conf"
+        fi
+    fi
+fi
 
 # ── 生成 FAQ 语言信息缓存（best-effort）─────────────────────────────
 if [ "$DRY" -eq 1 ]; then
@@ -284,7 +351,12 @@ render_unit() { # <src> <dst> <web?>
     backup "$dst"
     local tmp; tmp="$(mktemp)"
     sed -e "s|/usr/\(local/\)\?bin/hustoj|$PREFIX/hustoj|g" \
+        -e "s|/usr/local/libexec|$LIBEXECDIR|g" \
+        -e "s|/sys/fs/cgroup/hustoj|$CGROUP_ROOT|g" \
         -e "s|/home/judge|$OJHOME|g" \
+        -e "s|--user judge --group judge|--user $JUDGE_USER --group $JUDGE_USER|g" \
+        -e "s|^User=judge\$|User=$JUDGE_USER|" \
+        -e "s|^Group=judge\$|Group=$JUDGE_USER|" \
         "$src" > "$tmp"
     if [ "$web" = "1" ]; then
         sed -i "s|^User=.*|User=$WEB_USER|" "$tmp"
@@ -298,7 +370,33 @@ if [ "$DO_WEB" -eq 1 ]; then
     render_unit "$SRC_DIR/systemd/hustoj-web.service" "$SYSDIR/hustoj-web.service" 1
 fi
 if [ "$DO_JUDGE" -eq 1 ]; then
+    render_unit "$SRC_DIR/systemd/hustoj-cgroup.service" "$SYSDIR/hustoj-cgroup.service" 0
     render_unit "$SRC_DIR/systemd/judged-go.service" "$SYSDIR/judged-go.service" 0
+
+    # AppArmor：Ubuntu 23.10+ 默认 kernel.apparmor_restrict_unprivileged_userns=1，
+    # 没有 profile 的进程（包括带 file caps 的 hustoj-spawn）会被拒绝建 userns。
+    if [ -d /etc/apparmor.d ]; then
+        info "安装 AppArmor profile /etc/apparmor.d/hustoj-spawn"
+        backup /etc/apparmor.d/hustoj-spawn
+        tmp_profile="$(mktemp)"
+        sed "s|/usr/local/libexec/hustoj-spawn|$LIBEXECDIR/hustoj-spawn|g" \
+            "$SRC_DIR/systemd/hustoj-spawn.apparmor" > "$tmp_profile"
+        run install -D -m 0644 "$tmp_profile" /etc/apparmor.d/hustoj-spawn
+        rm -f "$tmp_profile"
+        if [ "$DRY" -eq 1 ]; then
+            printf '  [dry-run] apparmor_parser -r /etc/apparmor.d/hustoj-spawn\n'
+        elif command -v apparmor_parser >/dev/null 2>&1; then
+            if apparmor_parser -r /etc/apparmor.d/hustoj-spawn; then
+                info "AppArmor profile 已加载"
+            else
+                warn "AppArmor profile 加载失败；rootless 判题可能因 userns 受限而失败"
+            fi
+        else
+            warn "未找到 apparmor_parser；请安装 apparmor 并加载 /etc/apparmor.d/hustoj-spawn"
+        fi
+    else
+        warn "系统没有 /etc/apparmor.d；若内核开启 apparmor_restrict_unprivileged_userns，rootless 判题将失败"
+    fi
 fi
 
 # ── 生效 ─────────────────────────────────────────────────────────────
@@ -308,6 +406,8 @@ else
     info "重载并启动服务"
     run systemctl daemon-reload
     if [ "$DO_JUDGE" -eq 1 ]; then
+        # 先准备 cgroup 委派，再启动判题服务；unit 里也有 Before= 兜底。
+        run systemctl enable --now hustoj-cgroup.service
         run systemctl enable --now judged-go.service
     fi
     if [ "$DO_WEB" -eq 1 ]; then

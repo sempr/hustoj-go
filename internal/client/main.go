@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/sempr/hustoj-go/internal/rootless"
 	"github.com/sempr/hustoj-go/pkg/constants"
 )
 
@@ -24,6 +25,13 @@ func Main() {
 		os.Exit(1)
 	}
 
+	// daemon 以 judge 用户启动 client 时，这里会自动切换到 hustoj-spawn，
+	// 由它创建 user/mount namespace 和委派 cgroup。
+	if err := rootless.MaybeReexec("client", homePath); err != nil {
+		slog.Error("Failed to enter rootless mode", "error", err)
+		os.Exit(1)
+	}
+
 	client, err := NewClient(solutionID, runnerID, homePath, debug)
 	if err != nil {
 		slog.Error("Failed to create judge client", "error", err)
@@ -36,6 +44,8 @@ func Main() {
 	result, err := client.Run()
 	if err != nil {
 		slog.Error("Judge process failed", "error", err)
+		// 任何中断都必须落一个终态，否则提交会永远停在"编译中"。
+		client.ReportSystemError(err)
 		os.Exit(1)
 	}
 	if result.FinalResult == constants.OJ_CE || result.FinalResult == constants.OJ_SE {

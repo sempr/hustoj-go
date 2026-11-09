@@ -265,6 +265,43 @@ func (c *Cgroup) RunCPUChecker(ctx context.Context, cpuLimit, realLimit time.Dur
 // Cgroup 清理
 // ---------------------------------------------------------------------------
 
+// Kill 立即杀掉本 cgroup 内的所有进程。
+//
+// 这是判题超时/清理的最终手段：不依赖沙箱 init（tini）或用户程序配合，
+// 即使 init 自己卡死、忽略信号、或被 ptrace 住无法调度，内核也会把整个
+// 子树里的进程一次性干掉。cgroup v2 的 cgroup.kill 是原子操作（Linux 5.14+）；
+// 老内核或该文件不可写时回退到逐个 PID SIGKILL。
+func (c *Cgroup) Kill() {
+	if c == nil || c.path == "" {
+		return
+	}
+	if !isWithin(c.parent, c.path) {
+		c.logger.Warn("cgroup 路径不在父目录内，跳过 kill", "parent", c.parent, "path", c.path)
+		return
+	}
+
+	killFile := filepath.Join(c.path, "cgroup.kill")
+	if err := os.WriteFile(killFile, []byte("1"), 0o644); err == nil {
+		return
+	} else if !os.IsNotExist(err) {
+		c.logger.Warn("写 cgroup.kill 失败，回退逐 PID SIGKILL", "path", killFile, "error", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(c.path, "cgroup.procs"))
+	if err != nil {
+		return
+	}
+	for _, pidstr := range strings.Fields(string(data)) {
+		pid, err := strconv.Atoi(pidstr)
+		if err != nil || pid <= 1 {
+			continue
+		}
+		if err := syscall.Kill(pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+			c.logger.Warn("SIGKILL 进程失败", "pid", pid, "error", err)
+		}
+	}
+}
+
 // Cleanup 删除 Cgroup 目录并尝试把其中的进程移到全局 cgroup。
 // 注意：该方法不再返回错误，而是把错误记录到 logger。
 func (c *Cgroup) Cleanup() {
@@ -297,6 +334,13 @@ func (c *Cgroup) Cleanup() {
 //
 // 不能假定 /sys/fs/cgroup：容器里可能挂在别处，也可能是 cgroup namespace
 // 暴露出来的子目录。用实际挂载点才能保证写的是当前命名空间下有效的路径。
+// Cgroup2MountPoint 返回当前命名空间里 cgroup2 的挂载点。
+//
+// rootless 的 spawner/cgroup-setup 也需要这个路径，故导出。
+func Cgroup2MountPoint() (string, error) {
+	return cgroup2MountPoint()
+}
+
 func cgroup2MountPoint() (string, error) {
 	data, err := os.ReadFile("/proc/self/mountinfo")
 	if err != nil {

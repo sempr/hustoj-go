@@ -69,6 +69,25 @@ func (r *dbReporter) updateStats() {
 	}
 }
 
+// ReportSystemError 把评测流程中断（挂载/配置/数据库错误等）写回数据库。
+//
+// 这些错误发生在 notifyFinished 之前，若只退出进程，solution.result 会停在
+// 2（编译中）或 3（运行并评判），daemon 也不会再领取。只在记录仍未出终态时
+// 回写，避免覆盖已经成功写出的判罚。
+func (jc *JudgeClient) ReportSystemError(cause error) {
+	if jc.db == nil || cause == nil {
+		return
+	}
+	marked, err := jc.db.MarkSystemError(jc.solutionID, cause.Error())
+	if err != nil {
+		slog.Error("Failed to report system error", "solution_id", jc.solutionID, "error", err)
+		return
+	}
+	if marked {
+		slog.Warn("Submission marked as system error", "solution_id", jc.solutionID, "error", cause)
+	}
+}
+
 // NewClient 创建数据库驱动的评测客户端。
 //
 // 普通提交：读取题目与源码，组装 JudgeTask，评测走 RunStandalone。
@@ -80,6 +99,7 @@ func NewClient(solutionID int, runnerID, homeDir string, debug bool) (*JudgeClie
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 	cfg.Debug = debug
+	cfg.ApplyEnv()
 
 	db, err := repository.NewDatabase(&cfg.Database)
 	if err != nil {

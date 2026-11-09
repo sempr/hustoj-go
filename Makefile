@@ -12,6 +12,7 @@ LDFLAGS := -X '$(MODULE)/cmd.Version=$(VERSION)' \
            -X '$(MODULE)/cmd.GoVersion=$(GOVERSION)'
 
 PREFIX ?= /usr/local/bin
+LIBEXECDIR ?= /usr/local/libexec
 SYSDIR ?= /etc/systemd/system
 JUDGEHOME ?= /home/judge
 
@@ -23,6 +24,8 @@ GOOSE := goose -dir $(MIGRATION_DIR) mysql "$(DB_DSN)"
 
 build:
 	go mod tidy && $(MAKE) -C tini static && \
+		cc --static -O2 -o hustoj-spawn cmd/spawn/main.c && \
+		cc --static -O2 -o hustoj-mknodnull cmd/mknodnull/main.c && \
 		go build -tags embed_tini -trimpath -ldflags "$(LDFLAGS)" -o hustoj .
 
 # 离线部署包：交叉编译 amd64/arm64，目标机只需 bash。
@@ -46,14 +49,28 @@ disable-old-judged:
 
 install: build
 	install -m 0755 hustoj $(PREFIX)/hustoj
+	install -d $(LIBEXECDIR)
+	install -m 0755 hustoj-spawn $(LIBEXECDIR)/hustoj-spawn
+	-setcap cap_dac_override,cap_setuid,cap_setgid+ep $(LIBEXECDIR)/hustoj-spawn
+	install -m 4755 hustoj-mknodnull $(LIBEXECDIR)/hustoj-mknodnull
+	install -d $(LIBEXECDIR) 2>/dev/null || true
 	install -m 0644 extra/judged-go.service $(SYSDIR)/judged-go.service
+	install -m 0644 extra/hustoj-cgroup.service $(SYSDIR)/hustoj-cgroup.service
+	install -d $(JUDGEHOME)/etc /etc/apparmor.d 2>/dev/null || true
+	@if [ -f extra/hustoj-spawn.apparmor ]; then \
+		sed 's|/usr/local/libexec/hustoj-spawn|$(LIBEXECDIR)/hustoj-spawn|g' \
+			extra/hustoj-spawn.apparmor > /etc/apparmor.d/hustoj-spawn && \
+		(apparmor_parser -r /etc/apparmor.d/hustoj-spawn || true); \
+	fi
 	$(MAKE) langs
 	install -d $(JUDGEHOME)/etc
 	rm -rf $(JUDGEHOME)/etc/langs
 	cp -r extra/etc/langs $(JUDGEHOME)/etc/
 	$(PREFIX)/hustoj install-tini
 	$(MAKE) disable-old-judged
-	systemctl enable --now judged-go
+	systemctl daemon-reload 2>/dev/null || true
+	systemctl enable --now hustoj-cgroup.service 2>/dev/null || true
+	systemctl enable --now judged-go 2>/dev/null || true
 
 # ==================== 数据库迁移目标 ====================
 

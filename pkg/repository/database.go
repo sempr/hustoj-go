@@ -10,6 +10,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/sempr/hustoj-go/pkg/config"
+	"github.com/sempr/hustoj-go/pkg/constants"
 )
 
 // Solution represents a solution record
@@ -206,6 +207,34 @@ func (d *Database) UpdateSolution(solutionID, result, timeUsed, memoryUsed int, 
 		return fmt.Errorf("failed to update solution: %w", err)
 	}
 	return nil
+}
+
+// MarkSystemError 把仍处于等待/编译/运行中的提交标记为系统错误（OJ_SE）。
+//
+// 判题进程可能在任何阶段异常退出（挂载失败、被信号杀死、panic），此时如果
+// 没人回写结果，solution.result 会永久停在 2（编译中）或 3（运行并评判），
+// 既不会再被 daemon 领取，用户界面上也一直显示"编译中"。
+// WHERE result<4 保证已经写出终态（AC/WA/CE/...）的提交不会被覆盖。
+// 返回 true 表示本次确实把一条挂起记录改成了 SE。
+func (d *Database) MarkSystemError(solutionID int, message string) (bool, error) {
+	res, err := d.db.Exec(
+		"UPDATE solution SET result=?, judger=?, judgetime=now() WHERE solution_id=? AND result<4",
+		constants.OJ_SE, "go_judger", solutionID,
+	)
+	if err != nil {
+		return false, fmt.Errorf("failed to mark system error: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("failed to get affected rows: %w", err)
+	}
+	if n == 0 {
+		return false, nil
+	}
+	if err := d.AddCompileError(solutionID, message); err != nil {
+		return true, err
+	}
+	return true, nil
 }
 
 // UpdateUserStats updates user solve and submit statistics

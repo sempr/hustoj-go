@@ -162,7 +162,12 @@ write_conf() {
         printf 'OJ_PASSWORD=%s\n' "$DBPASSWORD"
         printf 'OJ_DB_NAME=%s\n' "$DB"
     } >> "$tmp"
-    install -m 0600 "$tmp" "$conf"
+    install -m 0640 "$tmp" "$conf"
+    if id judge >/dev/null 2>&1; then
+        chown root:judge "$conf"
+    else
+        chown root:root "$conf"
+    fi
     rm -f "$tmp"
     log "已写入 $conf"
 }

@@ -35,6 +35,7 @@ func init() {
 	runCmd.Flags().StringVar(&runCfg.Stdin, "stdin", "", "path to stdin file")
 	runCmd.Flags().StringVar(&runCfg.Stdout, "stdout", "", "path to stdout file")
 	runCmd.Flags().StringVar(&runCfg.Stderr, "stderr", "", "path to stderr file")
+	runCmd.Flags().BoolVar(&runCfg.InheritIO, "inherit-io", false, "use inherited fd 4/5 as stdin/stdout (interactive judging)")
 	runCmd.Flags().IntVar(&runCfg.TimeLimit, "time", 1000, "time limit in ms")
 	runCmd.Flags().IntVar(&runCfg.MemoryLimit, "memory", 256<<10, "memory limit in KB")
 	runCmd.Flags().IntVar(&runCfg.SolutionId, "sid", 0, "solution ID")

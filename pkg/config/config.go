@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -46,6 +47,62 @@ type JudgeConfig struct {
 	// CommunicationMaxPasses 是通讯题（spj=4）每组数据允许的最大运行轮数，
 	// 取自 judge.conf 的 OJ_COMMUNICATION_MAX_PASSES；未配置时用默认值。
 	CommunicationMaxPasses int
+
+	// Rootless 是 rootless 运行模式（auto/on/off），来自 OJ_ROOTLESS。
+	Rootless string
+	// CgroupRoot 是委派给判题用户的 cgroup 父目录，来自 OJ_CGROUP_ROOT。
+	CgroupRoot string
+	// SpawnPath 是 hustoj-spawn 的路径，来自 OJ_SPAWN_PATH。
+	SpawnPath string
+}
+
+// LookupOption 只读取 judge.conf 中的单个键，不做必需项校验。
+//
+// rootless 入口需要在完整加载配置（数据库凭据可能还不可读）之前就知道
+// OJ_ROOTLESS/OJ_SPAWN_PATH/OJ_CGROUP_ROOT；读不到文件时返回空串，由调用
+// 方走默认值。
+func LookupOption(homePath, key string) string {
+	if homePath == "" {
+		return ""
+	}
+	f, err := os.Open(filepath.Join(homePath, "etc", "judge.conf"))
+	if err != nil {
+		return ""
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 || strings.TrimSpace(parts[0]) != key {
+			continue
+		}
+		return strings.TrimSpace(parts[1])
+	}
+	return ""
+}
+
+// ApplyEnv 把配置里的 rootless 相关项导出为环境变量。
+//
+// 已存在的环境变量优先，不覆盖：spawner 会用 OJ_CGROUP_ROOT 指向本次
+// 运行专属的子 cgroup，client 里再次 ApplyEnv 时不能把它改回父目录。
+func (c *JudgeConfig) ApplyEnv() {
+	if c == nil {
+		return
+	}
+	if c.CgroupRoot != "" && os.Getenv("OJ_CGROUP_ROOT") == "" {
+		_ = os.Setenv("OJ_CGROUP_ROOT", c.CgroupRoot)
+	}
+	if c.SpawnPath != "" && os.Getenv("OJ_SPAWN_PATH") == "" {
+		_ = os.Setenv("OJ_SPAWN_PATH", c.SpawnPath)
+	}
+	if c.Rootless != "" && os.Getenv("OJ_ROOTLESS") == "" {
+		_ = os.Setenv("OJ_ROOTLESS", c.Rootless)
+	}
 }
 
 // valueOf 按键名取数据库字段值，供"写了键但留空"的校验使用。
@@ -134,6 +191,23 @@ func LoadJudgeConf(homePath string) (*JudgeConfig, error) {
 				return nil, fmt.Errorf("%s 中 OJ_COMMUNICATION_MAX_PASSES=%q 不是正整数（轮数上限至少为 1）", confPath, value)
 			}
 			config.CommunicationMaxPasses = n
+		case "OJ_ROOTLESS":
+			switch strings.ToLower(value) {
+			case "auto", "on", "off":
+				config.Rootless = strings.ToLower(value)
+			default:
+				return nil, fmt.Errorf("%s 中 OJ_ROOTLESS=%q 非法（可选 auto/on/off）", confPath, value)
+			}
+		case "OJ_CGROUP_ROOT":
+			if !filepath.IsAbs(value) {
+				return nil, fmt.Errorf("%s 中 OJ_CGROUP_ROOT=%q 必须是绝对路径", confPath, value)
+			}
+			config.CgroupRoot = filepath.Clean(value)
+		case "OJ_SPAWN_PATH":
+			if !filepath.IsAbs(value) {
+				return nil, fmt.Errorf("%s 中 OJ_SPAWN_PATH=%q 必须是绝对路径", confPath, value)
+			}
+			config.SpawnPath = filepath.Clean(value)
 		}
 	}
 

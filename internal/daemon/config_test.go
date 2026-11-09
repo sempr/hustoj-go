@@ -50,3 +50,46 @@ func TestLoadDaemonConfigReadsLangSet(t *testing.T) {
 		t.Errorf("LangSet = %q，期望 0,1,6", cfg.LangSet)
 	}
 }
+
+// 并发数默认 3；OJ_MAX_RUNNING 覆盖默认值。
+func TestLoadDaemonConfigMaxRunning(t *testing.T) {
+	path := writeJudgeConf(t, "OJ_LANG_SET=0\n")
+	cfg, err := LoadDaemonConfig(path)
+	if err != nil {
+		t.Fatalf("加载失败: %v", err)
+	}
+	if cfg.MaxRunning != 3 {
+		t.Errorf("默认 MaxRunning = %d，期望 3", cfg.MaxRunning)
+	}
+
+	path = writeJudgeConf(t, "OJ_LANG_SET=0\nOJ_MAX_RUNNING=1\n")
+	cfg, err = LoadDaemonConfig(path)
+	if err != nil {
+		t.Fatalf("加载失败: %v", err)
+	}
+	if cfg.MaxRunning != 1 {
+		t.Errorf("MaxRunning = %d，期望 1", cfg.MaxRunning)
+	}
+}
+
+// OJ_RUNNING 是旧键名，仍可用于兼容存量配置。
+func TestLoadDaemonConfigLegacyRunning(t *testing.T) {
+	path := writeJudgeConf(t, "OJ_LANG_SET=0\nOJ_RUNNING=2\n")
+	cfg, err := LoadDaemonConfig(path)
+	if err != nil {
+		t.Fatalf("加载失败: %v", err)
+	}
+	if cfg.MaxRunning != 2 {
+		t.Errorf("MaxRunning = %d，期望 2", cfg.MaxRunning)
+	}
+}
+
+// 非法并发数必须报错，不能静默退化成 0 导致永远不派发任务。
+func TestLoadDaemonConfigRejectsInvalidMaxRunning(t *testing.T) {
+	for _, v := range []string{"0", "-1", "abc"} {
+		path := writeJudgeConf(t, "OJ_LANG_SET=0\nOJ_MAX_RUNNING="+v+"\n")
+		if _, err := LoadDaemonConfig(path); err == nil {
+			t.Errorf("OJ_MAX_RUNNING=%q 应报错", v)
+		}
+	}
+}

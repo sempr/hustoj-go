@@ -107,6 +107,15 @@ func (w *Worker) cleanupFinishedJobs() {
 		case clientID := <-w.done:
 			solutionID := w.running[clientID]
 			slog.Info("Judgment finished", "solution_id", solutionID, "client_id", clientID)
+			// client 可能在写出终态前崩溃/被杀死（例如挂载失败后直接退出）。
+			// 这里兜底把仍处于 0..3 的记录改成 OJ_SE，避免永久停在"编译中"。
+			if marked, err := w.fetcher.MarkSystemError(solutionID,
+				"judge client exited without writing a final result"); err != nil {
+				slog.Error("Failed to mark stuck submission as system error",
+					"solution_id", solutionID, "err", err)
+			} else if marked {
+				slog.Warn("Stuck submission marked as system error", "solution_id", solutionID)
+			}
 			delete(w.running, clientID)
 		default:
 			return // No more finished jobs

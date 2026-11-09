@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"slices"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/sempr/hustoj-go/internal/shared"
@@ -32,28 +31,7 @@ func RunMain(cfg *models.SandboxArgs) {
 	defer file3.Close()
 
 	outerWorkdir := path.Join(cfg.Rootfs, cfg.Workdir)
-	inputfile := path.Join(outerWorkdir, "data.in")
-	outputfile := path.Join(outerWorkdir, "data.usr")
 	errorfile := path.Join(outerWorkdir, "data.err")
-
-	// --stdin/--stdout/--stderr 为沙箱内绝对路径（如 /code/xxx），
-	// 供交互评测等场景把输入/输出指向 rootfs 内的 FIFO；为空则用默认文件。
-	if cfg.Stdin != "" {
-		p, err := sandboxPath(cfg.Rootfs, cfg.Stdin)
-		if err != nil {
-			slog.Error("invalid stdin path", "path", cfg.Stdin, "err", err)
-			return
-		}
-		inputfile = p
-	}
-	if cfg.Stdout != "" {
-		p, err := sandboxPath(cfg.Rootfs, cfg.Stdout)
-		if err != nil {
-			slog.Error("invalid stdout path", "path", cfg.Stdout, "err", err)
-			return
-		}
-		outputfile = p
-	}
 	if cfg.Stderr != "" {
 		p, err := sandboxPath(cfg.Rootfs, cfg.Stderr)
 		if err != nil {
@@ -69,34 +47,66 @@ func RunMain(cfg *models.SandboxArgs) {
 	}
 	defer pr.Close()
 	defer pw.Close()
-	// 先开输出/错误、后开输入：FIFO 场景下 os.Open(O_RDONLY) 会阻塞等待写端，
-	// 若输入在前会造成两侧 run 互相阻塞的循环死锁；output 用 os.Create(O_RDWR)
-	// 打开 FIFO 不阻塞，能先向对侧提供写端。普通文件场景顺序无关。
-	fo, err := createSandboxOutput(outputfile)
-	if err != nil {
-		panic(fmt.Errorf("create output file %s: %w", outputfile, err))
+
+	var fi, fo *os.File
+	if cfg.InheritIO {
+		// 交互评测：stdin/stdout 是调用方（client）创建的匿名管道，通过
+		// ExtraFiles 传进来成为 fd 4/5。沙箱只继承 fd，不需要 rootfs 里
+		// 存在对应的 FIFO 文件，两个独立 overlay 也能共享同一对管道。
+		fi = os.NewFile(4, "stdin")
+		fo = os.NewFile(5, "stdout")
+		if fi == nil || fo == nil {
+			panic(fmt.Errorf("inherit-io requires fd 4 and fd 5"))
+		}
+	} else {
+		inputfile := path.Join(outerWorkdir, "data.in")
+		outputfile := path.Join(outerWorkdir, "data.usr")
+		// --stdin/--stdout 为沙箱内绝对路径（如 /code/xxx）；为空则用默认文件。
+		if cfg.Stdin != "" {
+			p, err := sandboxPath(cfg.Rootfs, cfg.Stdin)
+			if err != nil {
+				slog.Error("invalid stdin path", "path", cfg.Stdin, "err", err)
+				return
+			}
+			inputfile = p
+		}
+		if cfg.Stdout != "" {
+			p, err := sandboxPath(cfg.Rootfs, cfg.Stdout)
+			if err != nil {
+				slog.Error("invalid stdout path", "path", cfg.Stdout, "err", err)
+				return
+			}
+			outputfile = p
+		}
+		// 先开输出、后开输入：FIFO 场景下 os.Open(O_RDONLY) 会阻塞等待写端，
+		// 若输入在前会造成两侧 run 互相阻塞的循环死锁；output 用
+		// os.Create(O_RDWR) 打开 FIFO 不阻塞，能先向对侧提供写端。
+		fo, err = createSandboxOutput(outputfile)
+		if err != nil {
+			panic(fmt.Errorf("create output file %s: %w", outputfile, err))
+		}
+		fi, err = openSandboxInput(inputfile)
+		if err != nil {
+			if os.IsNotExist(err) {
+				// 编译等不需要 stdin 的阶段没有 data.in；退化为 /dev/null，
+				// 否则这里 panic 会让 fd3 收不到 JSON，编译被误判为"成功"、
+				// 产物缺失，最终所有用例都判 WA。
+				if devNull, derr := os.Open("/dev/null"); derr == nil {
+					fi, err = devNull, nil
+				}
+			}
+			if err != nil {
+				panic(fmt.Errorf("open input file %s: %w", inputfile, err))
+			}
+		}
 	}
 	defer fo.Close()
+	defer fi.Close()
 	fe, err := createSandboxOutput(errorfile)
 	if err != nil {
 		panic(fmt.Errorf("create error file %s: %w", errorfile, err))
 	}
 	defer fe.Close()
-	fi, err := openSandboxInput(inputfile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// 编译等不需要 stdin 的阶段没有 data.in；退化为 /dev/null，
-			// 否则这里 panic 会让 fd3 收不到 JSON，编译被误判为"成功"、
-			// 产物缺失，最终所有用例都判 WA。
-			if devNull, derr := os.Open("/dev/null"); derr == nil {
-				fi, err = devNull, nil
-			}
-		}
-		if err != nil {
-			panic(fmt.Errorf("open input file %s: %w", inputfile, err))
-		}
-	}
-	defer fi.Close()
 
 	cmdline := strings.Split(cfg.Command, " ")
 
@@ -119,6 +129,12 @@ func RunMain(cfg *models.SandboxArgs) {
 	)
 	cmd.ExtraFiles = append(cmd.ExtraFiles, pr, fi, fo, fe)
 	devNull := path.Join(cfg.Rootfs, "dev", "null")
+	slog.Info("ensureDevNull: checking path", "path", devNull)
+	if fi, err := os.Lstat(devNull); err == nil {
+		slog.Info("ensureDevNull: file exists", "path", devNull, "mode", fi.Mode())
+	} else {
+		slog.Info("ensureDevNull: file does not exist", "path", devNull, "err", err)
+	}
 	if err := os.MkdirAll(path.Dir(devNull), 0o755); err != nil {
 		slog.Error("create dev dir failed", "err", err)
 		return
@@ -127,6 +143,18 @@ func RunMain(cfg *models.SandboxArgs) {
 		slog.Error("ensure /dev/null failed", "path", devNull, "err", err)
 		return
 	}
+	// Verify after ensureDevNull
+	if fi, err := os.Lstat(devNull); err == nil {
+		slog.Info("ensureDevNull: after ensure", "path", devNull, "mode", fi.Mode())
+	} else {
+		slog.Error("ensureDevNull: file missing after ensure", "path", devNull, "err", err)
+	}
+
+	// /proc 由 tini 在自己的 PID namespace 里挂载（见 tini.c 的 setup_rootfs）。
+	// 不再通过宿主 helper 去 setns + bind：那条路径需要进入子 userns 的
+	// mount namespace，权限模型不可靠；而且 bind 宿主 /proc 会把宿主机进程
+	// 暴露进沙箱。tini 作为新 PID namespace 的 init 有 CAP_SYS_ADMIN，
+	// 挂载的是本沙箱自己的 procfs。
 
 	cmd.Env = sandboxEnv()
 	cmd.SysProcAttr = &unix.SysProcAttr{
@@ -152,33 +180,33 @@ func RunMain(cfg *models.SandboxArgs) {
 		return
 	}
 
+	mainPid := cmd.Process.Pid
+
+	// cg 在 cmd.Start 之后才创建；stopFunc 可能在创建前被闭包引用，
+	// 因此先声明再用赋值（CPU Checker 只在 cg 创建后才启动）。
+	var cg *shared.Cgroup
+
 	stopFunc := func() error {
-		// 写 int32 3 (little‑endian)
+		// 先走协作路径：让 tini 对整个 PID 命名空间发 SIGTERM。
 		b := make([]byte, 4)
 		binary.LittleEndian.PutUint32(b, 2)
 		n, err := pw.Write(b)
 		if err != nil {
 			slog.Warn("写 control‑fd 失败", "err", err)
-			return err
+		} else if n != 4 {
+			slog.Warn("control‑fd 写入字节数异常", "written", n)
 		}
-		if n != 4 {
-			return fmt.Errorf("control‑fd 写入了 %d 字节，期望 4", n)
-		}
-		slog.Info("已写入 control‑fd，命令 3 (SIGTERM)")
-		// 部分进程（如 node）可能捕获/忽略 SIGTERM，宽限期后强制 SIGKILL，
-		// 避免 PID 命名空间残留进程占用 overlay/tmpfs 导致无法 umount。
+		slog.Info("已写入 control‑fd，命令 2 (SIGTERM)")
+		// 部分进程（如 node）可能捕获/忽略 SIGTERM；更关键的是 tini 自身
+		// 也可能卡住，根本不会处理 control-fd。宽限期后直接杀整个 cgroup，
+		// 由内核保证终止，不依赖任何被监管进程的配合。
 		go func() {
 			time.Sleep(500 * time.Millisecond)
-			b := make([]byte, 4)
-			binary.LittleEndian.PutUint32(b, 1)
-			if _, err := pw.Write(b); err != nil {
-				slog.Warn("写 control‑fd（SIGKILL）失败", "err", err)
-			}
+			killSandbox(cg, mainPid)
 		}()
 		return nil
 	}
 
-	mainPid := cmd.Process.Pid
 	processCnt := 1
 	pids := make(map[int]int)
 	pids[mainPid] = 1
@@ -205,7 +233,7 @@ func RunMain(cfg *models.SandboxArgs) {
 	// 的话，输出多的程序会先被 OOM 杀掉，判成"内存超限"而不是"输出超限"。
 	// 真正判定内存超限时用的是采样到的匿名内存峰值（不含输出）。
 	memLimitBytes := cfg.MemoryLimit*1024 + constants.MaxOutputSize
-	cg, err := shared.NewCgroup(cfg.SolutionId, mainPid, memLimitBytes, slog.Default())
+	cg, err = shared.NewCgroup(cfg.SolutionId, mainPid, memLimitBytes, slog.Default())
 	if err != nil {
 		// fail-closed：没有 cgroup 就没有内存/进程数上限，不能继续跑。
 		// tini 此时还停在 SIGSTOP，先杀掉再返回，避免留下挂起的进程。
@@ -213,7 +241,10 @@ func RunMain(cfg *models.SandboxArgs) {
 		_ = unix.Kill(mainPid, unix.SIGKILL)
 		return
 	}
+	// defer 顺序：后注册的先执行，所以先 Kill 再 Cleanup，
+	// 保证任何返回路径（含 panic）都不会留下活着的沙箱进程。
 	defer cg.Cleanup()
+	defer cg.Kill()
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -230,6 +261,17 @@ func RunMain(cfg *models.SandboxArgs) {
 		}
 	}()
 	startTime := time.Now()
+
+	// 墙钟兜底：超时终止不能依赖 tini 处理 control-fd。
+	// 一旦 init 自身卡住，ptrace 循环会永远等 mainPid 退出，把判题槽位拖死。
+	// 到点后直接杀整个 cgroup（内核强制），即使 init 完全不响应也能收尾。
+	hardLimit := 3*time.Duration(cfg.TimeLimit)*time.Millisecond + 2*time.Second
+	hardKill := time.AfterFunc(hardLimit, func() {
+		slog.Warn("沙箱墙钟超时，强制杀死 cgroup", "pid", mainPid, "hard_limit", hardLimit)
+		killSandbox(cg, mainPid)
+	})
+	defer hardKill.Stop()
+
 	if err := unix.PtraceCont(pidTmp, int(ws.StopSignal())); err != nil {
 		slog.Error("ptraceCont error", "err", err)
 	}
@@ -325,13 +367,17 @@ func RunMain(cfg *models.SandboxArgs) {
 					}
 				}
 			}
-			err := unix.PtraceCont(pidTmp, int(stopsig))
+			// For SIGURG, don't deliver the signal (it causes busy loops).
+			// Just continue without the signal.
+			sig := int(stopsig)
+			if stopsig == unix.SIGURG {
+				sig = 0
+			}
+			err := unix.PtraceCont(pidTmp, sig)
 			if err != nil {
 				slog.Error("ptraceCont failed: ", "err", err, "pid", pidTmp)
 			}
-			if ws.StopSignal() == unix.SIGURG {
-				unix.Kill(pidTmp, syscall.SIGCONT)
-			}
+			// No need for extra SIGCONT - PtraceCont already continues the process
 		}
 	}
 
@@ -347,7 +393,9 @@ func RunMain(cfg *models.SandboxArgs) {
 	}
 	fmt.Printf("ccerr = %v\n", ccerr)
 	// 循环结束后兜底清理：确保 PID 命名空间内无残留进程占用 rootfs。
+	// 先按进程组杀一遍（快），再用 cgroup.kill 覆盖换了 pgid/逃出进程组的进程。
 	unix.Kill(-mainPid, unix.SIGKILL)
+	cg.Kill()
 	// showPtree(mainPid, 0)
 	tt, err1 := cg.ReadCPUtime()
 	// 内存用量走 cgroup 口径，和 memory.max 限制的是同一把尺子。
@@ -377,6 +425,19 @@ func RunMain(cfg *models.SandboxArgs) {
 
 	out := buildOutput(ccerr, tt, memKB, cfg, len(ptree), outerWorkdir, mainExitStatus, outputLimitExceeded, oomKilled > 0)
 	json.NewEncoder(file3).Encode(out)
+}
+
+// killSandbox 以内核可保证的方式终止整个沙箱。
+//
+// 优先杀 cgroup：无论 init 是否响应 control-fd、进程是否换了 pgid，
+// cgroup.kill 都会一次性干掉子树内所有进程。cg 为 nil（cgroup 尚未
+// 创建）时退回杀进程组。
+func killSandbox(cg *shared.Cgroup, mainPid int) {
+	if cg != nil {
+		cg.Kill()
+		return
+	}
+	_ = unix.Kill(-mainPid, unix.SIGKILL)
 }
 
 // exitStatusOf 从 WaitStatus 取进程退出码；被信号杀死时按 128+signal 计算，
@@ -456,11 +517,11 @@ func readCombinedOutput(outerWorkdir string) string {
 	// 避免大输出或 /dev/zero 之类的链接把判题器内存吃光。
 	const maxCombinedOutput = 1024
 	output, err := readBoundedRegularFile(path.Join(outerWorkdir, "data.usr"), maxCombinedOutput)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		slog.Warn("read data.usr failed", "err", err)
 	}
 	perr, err := readBoundedRegularFile(path.Join(outerWorkdir, "data.err"), maxCombinedOutput)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) {
 		slog.Warn("read data.err failed", "err", err)
 	}
 	return output + perr

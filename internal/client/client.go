@@ -58,8 +58,6 @@ type JudgeClient struct {
 	source   string
 	language int
 
-	// customInput 非 nil 表示这是一次测试运行（solution 有 custominput 行）：
-	// 只跑自定义输入、不比对标准输出，也不计入任何统计。
 	customInput *string
 }
 
@@ -75,6 +73,7 @@ func NewStandaloneClient(task *models.JudgeTask) (*JudgeClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
+	cfg.ApplyEnv()
 
 	langManager, err := language.NewLanguageManager(homeDir)
 	if err != nil {
@@ -83,7 +82,11 @@ func NewStandaloneClient(task *models.JudgeTask) (*JudgeClient, error) {
 
 	workBase := task.WorkBase
 	if workBase == "" {
-		workBase = "/tmp"
+		workBase = filepath.Join(homeDir, "run")
+	}
+	// 提前创建并验证可写：否则会在挂载 tmpfs 时才报一个难懂的 EACCES。
+	if err := os.MkdirAll(workBase, 0o755); err != nil {
+		return nil, fmt.Errorf("无法创建工作目录 %s: %w", workBase, err)
 	}
 
 	client := &JudgeClient{

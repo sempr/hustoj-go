@@ -103,8 +103,13 @@ id  语言
 25  Rust
 ```
 
-`OJ_LANG_SET=0,1,2,3,5,6,7,8,9,16,17,25` 由 `langs/install_langs.sh` 按实际安装
-的语言自动写入 `judge.conf`。
+`judge.conf` 的 `OJ_LANG_SET` 只列**已经安装**的语言（存在
+`<OJHome>/etc/langs/<id>.lang.toml`）。`langs/install_langs.sh` 每次按目标
+目录里实际存在的配置重新生成该行，因此单独安装某个语言不会丢失其它已装
+语言，未安装的语言也不会出现在提交页。
+
+并发判题数由 `judge.conf` 的 `OJ_MAX_RUNNING` 控制，代码默认 3；
+部署样例先给 1，确认机器稳定后再调大。
 
 语言 rootfs 必须在目标机本地构建（镜像拍平后与机器绑定），不能随包分发。
 每种语言约占数百 MB，首次安装需要 Docker 能拉取基础镜像并访问 apt/npm/Go

@@ -68,19 +68,50 @@ func readBoundedRegularFile(path string, max int64) (string, error) {
 //
 // 旧的“存在就跳过”逻辑遇到普通文件（例如镜像里带了一个空 /dev/null）时
 // 会一直保留普通文件，程序写 /dev/null 实际写进 tmpfs。
+// ensureDevNull 确保 sandbox rootfs 里 /dev/null 可用。
+//
+// 在 rootless user namespace 里，overlay 无法创建字符设备，因此上层会在
+// overlay upper 里落下一个可读写的普通文件 (mode 0666) 作为占位。这里
+// 只在路径完全不存在时尽力补建普通文件; 已存在的regular file 直接复用，
+// 不再 Remove/mknod，避免每次交互式测试重编译 /dev/null 时的 races.
 func ensureDevNull(path string) error {
-	if info, err := os.Lstat(path); err == nil {
+	info, err := os.Lstat(path)
+	if err == nil {
 		if info.Mode()&os.ModeCharDevice != 0 {
+			if f, err2 := os.OpenFile(path, os.O_RDWR, 0); err2 == nil {
+				f.Close()
+				return nil
+			}
 			return nil
 		}
-		if err := os.Remove(path); err != nil {
+		// Try to create char device only if we can (not in userns without CAP_MKNOD)
+		if os.Geteuid() == 0 {
+			tmp := path + ".tmp"
+			if err := unix.Mknod(tmp, unix.S_IFCHR|0o666, int(unix.Mkdev(1, 3))); err == nil {
+				os.Remove(path)
+				os.Rename(tmp, path)
+				return nil
+			}
+			// mknod failed (e.g., userns without CAP_MKNOD), keep regular file
+		}
+		// rootless/fallback: keep regular file, just truncate
+		if err := os.Truncate(path, 0); err != nil && !os.IsNotExist(err) {
 			return err
 		}
-	} else if !os.IsNotExist(err) {
+		return nil
+	}
+	if !os.IsNotExist(err) {
 		return err
 	}
-	return unix.Mknod(path, unix.S_IFCHR|0o666, int(unix.Mkdev(1, 3)))
+	// File doesn't exist: create regular file
+	f, ferr := os.OpenFile(path, os.O_CREATE|os.O_WRONLY, 0o666)
+	if ferr != nil {
+		return ferr
+	}
+	f.Close()
+	return nil
 }
+
 
 // sandboxPath 把沙箱内绝对路径拼到 rootfs 下，并拒绝相对路径。
 //
